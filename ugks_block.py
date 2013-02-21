@@ -1,0 +1,942 @@
+#ugks_block.py
+
+"""
+This file contains the definition of an object that holds all the data required
+ for the simulation of one block.
+ NOTE: All values used in the core calculations are in NON-DIMENSIONAL form.
+     The reference values used can be found in the gdata object in global_data
+"""
+
+import pyopencl as cl
+import pyopencl.array as cl_array
+import numpy as np
+import time
+import sys
+
+from ugks_data import Block, gdata
+from ugks_CL import genOpenCL
+from geom.geom_bc_defs import *
+from geom.geom_defs import *
+
+class UGKSBlock(object):
+    """
+    A block that contains all required information for the simulation of 
+    a single block.
+    """
+    
+    blockList = []
+    
+    host_update = 0 # flag to indicate if the host is up to date
+    
+    def __init__(self, block_id, cl_ctx, cl_queue):
+        """
+        generate instance of the simBlock object from global data and 
+        a block number. The global data is imported as a module and is 
+        referenced as such.
+
+        block_id: block identifier
+        cl_prg: OpenCL program
+        cl_ctx: OpenCL context
+        """
+        
+        self.id = block_id
+        self.ctx = cl_ctx
+        self.queue = cl_queue
+        
+        print "\n=== block ",self.id, "==="
+        
+        # memory flags
+        self.mf = cl.mem_flags
+        
+        self.mem_access = self.mf.COPY_HOST_PTR
+        
+        # grid data
+        b = Block.blockList[block_id]
+        
+        if gdata.flux_method == "vanLeer":
+            self.ghost = 2
+        elif gdata.flux_method == "WENO5":
+            self.ghost = 3
+        
+        # number of cells in i and j directions
+        self.ni = b.nni
+        self.nj = b.nnj
+        
+        # number of velocities
+        self.nv = gdata.nv
+        
+        # work-group size
+        self.work_size = (1,1,self.nv)
+        
+        # boundaries for flow domain, excluding ghost cells
+        self.imin = self.ghost
+        self.imax = self.ni + self.ghost - 1
+        self.jmin = self.ghost
+        self.jmax = self.nj + self.ghost - 1
+        
+        # array sizes, including ghost cells
+        self.Ni = self.ni + 2*self.ghost
+        self.Nj = self.nj + 2*self.ghost
+        
+        # boundary conditions
+        self.bc_list = b.bc_list
+        
+        # fill conditions
+        self.fill_condition = b.fill_condition
+        
+        # x & y coordinates of the grid size = (ni + 1, nj + 1)
+        self.x = b.grid.x
+        self.y = b.grid.y
+        
+        self.centreX = np.zeros((self.ni,self.nj))
+        self.centreY = np.zeros((self.ni,self.nj))
+        
+        # set block residual to be very high
+        self.residual = 1e10
+        
+        ####
+        # call initialising functions
+        
+       # generate OpenCL source
+        self.block_CL()
+        
+        # initialise block
+        self.initGeom()
+
+        # ready to go!!
+        
+        print "=== block ",self.id, " initialised ===\n"
+        
+        return
+        
+    def block_CL(self):
+        """
+        generate OpenCL code from source
+        """
+
+        # PACK DICTIONARY
+        data = {'ni':self.ni,'nj':self.nj, 'Ni':self.Ni, 'Nj':self.Nj,\
+        'imin':self.imin, 'imax':self.imax, 'jmin':self.jmin, \
+        'jmax':self.jmax, 'ghost':self.ghost, 'block_id':self.id,\
+        'bc_list':self.bc_list, 'work_size':self.work_size}
+        
+        name = genOpenCL(data)
+        f = open(name,'r')
+        fstr = "".join(f.readlines())
+        f.close()
+        #print fstr
+        
+        t0 = time.clock()
+        self.prg = cl.Program(self.ctx, fstr).build()
+        t = time.clock() - t0
+        
+        print "block {}: OpenCL kernel compiled ({}s)".format(self.id, t)
+        return
+        
+    def set_buffer(self,host_buffer):
+        """
+        initialise a buffer on the device
+        """
+        
+        device_buffer = cl.Buffer(self.ctx, self.mf.READ_WRITE | self.mem_access, hostbuf = host_buffer)
+        
+        return device_buffer
+    
+    def initGeom(self):
+        
+         # coordinate data, with ghost cells
+        self.xy_H = np.ones((self.Ni+1,self.Nj+1,2),dtype=np.float64) # x, y
+        
+        # initialise coordinate data
+        start = np.array([self.ghost, self.ghost])
+        stop = start + np.array([self.x.shape[0], self.x.shape[1]])
+        
+        self.xy_H[start[0]:stop[0],start[1]:stop[1],0] = self.x[0:(self.ni+1),0:(self.nj+1),0]
+        self.xy_H[start[0]:stop[0],start[1]:stop[1],1] = self.y[0:(self.ni+1),0:(self.nj+1),0]
+        
+        # cell centres
+        self.centre_H = -1.0*np.ones((self.Ni,self.Nj,2),dtype=np.float64) # cell centres, x, y
+        
+        # mid-side nodes
+        self.side_H = -1.0*np.ones((self.Ni,self.Nj,2,2),dtype=np.float64) # mid-side node, x, y
+        
+        # cell area
+        self.area_H = -1.0*np.ones((self.Ni,self.Nj),dtype=np.float64) # cell area
+        
+        # cell normals
+        self.normal_H = -1.0*np.ones((self.Ni,self.Nj,2,2),dtype=np.float64) # side normals, x, y
+        
+        # cell side lengths
+        self.length_H = -1.0*np.ones((self.Ni,self.Nj,2),dtype=np.float64) #  side length
+        
+        ###
+        # coordinate data, with ghost cells
+        self.xy_D = self.set_buffer(self.xy_H) # x, y
+        
+        # cell centres
+        self.centre_D = self.set_buffer(self.centre_H) # cell centres, x, y
+        
+         # mid-side nodes
+        self.side_D = self.set_buffer(self.side_H) # mid-side node, x, y
+        
+        # cell area
+        self.area_D = self.set_buffer(self.area_H) # cell area
+        
+        # cell normals
+        self.normal_D = self.set_buffer(self.normal_H) # side normals, x, y
+        
+        # cell side lengths
+        self.length_D = self.set_buffer(self.length_H) #  side length
+        
+        return
+        
+        
+    def initFunctions(self, restart_hdf=None):
+        """
+        initialise all functions in the flow domain of this block, excludes
+        ghost cells
+        """        
+        
+        ####################
+        ## HOST SIDE DATA
+        
+        self.flag_H = np.zeros((2), dtype=np.int32)
+        
+        ## common
+        self.f_H = -1.0*np.ones((self.Ni,self.Nj,self.nv,2),dtype=np.float64) # mass.x, energy.y
+        
+        self.flux_H = np.zeros((self.Ni,self.Nj,self.nv,2),dtype=np.float64) # mass.x, energy.y
+
+        # conserved properties, without ghost cells
+        #.s0 -> density
+        #.s1 -> x velocity
+        #.s2 -> y-velocity
+        #.s3 -> temperature
+        #.s4 -> pressure
+        #.s5 -> heat flux x
+        #.s6 -> heat flux y
+        #.s7 -> relaxation time
+        
+        self.rho_H = np.ones((self.ni,self.nj),dtype=np.float64)
+        self.UV_H = np.ones((self.ni,self.nj,2),dtype=np.float64)
+        self.T_H = np.ones((self.ni,self.nj),dtype=np.float64)
+        self.Q_H = np.ones((self.ni,self.nj,2),dtype=np.float64)
+        
+        if restart_hdf:
+            step = restart_hdf['global_data/final_step'][()]
+            data = restart_hdf['step_%d/block_%d'%(step, self.id)]
+            self.rho_H[:] = data['rho'][()]
+            self.UV_H[:] = data['UV'][()]
+            self.T_H[:] = data['T'][()]
+            self.Q_H[:] = data['Q'][()]
+            self.f_H[:] = data['f'][()]
+            
+        else:
+            self.rho_H *= self.fill_condition.D # density
+            self.UV_H[:,:,0] *= self.fill_condition.U # x-velocity
+            self.UV_H[:,:,1] *= self.fill_condition.V # y-velocity
+            self.T_H *= self.fill_condition.T # temperature
+            self.Q_H[:,:,0] *= self.fill_condition.qx # qx
+            self.Q_H[:,:,1] *= self.fill_condition.qy # qy
+            
+            if self.fill_condition.isUDF:
+                for i in range(self.ni):
+                    for j in range(self.nj):
+                        x = self.centreX[i,j]
+                        y = self.centreY[i,j]
+                        
+                        if self.fill_condition.UDF_D:
+                            fval = eval(self.fill_condition.UDF_D)
+                            self.rho_H[i,j] = fval
+                        if self.fill_condition.UDF_U:
+                            fval = eval(self.fill_condition.UDF_U)
+                            self.UV_H[i,j,0] = fval
+                        if self.fill_condition.UDF_V:
+                            fval = eval(self.fill_condition.UDF_V)
+                            self.UV_H[i,j,1] = fval
+                        if self.fill_condition.UDF_T:
+                            fval = eval(self.fill_condition.UDF_T)
+                            self.T_H[i,j] = fval
+        # time step
+        self.time_step_H = np.zeros((self.ni,self.nj),dtype=np.float64)
+
+        ## RK
+        if (gdata.method == "RK3") | (gdata.method == "RK4"):
+            self.f1_H = -1.0*np.ones((self.Ni,self.Nj,self.nv,2),dtype=np.float64) # mass.x, energy.y
+            self.f2_H = -1.0*np.ones((self.Ni,self.Nj,self.nv,2),dtype=np.float64) # mass.x, energy.y
+        if (gdata.method == "RK4"):
+            self.f3_H = -1.0*np.ones((self.Ni,self.Nj,self.nv,2),dtype=np.float64) # mass.x, energy.y
+            
+        ####################
+        ## DEVICE SIDE DATA
+        
+        self.flag_D = self.set_buffer(self.flag_H)
+        
+        ## common
+        self.f_D = self.set_buffer(self.f_H)
+        
+        self.flux_D = self.set_buffer(self.flux_H)
+        
+        # macroscopic properties, without ghost cells
+        self.rho_D = self.set_buffer(self.rho_H)
+        self.UV_D = self.set_buffer(self.UV_H)
+        self.T_D = self.set_buffer(self.T_H)
+        self.Q_D = self.set_buffer(self.Q_H)
+        
+        # time step
+        self.time_step_D = self.set_buffer(self.time_step_H)
+        
+        # create an pyopencl.array instance, this is used for reduction (max) later
+        self.time_step_array = cl_array.Array(self.queue, shape=self.time_step_H.shape, dtype=np.float64, data=self.time_step_D)
+            
+        ## RK
+        if (gdata.method == "RK3") | (gdata.method == "RK4"):
+            self.f1_D = self.set_buffer(self.f1_H)
+            self.f2_D = self.set_buffer(self.f2_H)
+        if (gdata.method == "RK4"):
+            self.f3_D = self.set_buffer(self.f3_H)
+            
+        ### RESIDUAL
+        if gdata.residual_options.get_residual:
+            self.residual_H = np.zeros((self.ni,self.nj,2),dtype=np.float64)
+            self.residual_D = self.set_buffer(self.residual_H)
+            self.residual_array = cl_array.Array(self.queue, shape=self.residual_H.shape, dtype=np.float64, data=self.residual_D)
+            self.f_copy_H = np.zeros((self.Ni,self.Nj,self.nv,2),dtype=np.float64)
+            self.f_copy_D = self.set_buffer(self.f_copy_H)
+        
+        ### INTERNAL DATA
+        if gdata.save_options.internal_data:
+            self.Txyz_H = np.ones((self.ni,self.nj,4),dtype=np.float64)
+            self.Txyz_D = self.set_buffer(self.Txyz_H)
+            
+        cl.enqueue_barrier(self.queue)
+        
+        if not restart_hdf:
+            # perform initialisation of distribution functions
+            self.prg.initFunctions(self.queue, (self.ni, self.nj, self.nv), None,
+                                   self.f_D, self.rho_D, self.UV_D, 
+                                   self.T_D, self.Q_D)
+            cl.enqueue_barrier(self.queue)                
+        
+        print("global buffers initialised") 
+
+
+    def ghostExchange(self, f, this_face, other_block, other_face):
+        """
+        perform ghost cell updating
+
+        transfer data from "other" block to this blocks ghost cells        
+        
+        NOTE: assuming orientation flag is always zero (correct layout of grids)
+        """
+        
+        faceA = np.int32(this_face)
+        faceB = np.int32(other_face)
+
+        # turn other_block index into a pointer to an object
+        other_block = self.blockList[other_block]        
+        
+        NiB = np.int32(other_block.Ni)
+        NjB = np.int32(other_block.Nj)
+        
+        this_f_str = "self."+f
+        this_f = eval(this_f_str)
+        
+        that_f_str = "other_block."+f
+        that_f = eval(that_f_str)
+        
+        if this_face in [NORTH, SOUTH]:
+            global_size = (self.ni, self.ghost, self.nv)
+        else:
+            global_size = (self.ghost, self.nj, self.nv)
+        
+        self.prg.edgeExchange(self.queue, global_size, self.work_size,
+                               this_f, faceA,
+                               that_f,
+                               NiB, NjB, faceB)
+
+    def ghostExtrapolate(self, f, this_face):
+        """
+        update the ghost cells to give constant gradient across the face
+        """
+        
+        face = np.int32(this_face)
+        
+        f_str = "self."+f
+        f = eval(f_str)
+        
+        if this_face in [NORTH, SOUTH]:
+            global_size = (self.ni, self.ghost, self.nv)
+        else:
+            global_size = (self.ghost, self.nj, self.nv)
+        
+        self.prg.edgeExtrapolate(self.queue, global_size, self.work_size,
+                               f, face)
+        
+    
+    def ghostConstant(self, f, this_face):
+        """
+        generate distribution function values from the defined 
+         constants and populate the ghost cells with this data
+        """
+        bc = self.bc_list[this_face]
+        
+        face = np.int32(this_face)
+        
+        D = np.float64(bc.Dwall)
+        U = np.float64(bc.Uwall)
+        V = np.float64(bc.Vwall)
+        T = np.float64(bc.Twall)
+        
+        f_str = "self."+f
+        f = eval(f_str)
+        
+        if this_face in [NORTH, SOUTH]:
+            global_size = (self.ni, self.ghost, self.nv)
+        else:
+            global_size = (self.ghost, self.nj, self.nv)
+        
+        self.prg.edgeConstant(self.queue, global_size, self.work_size,
+                               f, face, D, U, V, T)
+    
+    def ghostMirror(self, f, this_face):
+        """
+        update the ghost cells to give zero gradient across the face
+        """
+        
+        face = np.int32(this_face)
+        
+        f_str = "self."+f
+        f = eval(f_str)
+        
+        if this_face in [NORTH, SOUTH]:
+            global_size = (self.ni, self.ghost, self.nv)
+        else:
+            global_size = (self.ghost, self.nj, self.nv)
+        
+        self.prg.edgeMirror(self.queue, global_size, self.work_size, f, face)
+                               
+    def edgeConstGrad(self, f, this_face):
+        """
+        update the ghost cells to give constant gradient across the face
+        """
+        
+        face = np.int32(this_face)
+        
+        f_str = "self."+f
+        f = eval(f_str)
+        
+        if this_face in [NORTH, SOUTH]:
+            global_size = (self.ni, self.ghost, self.nv)
+        else:
+            global_size = (self.ghost, self.nj, self.nv)
+        
+        self.prg.edgeConstGrad(self.queue, global_size, self.work_size,
+                               f, face)
+        
+    def updateBC(self, f = "f_D"):
+        """
+        update all boundary conditions
+        this function must be called prior to every time step
+        """
+        
+        this_face = 0
+        
+        for bc in self.bc_list:
+            
+            if bc.type_of_BC == ADJACENT:
+                # exchange ghost cell information with adjacent cell
+                self.ghostExchange(f, this_face, bc.other_block, bc.other_face)
+                
+            if bc.type_of_BC == PERIODIC:
+                # exchange ghost cell information with adjacent cell
+                self.ghostExchange(f, this_face, bc.other_block, bc.other_face)
+                
+            elif bc.type_of_BC == EXTRAPOLATE_OUT:
+                # extrapolate the cell data to give ZERO gradient
+                self.ghostExtrapolate(f, this_face)
+            
+            elif bc.type_of_BC == CONSTANT:
+                # generate distribution function values from the defined 
+                # constants and populate the ghost cells with this data
+                self.ghostConstant(f, this_face)
+            
+            elif bc.type_of_BC == REFLECT:
+                # populate ghost cells with mirror image of interior data
+                """ NOTE: This only works for cartesian grids where the velocity space
+                is aligned with the grid"""
+                self.ghostMirror(f, this_face)
+            
+            elif bc.type_of_BC == DIFFUSE:
+                # extrapolate the cell data to give CONSTANT gradient
+                self.edgeConstGrad(f, this_face)
+            
+            #print "block {}, face {}: b.c. updated".format(self.id, this_face)            
+            
+            this_face += 1
+    
+    def ghostXYExchange(self, this_face, other_block, other_face):
+        """
+        perform ghost cell grid coordinates updating
+
+        transfer data from "other" block to this blocks ghost cells        
+        
+        NOTE: assuming orientation flag is always zero (correct layout of grids)
+        """
+        
+        faceA = np.int32(this_face)
+        faceB = np.int32(other_face)
+
+        # turn other_block index into a pointer to an object
+        other_block = self.blockList[other_block]        
+        
+        NiB = np.int32(other_block.Ni)
+        NjB = np.int32(other_block.Nj)
+        
+        if this_face in [NORTH, SOUTH]:
+            global_size = (self.ni, self.ghost, self.nv)
+        else:
+            global_size = (self.ghost, self.nj, self.nv)
+        
+        self.prg.xyExchange(self.queue, global_size, self.work_size,
+                               self.xy_D, faceA,
+                               other_block.xy_D,
+                               NiB, NjB, faceB)
+    
+    def ghostXYExtrapolate(self, this_face):
+        """
+        update the ghost cells coordinates to give zero gradient across the face
+        """
+        
+        face = np.int32(this_face)
+        
+        if this_face in [NORTH, SOUTH]:
+            global_size = (self.ni, self.ghost, self.nv)
+        else:
+            global_size = (self.ghost, self.nj, self.nv)
+        
+        self.prg.xyExtrapolate(self.queue, global_size, self.work_size,
+                               self.xy_D, face)
+            
+    def updateGeom(self):
+        """
+        update all the geometric data of the cells in this block
+        """
+        
+        ## update all x y coordinates of the ghost cells
+        this_face = 0
+        
+        for bc in self.bc_list:       
+            
+            if bc.type_of_BC == ADJACENT:
+                # exchange ghost cell information with adjacent cell
+                self.ghostXYExchange(this_face, bc.other_block, bc.other_face)
+                
+            else:
+                # maintain edge cell spacing and propogate as needed
+                self.ghostXYExtrapolate(this_face)
+            
+            print "block {}, face {}: ghost coords. updated".format(self.id, this_face)
+            
+            this_face += 1
+        
+        cl.enqueue_barrier(self.queue)
+#        cl.enqueue_copy(self.queue, self.xy_H, self.xy_D)
+        
+        
+        # once all vertex positions are updated, we can caclulate geometric 
+        #  properties of the cells
+        
+        self.prg.cellGeom(self.queue, (self.Ni, self.Nj), None,
+                          self.xy_D, self.area_D, self.centre_D,
+                          self.side_D, self.normal_D,
+                          self.length_D)
+        
+        cl.enqueue_barrier(self.queue)
+        
+        # get it all back for later use
+        cl.enqueue_copy(self.queue, self.area_H, self.area_D)
+        cl.enqueue_copy(self.queue, self.centre_H, self.centre_D)
+        cl.enqueue_copy(self.queue, self.side_H, self.side_D)
+        cl.enqueue_copy(self.queue, self.normal_H, self.normal_D)
+        cl.enqueue_copy(self.queue, self.length_H, self.length_D)
+        
+        grabI = range(self.ghost, self.Ni-self.ghost)
+        grabJ = range(self.ghost, self.Nj-self.ghost)
+        
+        for i in range(self.ni):
+            I = grabI[i]
+            for j in range(self.nj):
+                J = grabJ[j]
+                self.centreX[i,j] = self.centre_H[I,J,0]
+                self.centreY[i,j] = self.centre_H[I,J,1]
+                
+        # the total area of this block
+        self.total_area = np.sum(self.area_H[self.ghost:-self.ghost, self.ghost:-self.ghost])
+        
+        # the minimum time step based on CFL and cell sizes
+        self.dt_x = np.min(gdata.CFL*(self.length_H[self.ghost:-self.ghost, self.ghost:-self.ghost]/gdata.Cmax)) 
+        
+        return
+        
+    def get_flag(self):
+        """
+        read the flag array back from the device
+        """
+        
+        cl.enqueue_copy(self.queue,self.flag_H,self.flag_D)
+        
+        if self.flag_H[0] != 0:
+            print "flag = ", self.flag_H
+        
+        return self.flag_H[0]
+        
+#===============================================================================
+#   Runge-Kutta
+#===============================================================================
+    
+    def RKflux(self, f="f_D", flux = "flux_D"):
+        """
+        get the fluxes for a specified distribution
+        """
+        
+        f_str = "self."+f
+        f = eval(f_str)
+        
+        flux_str = "self."+flux
+        flux = eval(flux_str)
+        
+        self.prg.initialiseToZero(self.queue, (self.Ni, self.Nj, self.nv), 
+                                  self.work_size, flux)
+        
+        cl.enqueue_barrier(self.queue)
+        
+        for face in range(2):
+            for even_odd in range(2):
+                ni = int(np.floor((self.ni - even_odd)/2.0))
+                nj = int(np.floor((self.nj - even_odd)/2.0))
+                global_size = [(self.ni, nj+1, self.nv), (ni+1, self.nj, self.nv)]
+                lx = min(global_size[face][0], self.work_size[0])
+                ly = min(global_size[face][1], self.work_size[1])
+                work_size = (lx, ly, self.nv)
+                self.prg.RK_FLUXES(self.queue, global_size[face], work_size,
+                                       f, flux, self.centre_D, self.side_D,
+                                       self.normal_D, self.length_D, self.area_D,
+                                       np.int32(face), np.int32(even_odd),
+                                       self.flag_D)
+        
+        return 
+    
+    def RK3step1(self):
+        """
+        perform the RK method
+        """
+        
+        # step 1
+        self.prg.RK3_STEP1(self.queue, (self.ni, self.nj, self.nv), self.work_size,
+                                 self.f_D, self.f1_D, self.flux_D,
+                                 np.float64(gdata.dt), self.flag_D)
+                             
+                                 
+        return
+        
+    def RK3step2(self):
+        """
+        perform the RK method
+        """
+        
+        # step 2
+        self.prg.RK3_STEP2(self.queue, (self.ni, self.nj, self.nv), self.work_size,
+                                 self.f_D, self.f1_D, self.flux_D,
+                                 self.f2_D, np.float64(gdata.dt), 
+                                 self.flag_D)
+    
+            
+        return
+    
+    def RK3_UPDATE(self, get_residual = False):
+        """
+        perform the RK method
+        """
+        
+        if get_residual:
+            # make a copy of the original f
+            self.prg.copyBuffer(self.queue, (self.Ni, self.Nj, self.nv), self.work_size,
+                                self.f_D, self.f_copy_D)
+            cl.enqueue_barrier(self.queue)
+        
+        # update
+        self.prg.RK3_UPDATE(self.queue, (self.ni, self.nj, self.nv), self.work_size,
+                                 self.f_D, self.f1_D, self.f2_D, self.flux_D, 
+                                 np.float64(gdata.dt), self.flag_D)
+                                 
+        if get_residual:
+            cl.enqueue_barrier(self.queue)
+            self.prg.cellResidual(self.queue, (self.ni, self.nj), None,
+                                  self.f_D, self.f_copy_D, self.area_D, self.residual_D)
+            cl.enqueue_barrier(self.queue)
+            
+            self.residual = cl_array.sum(self.residual_array,queue=self.queue).get()/self.total_area
+            
+
+        return    
+    
+    def RK4step1(self):
+        """
+        perform the RK method
+        """
+        
+        # step 1
+        self.prg.RK4_STEP1(self.queue, (self.ni, self.nj, self.nv), self.work_size,
+                                 self.f_D, self.f1_D, self.flux_D, 
+                                 np.float64(gdata.dt), self.flag_D)
+                         
+        return
+        
+    def RK4step2(self):
+        """
+        perform the RK method
+        """
+        
+        # step 2
+        self.prg.RK4_STEP2(self.queue, (self.ni, self.nj, self.nv), self.work_size,
+                                 self.f_D, self.f1_D, self.flux_D,
+                                 self.f2_D, np.float64(gdata.dt), self.flag_D)
+                     
+        return
+        
+    def RK4step3(self):
+        """
+        perform the RK method
+        """
+        
+        # step 2
+        self.prg.RK4_STEP3(self.queue, (self.ni, self.nj, self.nv), self.work_size,
+                                 self.f_D, self.f2_D, self.flux_D,
+                                 self.f3_D, np.float64(gdata.dt), self.flag_D)
+                     
+        return
+        
+    def RK4_UPDATE(self, get_residual = False):
+        """
+        perform the RK method
+        """
+        
+        # step 3
+        self.prg.RK4_UPDATE(self.queue, (self.ni, self.nj, self.nv), self.work_size,
+                                 self.f_D, self.f1_D, self.f2_D, self.f3_D, 
+                                 self.flux_D, np.float64(gdata.dt),
+                                 self.flag_D)
+
+                                 
+        if get_residual:
+            cl.enqueue_barrier(self.queue)
+            # grab residual here
+                             
+        return
+        
+    def getInternal(self, toRef = True):
+        """
+        get internal data from the simulation
+        """
+        global_size = (self.ni, self.nj)
+        
+        if gdata.save_options.internal_data:
+            self.prg.getInternalTemp(self.queue, global_size, None,
+                                 self.f_D, self.Txyz_D)
+            cl.enqueue_barrier(self.queue)
+                                 
+            cl.enqueue_copy(self.queue,self.Txyz_H,self.Txyz_D)
+            
+            if toRef: # convert to reference units rather than lattice units (non-dimensional)
+                self.Txyz_H *= gdata.T_lat2ref
+        return
+    
+    def updateHost(self, getF = False, toRef = True):
+        """
+        update host data arrays
+        """
+        
+        #print "block = {}".format(self.id)
+        
+        if self.host_update == 0:
+            
+            self.prg.calcMacro(self.queue, (self.ni, self.nj), None,
+                   self.f_D, self.rho_D, self.UV_D, self.T_D, 
+                   self.Q_D, self.flag_D)
+            cl.enqueue_barrier(self.queue)
+            cl.enqueue_copy(self.queue,self.rho_H,self.rho_D)
+            cl.enqueue_copy(self.queue,self.UV_H,self.UV_D)
+            cl.enqueue_copy(self.queue,self.T_H,self.T_D)
+            cl.enqueue_copy(self.queue,self.Q_H,self.Q_D)
+            self.host_update == 1
+            
+            if toRef: # convert to reference units rather than lattice units (non-dimensional)
+                self.UV_H *= gdata.U_lat2ref
+                self.T_H *= gdata.T_lat2ref
+                self.Q_H *= gdata.U_lat2ref**3
+        
+        # get internal data, if specified
+        self.getInternal(toRef)
+        
+        if getF:
+            cl.enqueue_copy(self.queue,self.f_H,self.f_D)
+            if (gdata.method == "RK3") | (gdata.method == "RK4"):
+                cl.enqueue_copy(self.queue,self.f1_H,self.f1_D)
+                cl.enqueue_copy(self.queue,self.f2_H,self.f2_D)
+            if (gdata.method == "RK4"):
+                cl.enqueue_copy(self.queue,self.f3_H,self.f3_D)
+        
+        return
+    
+    def getDT(self):
+        """
+        return the minimum time step allowable for this block
+        """
+        
+        self.prg.clFindDT(self.queue, (self.ni, self.nj), None,
+                          self.rho_D, self.T_D, self.time_step_D)
+                          
+        cl.enqueue_barrier(self.queue)
+        
+        # run reduction kernel
+        self.dt_r = cl_array.min(self.time_step_array,queue=self.queue).get()
+        
+        if self.dt_x < self.dt_r:
+            s = "spatial resolution"
+        elif self.dt_r < self.dt_x:
+            s = "relaxation"
+        else:
+            s = "spatial resolution & relaxation"
+        
+        print "Block %d time step governed by: %s"%(self.id, s)
+        
+        return min(self.dt_x, self.dt_r)
+        
+    def return_macro(self, ID):
+        """
+        return the macro data in numpy arrays
+        """
+        
+        self.updateHost()
+        
+        if ID == "Txyz":
+            data = self.Txyz_H
+        else:
+            if ID in ["D","rho"]:
+                data = self.rho_H
+            elif ID in ["UV", "uv"]:
+                data = self.UV_H
+            elif ID in ["T", "temperature"]:
+                data = self.T_H
+            elif ID in ["Q", "Qxy","q","qxy"]:
+                data = self.Q_H
+            elif ID in ["P", "p"]:
+                data = self.rho_H*self.T_H
+        
+        return data
+        
+    def save_hdf(self, h5Name, grp, step, all_data=False):
+        """
+        save block data to hdf_file
+        """
+        xdmf = ""
+        
+        sgrp = grp.require_group("block_" + str(self.id))
+        
+        sgrp.create_dataset("dt",data=gdata.dt)
+        sgrp.create_dataset("time",data=gdata.time)
+        
+        self.updateHost(getF = all_data)
+        
+        sgrp.create_dataset("rho",data=self.rho_H, compression=gdata.save_options.compression)
+        xdmf += '<Attribute Name="rho" AttributeType="Scalar" Center="Cell">\n'
+        xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
+        xdmf += '%s:/step_%d/block_%d/rho\n'%(h5Name, step, self.id)
+        xdmf += '</DataItem>\n'
+        xdmf += '</Attribute>\n'
+        
+        sgrp.create_dataset("UV",data=self.UV_H, compression=gdata.save_options.compression)
+        # fancy shenanigans to get a zero valued third element in the vector
+        xdmf += '<Attribute Name="UV" AttributeType="Vector" Center="Cell">\n'
+        xdmf += '<DataItem Dimensions="%d %d 3" Function="JOIN($0, $1)" ItemType="Function">\n'%(self.ni, self.nj)
+        xdmf += '<DataItem Dimensions="%d %d 2" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
+        xdmf += '%s:/step_%d/block_%d/UV\n'%(h5Name, step, self.id)
+        xdmf += '</DataItem>\n'
+        xdmf += '<DataItem Dimensions="%d %d 1" Function="ABS($0 - $0)" ItemType="Function">\n'%(self.ni, self.nj)
+        xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
+        xdmf += '%s:/step_%d/block_%d/rho\n'%(h5Name, step, self.id)
+        xdmf += '</DataItem>\n'
+        xdmf += '</DataItem>\n'
+        xdmf += '</DataItem>\n'
+        xdmf += '</Attribute>\n'
+        
+        sgrp.create_dataset("Q",data=self.Q_H, compression=gdata.save_options.compression)
+        xdmf += '<Attribute Name="Q" AttributeType="Vector" Center="Cell">\n'
+        xdmf += '<DataItem Dimensions="%d %d 3" Function="JOIN($0, $1)" ItemType="Function">\n'%(self.ni, self.nj)
+        xdmf += '<DataItem Dimensions="%d %d 2" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
+        xdmf += '%s:/step_%d/block_%d/Q\n'%(h5Name, step, self.id)
+        xdmf += '</DataItem>\n'
+        xdmf += '<DataItem Dimensions="%d %d 1" Function="ABS($0 - $0)" ItemType="Function">\n'%(self.ni, self.nj)
+        xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
+        xdmf += '%s:/step_%d/block_%d/rho\n'%(h5Name, step, self.id)
+        xdmf += '</DataItem>\n'
+        xdmf += '</DataItem>\n'
+        xdmf += '</DataItem>\n'
+        xdmf += '</Attribute>\n'
+        
+        
+        if gdata.save_options.internal_data:
+            self.getInternal()
+            sgrp.create_dataset("Txyz",data=self.Txyz_H[:,:,0:-1], compression=gdata.save_options.compression)
+            
+            xdmf += '<Attribute Name="Txyz" AttributeType="Vector" Center="Cell">\n'
+            xdmf += '<DataItem Dimensions="%d %d 3" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
+            xdmf += '%s:/step_%d/block_%d/Txyz\n'%(h5Name, step, self.id)
+            xdmf += '</DataItem>\n'
+            xdmf += '</Attribute>\n'
+
+        sgrp.create_dataset("T",data=self.T_H, compression=gdata.save_options.compression)
+        
+        xdmf += '<Attribute Name="T" AttributeType="Scalar" Center="Cell">\n'
+        xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
+        xdmf += '%s:/step_%d/block_%d/T\n'%(h5Name, step, self.id)
+        xdmf += '</DataItem>\n'
+        xdmf += '</Attribute>\n'
+        xdmf += '<Attribute Name="P" AttributeType="Scalar" Center="Cell">\n'
+        xdmf += '<DataItem Dimensions="%d %d" Function="$0*$1" ItemType="Function">\n'%(self.ni, self.nj)
+        xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
+        xdmf += '%s:/step_%d/block_%d/rho\n'%(h5Name, step, self.id)
+        xdmf += '</DataItem>\n'
+        xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
+        xdmf += '%s:/step_%d/block_%d/T\n'%(h5Name, step, self.id)
+        xdmf += '</DataItem>\n'
+        xdmf += '</DataItem>\n'
+        xdmf += '</Attribute>\n'
+        
+            
+        if all_data:
+            sgrp = grp.require_group("block_" + str(self.id))
+
+            sgrp.create_dataset("f",data=self.f_H, compression=gdata.save_options.compression)
+            
+            if (gdata.method == "RK3") | (gdata.method == "RK4"):
+                sgrp.create_dataset("f1",data=self.f1_H, compression=gdata.save_options.compression)
+                sgrp.create_dataset("f2",data=self.f2_H, compression=gdata.save_options.compression)
+            if (gdata.method == "RK4"):
+                sgrp.create_dataset("f3",data=self.f3_H, compression=gdata.save_options.compression)
+                
+        
+        return xdmf
+        
+        
+    def block_mass(self):
+        """
+        calculate the total mass in this block
+        """
+        
+        self.updateHost()
+        
+        mass = np.sum(self.area_H[self.ghost:-self.ghost,self.ghost:-self.ghost]*self.rho_H)
+        
+        return mass
