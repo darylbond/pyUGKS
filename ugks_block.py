@@ -18,6 +18,12 @@ from ugks_CL import genOpenCL
 from geom.geom_bc_defs import *
 from geom.geom_defs import *
 
+def m_tuple(x, y):
+    """
+    multiply two tuples or lists, return a tuple
+    """
+    return tuple(a*b for a, b in zip(x, y))
+
 class UGKSBlock(object):
     """
     A block that contains all required information for the simulation of 
@@ -63,10 +69,10 @@ class UGKSBlock(object):
         self.nj = b.nnj
         
         # number of velocities
-        self.nv = gdata.nv
+        self.Nv = gdata.Nv
         
         # work-group size
-        self.work_size = (1,1,self.nv)
+        self.work_size = (1,1,gdata.CL_local_size)
         
         # boundaries for flow domain, excluding ghost cells
         self.imin = self.ghost
@@ -203,9 +209,9 @@ class UGKSBlock(object):
         self.flag_H = np.zeros((2), dtype=np.int32)
         
         ## common
-        self.f_H = -1.0*np.ones((self.Ni,self.Nj,self.nv,2),dtype=np.float64) # mass.x, energy.y
+        self.f_H = -1.0*np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64) # mass.x, energy.y
         
-        self.flux_H = np.zeros((self.Ni,self.Nj,self.nv,2),dtype=np.float64) # mass.x, energy.y
+        self.flux_H = np.zeros((self.Ni,self.Nj,self.Nv,2),dtype=np.float64) # mass.x, energy.y
 
         # conserved properties, without ghost cells
         #.s0 -> density
@@ -260,13 +266,6 @@ class UGKSBlock(object):
         # time step
         self.time_step_H = np.zeros((self.ni,self.nj),dtype=np.float64)
 
-        ## RK
-        if (gdata.method == "RK3") | (gdata.method == "RK4"):
-            self.f1_H = -1.0*np.ones((self.Ni,self.Nj,self.nv,2),dtype=np.float64) # mass.x, energy.y
-            self.f2_H = -1.0*np.ones((self.Ni,self.Nj,self.nv,2),dtype=np.float64) # mass.x, energy.y
-        if (gdata.method == "RK4"):
-            self.f3_H = -1.0*np.ones((self.Ni,self.Nj,self.nv,2),dtype=np.float64) # mass.x, energy.y
-            
         ####################
         ## DEVICE SIDE DATA
         
@@ -289,19 +288,13 @@ class UGKSBlock(object):
         # create an pyopencl.array instance, this is used for reduction (max) later
         self.time_step_array = cl_array.Array(self.queue, shape=self.time_step_H.shape, dtype=np.float64, data=self.time_step_D)
             
-        ## RK
-        if (gdata.method == "RK3") | (gdata.method == "RK4"):
-            self.f1_D = self.set_buffer(self.f1_H)
-            self.f2_D = self.set_buffer(self.f2_H)
-        if (gdata.method == "RK4"):
-            self.f3_D = self.set_buffer(self.f3_H)
             
         ### RESIDUAL
         if gdata.residual_options.get_residual:
             self.residual_H = np.zeros((self.ni,self.nj,2),dtype=np.float64)
             self.residual_D = self.set_buffer(self.residual_H)
             self.residual_array = cl_array.Array(self.queue, shape=self.residual_H.shape, dtype=np.float64, data=self.residual_D)
-            self.f_copy_H = np.zeros((self.Ni,self.Nj,self.nv,2),dtype=np.float64)
+            self.f_copy_H = np.zeros((self.Ni,self.Nj,self.Nv,2),dtype=np.float64)
             self.f_copy_D = self.set_buffer(self.f_copy_H)
         
         ### INTERNAL DATA
@@ -313,10 +306,16 @@ class UGKSBlock(object):
         
         if not restart_hdf:
             # perform initialisation of distribution functions
-            self.prg.initFunctions(self.queue, (self.ni, self.nj, self.nv), None,
+            global_size = m_tuple((self.ni, self.nj, 1),self.work_size)
+            print global_size
+            self.prg.initFunctions(self.queue, global_size, self.work_size,
                                    self.f_D, self.rho_D, self.UV_D, 
                                    self.T_D, self.Q_D)
-            cl.enqueue_barrier(self.queue)                
+            cl.enqueue_barrier(self.queue)
+            
+            #cl.enqueue_copy(self.queue, self.f_H, self.f_D)
+            #print np.sum(self.f_H[:,:,:,0],axis=2)
+        
         
         print("global buffers initialised") 
 
@@ -346,9 +345,9 @@ class UGKSBlock(object):
         that_f = eval(that_f_str)
         
         if this_face in [NORTH, SOUTH]:
-            global_size = (self.ni, self.ghost, self.nv)
+            global_size = (self.ni, self.ghost, self.Nv)
         else:
-            global_size = (self.ghost, self.nj, self.nv)
+            global_size = (self.ghost, self.nj, self.Nv)
         
         self.prg.edgeExchange(self.queue, global_size, self.work_size,
                                this_f, faceA,
@@ -366,9 +365,9 @@ class UGKSBlock(object):
         f = eval(f_str)
         
         if this_face in [NORTH, SOUTH]:
-            global_size = (self.ni, self.ghost, self.nv)
+            global_size = (self.ni, self.ghost, self.Nv)
         else:
-            global_size = (self.ghost, self.nj, self.nv)
+            global_size = (self.ghost, self.nj, self.Nv)
         
         self.prg.edgeExtrapolate(self.queue, global_size, self.work_size,
                                f, face)
@@ -392,9 +391,9 @@ class UGKSBlock(object):
         f = eval(f_str)
         
         if this_face in [NORTH, SOUTH]:
-            global_size = (self.ni, self.ghost, self.nv)
+            global_size = (self.ni, self.ghost, self.Nv)
         else:
-            global_size = (self.ghost, self.nj, self.nv)
+            global_size = (self.ghost, self.nj, self.Nv)
         
         self.prg.edgeConstant(self.queue, global_size, self.work_size,
                                f, face, D, U, V, T)
@@ -410,9 +409,9 @@ class UGKSBlock(object):
         f = eval(f_str)
         
         if this_face in [NORTH, SOUTH]:
-            global_size = (self.ni, self.ghost, self.nv)
+            global_size = (self.ni, self.ghost, self.Nv)
         else:
-            global_size = (self.ghost, self.nj, self.nv)
+            global_size = (self.ghost, self.nj, self.Nv)
         
         self.prg.edgeMirror(self.queue, global_size, self.work_size, f, face)
                                
@@ -427,9 +426,9 @@ class UGKSBlock(object):
         f = eval(f_str)
         
         if this_face in [NORTH, SOUTH]:
-            global_size = (self.ni, self.ghost, self.nv)
+            global_size = (self.ni, self.ghost, self.Nv)
         else:
-            global_size = (self.ghost, self.nj, self.nv)
+            global_size = (self.ghost, self.nj, self.Nv)
         
         self.prg.edgeConstGrad(self.queue, global_size, self.work_size,
                                f, face)
@@ -494,11 +493,11 @@ class UGKSBlock(object):
         NjB = np.int32(other_block.Nj)
         
         if this_face in [NORTH, SOUTH]:
-            global_size = (self.ni, self.ghost, self.nv)
+            global_size = (self.ni, self.ghost)
         else:
-            global_size = (self.ghost, self.nj, self.nv)
+            global_size = (self.ghost, self.nj)
         
-        self.prg.xyExchange(self.queue, global_size, self.work_size,
+        self.prg.xyExchange(self.queue, global_size, None,
                                self.xy_D, faceA,
                                other_block.xy_D,
                                NiB, NjB, faceB)
@@ -511,11 +510,11 @@ class UGKSBlock(object):
         face = np.int32(this_face)
         
         if this_face in [NORTH, SOUTH]:
-            global_size = (self.ni, self.ghost, self.nv)
+            global_size = (self.ni, self.ghost)
         else:
-            global_size = (self.ghost, self.nj, self.nv)
+            global_size = (self.ghost, self.nj)
         
-        self.prg.xyExtrapolate(self.queue, global_size, self.work_size,
+        self.prg.xyExtrapolate(self.queue, global_size, None,
                                self.xy_D, face)
             
     def updateGeom(self):
@@ -541,7 +540,7 @@ class UGKSBlock(object):
             this_face += 1
         
         cl.enqueue_barrier(self.queue)
-#        cl.enqueue_copy(self.queue, self.xy_H, self.xy_D)
+        cl.enqueue_copy(self.queue, self.xy_H, self.xy_D)
         
         
         # once all vertex positions are updated, we can caclulate geometric 
@@ -606,7 +605,7 @@ class UGKSBlock(object):
         flux_str = "self."+flux
         flux = eval(flux_str)
         
-        self.prg.initialiseToZero(self.queue, (self.Ni, self.Nj, self.nv), 
+        self.prg.initialiseToZero(self.queue, (self.Ni, self.Nj, self.Nv), 
                                   self.work_size, flux)
         
         cl.enqueue_barrier(self.queue)
@@ -615,10 +614,10 @@ class UGKSBlock(object):
             for even_odd in range(2):
                 ni = int(np.floor((self.ni - even_odd)/2.0))
                 nj = int(np.floor((self.nj - even_odd)/2.0))
-                global_size = [(self.ni, nj+1, self.nv), (ni+1, self.nj, self.nv)]
+                global_size = [(self.ni, nj+1, self.Nv), (ni+1, self.nj, self.Nv)]
                 lx = min(global_size[face][0], self.work_size[0])
                 ly = min(global_size[face][1], self.work_size[1])
-                work_size = (lx, ly, self.nv)
+                work_size = (lx, ly, self.Nv)
                 self.prg.RK_FLUXES(self.queue, global_size[face], work_size,
                                        f, flux, self.centre_D, self.side_D,
                                        self.normal_D, self.length_D, self.area_D,
@@ -626,116 +625,8 @@ class UGKSBlock(object):
                                        self.flag_D)
         
         return 
-    
-    def RK3step1(self):
-        """
-        perform the RK method
-        """
         
-        # step 1
-        self.prg.RK3_STEP1(self.queue, (self.ni, self.nj, self.nv), self.work_size,
-                                 self.f_D, self.f1_D, self.flux_D,
-                                 np.float64(gdata.dt), self.flag_D)
-                             
-                                 
-        return
-        
-    def RK3step2(self):
-        """
-        perform the RK method
-        """
-        
-        # step 2
-        self.prg.RK3_STEP2(self.queue, (self.ni, self.nj, self.nv), self.work_size,
-                                 self.f_D, self.f1_D, self.flux_D,
-                                 self.f2_D, np.float64(gdata.dt), 
-                                 self.flag_D)
-    
-            
-        return
-    
-    def RK3_UPDATE(self, get_residual = False):
-        """
-        perform the RK method
-        """
-        
-        if get_residual:
-            # make a copy of the original f
-            self.prg.copyBuffer(self.queue, (self.Ni, self.Nj, self.nv), self.work_size,
-                                self.f_D, self.f_copy_D)
-            cl.enqueue_barrier(self.queue)
-        
-        # update
-        self.prg.RK3_UPDATE(self.queue, (self.ni, self.nj, self.nv), self.work_size,
-                                 self.f_D, self.f1_D, self.f2_D, self.flux_D, 
-                                 np.float64(gdata.dt), self.flag_D)
-                                 
-        if get_residual:
-            cl.enqueue_barrier(self.queue)
-            self.prg.cellResidual(self.queue, (self.ni, self.nj), None,
-                                  self.f_D, self.f_copy_D, self.area_D, self.residual_D)
-            cl.enqueue_barrier(self.queue)
-            
-            self.residual = cl_array.sum(self.residual_array,queue=self.queue).get()/self.total_area
-            
-
-        return    
-    
-    def RK4step1(self):
-        """
-        perform the RK method
-        """
-        
-        # step 1
-        self.prg.RK4_STEP1(self.queue, (self.ni, self.nj, self.nv), self.work_size,
-                                 self.f_D, self.f1_D, self.flux_D, 
-                                 np.float64(gdata.dt), self.flag_D)
-                         
-        return
-        
-    def RK4step2(self):
-        """
-        perform the RK method
-        """
-        
-        # step 2
-        self.prg.RK4_STEP2(self.queue, (self.ni, self.nj, self.nv), self.work_size,
-                                 self.f_D, self.f1_D, self.flux_D,
-                                 self.f2_D, np.float64(gdata.dt), self.flag_D)
-                     
-        return
-        
-    def RK4step3(self):
-        """
-        perform the RK method
-        """
-        
-        # step 2
-        self.prg.RK4_STEP3(self.queue, (self.ni, self.nj, self.nv), self.work_size,
-                                 self.f_D, self.f2_D, self.flux_D,
-                                 self.f3_D, np.float64(gdata.dt), self.flag_D)
-                     
-        return
-        
-    def RK4_UPDATE(self, get_residual = False):
-        """
-        perform the RK method
-        """
-        
-        # step 3
-        self.prg.RK4_UPDATE(self.queue, (self.ni, self.nj, self.nv), self.work_size,
-                                 self.f_D, self.f1_D, self.f2_D, self.f3_D, 
-                                 self.flux_D, np.float64(gdata.dt),
-                                 self.flag_D)
-
-                                 
-        if get_residual:
-            cl.enqueue_barrier(self.queue)
-            # grab residual here
-                             
-        return
-        
-    def getInternal(self, toRef = True):
+    def getInternal(self):
         """
         get internal data from the simulation
         """
@@ -747,12 +638,9 @@ class UGKSBlock(object):
             cl.enqueue_barrier(self.queue)
                                  
             cl.enqueue_copy(self.queue,self.Txyz_H,self.Txyz_D)
-            
-            if toRef: # convert to reference units rather than lattice units (non-dimensional)
-                self.Txyz_H *= gdata.T_lat2ref
         return
     
-    def updateHost(self, getF = False, toRef = True):
+    def updateHost(self, getF = False):
         """
         update host data arrays
         """
@@ -760,8 +648,8 @@ class UGKSBlock(object):
         #print "block = {}".format(self.id)
         
         if self.host_update == 0:
-            
-            self.prg.calcMacro(self.queue, (self.ni, self.nj), None,
+            global_size = m_tuple((self.ni, self.nj, 1),self.work_size)
+            self.prg.calcMacro(self.queue, global_size, self.work_size,
                    self.f_D, self.rho_D, self.UV_D, self.T_D, 
                    self.Q_D, self.flag_D)
             cl.enqueue_barrier(self.queue)
@@ -770,22 +658,12 @@ class UGKSBlock(object):
             cl.enqueue_copy(self.queue,self.T_H,self.T_D)
             cl.enqueue_copy(self.queue,self.Q_H,self.Q_D)
             self.host_update == 1
-            
-            if toRef: # convert to reference units rather than lattice units (non-dimensional)
-                self.UV_H *= gdata.U_lat2ref
-                self.T_H *= gdata.T_lat2ref
-                self.Q_H *= gdata.U_lat2ref**3
         
         # get internal data, if specified
-        self.getInternal(toRef)
+        self.getInternal()
         
         if getF:
             cl.enqueue_copy(self.queue,self.f_H,self.f_D)
-            if (gdata.method == "RK3") | (gdata.method == "RK4"):
-                cl.enqueue_copy(self.queue,self.f1_H,self.f1_D)
-                cl.enqueue_copy(self.queue,self.f2_H,self.f2_D)
-            if (gdata.method == "RK4"):
-                cl.enqueue_copy(self.queue,self.f3_H,self.f3_D)
         
         return
     
@@ -919,12 +797,6 @@ class UGKSBlock(object):
             sgrp = grp.require_group("block_" + str(self.id))
 
             sgrp.create_dataset("f",data=self.f_H, compression=gdata.save_options.compression)
-            
-            if (gdata.method == "RK3") | (gdata.method == "RK4"):
-                sgrp.create_dataset("f1",data=self.f1_H, compression=gdata.save_options.compression)
-                sgrp.create_dataset("f2",data=self.f2_H, compression=gdata.save_options.compression)
-            if (gdata.method == "RK4"):
-                sgrp.create_dataset("f3",data=self.f3_H, compression=gdata.save_options.compression)
                 
         
         return xdmf

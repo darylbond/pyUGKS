@@ -23,61 +23,15 @@ double relaxTime(double rho, double T)
     
 double2 fM(double rho, double2 UV, double T, double2 uv, size_t i) 
 {  
-  double N0, N1, N2, N3, N4, N5, N6;
+  // the Maxwellian
   
-  // pre-computed common terms
-  
-  double dd = dot(uv,uv);
-  double dd2 = dd*dd;
-  double dd3 = dd*dd2;
-  
-  double DD = dot(UV,UV);
-  double DD2 = DD*DD;
-  double DD3 = DD2*DD;
-  
-  double dD = dot(uv,UV);
-  double dD2 = dD*dD;
-  double dD4 = dD2*dD2;
-  double dD6 = dD2*dD4;
-  
-  double T2 = T*T;
-  double T3 = T2*T;
-  
-  double T1 = T - 1.0;
-  double T12 = T1*T1;
-  double T13 = T12*T1;
-  
-  //equilibrium distribution function
-  // zero-th order
-  N0 = 1.0;
-  
-  // first order
-  N1 = dD;
-  
-  // second order
-  N2 = (1./2.)*(dD2 - DD + (T-1.0)*(dd-2.0));
-  
-  // third order
-  N3 = (1./6.)*dD*(3*(T-1.0)*(dd-4.0)+dD2-3*DD);
-  
-  // fourth order
-  N4 = (3*DD2 + dD4 + 6*(-6 + dd)*dD2*T1 - 6*DD*(dD2 + (-4 + dd)*T1) + 3*(8 + (-8 + dd)*dd)*T12)/24.;
-  
-  // fifth order
-  N5 = (dD*(15*DD2 + dD4 + 10*(-8 + dd)*dD2*T1 - 10*DD*(dD2 + 3*(-6 + dd)*T1) + 15*(24 + (-12 + dd)*dd)*T12))/120.;
-	
-  // sixth order
-  N6 = (720 - 1080*DD + 45*(-12 + DD)*(-4 + DD)*dD2 + 270*DD2 - 15*DD3 - 15*(-10 + DD)*dD4 + dD6 - 30*(9*(8 + 
-      (-8 + DD)*DD) - 24*(-6 + DD)*dD2 + 5*dD4)*T - 45*dd2*(-6 + DD - dD2 + 6*T)*T12 + 15*dd*T1*(3*DD2 + dD4 - 
-      6*DD*(6 + dD2 - 6*T) - 48*dD2*T1 + 72*T12) + 15*dd3*T13 - 1080*(DD - 2*(1 + dD2))*T2 - 720*T3)/720.;
-  
-  double2 out;
+  double2 M;
 
-  out.x = rho*(N0 + N1 + N2 + N3 + N4 + N5 + N6);
-    
-  out.y = K*T*out.x;
+  M.x = (rho/(T*PI))*exp(-dot(uv-UV,uv-UV)/T);
   
-  return ghW[i]*out;
+  M.y = (M.x*K*T)/2.0;
+  
+  return WEIGHT[i]*M;
 }
     
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,13 +50,11 @@ double2 fShakhov(double rho, double2 UV, double T, double2 Q, double2 uv)
   double v = uv.y;
   
   double2 S;
-  S.x = (1.0 - ((Pr - 1.0)*(qx*(u - U) 
-  + qy*(v - V))*((u - U)*(u - U) + (v - V)*(v - V) - 4.0*T))
-  /(5.0*T*T*T*rho));
+  S.x = (0.8*(1 - Pr)*(K - 5 + (2*((u - U)*(u - U) + (v - V)*(v - V)))/T)*
+        (qx*(u - U) + qy*(v - V)))/(rho*T*T);
   
-  S.y = (1.0 - ((Pr - 1.0)*(qx*(u - U) 
-  + qy*(v - V))*((u - U)*(u - U) + (v - V)*(v - V) - 2.0*T))
-  /(5.0*T*T*T*rho));
+  S.y = (0.8*(1 - Pr)*(K - 3 + (2*((u - U)*(u - U) + (v - V)*(v - V)))/T)*
+        (qx*(u - U) + qy*(v - V)))/(rho*T*T);
   
   return S;
 }
@@ -110,181 +62,9 @@ double2 fShakhov(double rho, double2 UV, double T, double2 Q, double2 uv)
 double2 fS(double rho, double2 UV, double T, double2 Q, double2 uv, size_t i)
 {
   //Shakhov equation for f
-  double2 out = fM(rho, UV, T, uv, i)*fShakhov(rho, UV, T, Q, uv);
+  double2 out = fM(rho, UV, T, uv, i)*(1 + fShakhov(rho, UV, T, Q, uv));
   return out;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// regNEq
-////////////////////////////////////////////////////////////////////////////////
-
-double2 regNEq(double2 uv, double2* M, size_t i)
-{
-  // regularized non-equilibrium distribution
-  
-  double u = uv.x; 
-  double v = uv.y;
-  
-  double2 N0, N1, N2, N3, N4, N5, N6;
-  double u2, v2, u3, v3, u4, v4, u5, v5, u6, v6;
-  double weight;
-  double2 out;
-  
-  // pre-computed velocity combinations
-  u2 = u*u;
-  u3 = u2*u;
-  u4 = u3*u;
-  u5 = u4*u;
-  u6 = u5*u;
-  
-  v2 = v*v;
-  v3 = v2*v;
-  v4 = v3*v;
-  v5 = v4*v;
-  v6 = v5*v;
-  
-  // zero-th order
-  N0 = M[0];
-  
-  // first order
-  N1 = M[1]*u + M[2]*v;
-  
-  // second order
-  N2 = ((-M[0] + M[4])*(-1.0 + u2) + 2.0*M[3]*u*v + (-M[0] + M[5])*(-1.0 + v2))/2.0;
-  
-  // third order
-  N3 = ((-3*M[1] + M[8])*u*(-3 + u2) + 3*(-M[2] + M[7])*(-1 + u2)*v + 
-	(-3*M[2] + M[9])*v*(-3 + v2) + 3*(-M[1] + M[6])*u*(-1 + v2))/6.;
-  
-  // fourth order
-  N4 = ((3*M[0] + M[13] - 6*M[4])*(3 - 6*u2 + u4) + 6*(M[0] + M[12] - M[4]
-	- M[5])*(-1 + u2)*(-1 + v2) + (3*M[0] + M[14] - 6*M[5])*(3 - 
-	6*v2 + v4) + 4*u*v*((M[10] - 3*M[3])*(-3 + u2) + (M[11] - 3*M[3])*(-3 + v2)))/24.;
-  
-  // fifth order
-  N5 = ((15*M[1] + M[19] - 10*M[8])*u*(15 - 10*u2 + u4) + 5*(M[17] 
-	+ 3*M[2] - 6*M[7])*(3 - 6*u2 + u4)*v + 10*(M[16] + 3*M[2] - 
-	3*M[7] - M[9])*(-1 + u2)*v*(-3 + v2) + 10*(3*M[1] + M[15] - 
-	3*M[6] - M[8])*u*(-3 + u2)*(-1 + v2) + (15*M[2] + M[20] - 
-	10*M[9])*v*(15 - 10*v2 + v4) + 5*(3*M[1] + M[18] - 6*M[6])*u*(3 - 
-	6*v2 + v4))/120.;
-	
-  // sixth order
-  N6 = ((-15*M[0] - 15*M[13] + M[26] + 45*M[4])*(-15 + 45*u2 - 15*u4 
-	+ u6) + 6*(-10*M[10] + M[25] + 15*M[3])*u*(15 - 10*u2 + u4)*v 
-	+ 20*(-3*M[10] - 3*M[11] + M[23] + 9*M[3])*u*(-3 + u2)*v*(-3 + v2) + 
-	15*(-3*M[0] - 6*M[12] - M[13] + M[22] + 6*M[4] + 3*M[5])*(3 - 6*u2 
-	+ u4)*(-1 + v2) + 6*(-10*M[11] + M[24] + 15*M[3])*u*v*(15 - 10*v2 + 
-	v4) + 15*(-3*M[0] - 6*M[12] - M[14] + M[21] + 3*M[4] + 6*M[5])*(-1 + u2)*(3
-	- 6*v2 + v4) + (-15*M[0] - 15*M[14] + M[27] + 45*M[5])*(-15 + 45*v2
-	- 15*v4 + v6))/720.;
-	
-  weight = ghW[i];
-  
-  out = weight*(N0 + N1 + N2 + N3 + N4 + N5 + N6);
-  
-  return out;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// getMoments
-////////////////////////////////////////////////////////////////////////////////
-
-int getMoments(__global double2* Fin, size_t i, size_t j, double2* M, double* rho, double2* UV, double* T, double2* Q)
-{
-  // compute all required moments of the distribution
-  
-  // initialise M to zero
-  for (size_t ii = 0; ii < 28; ii++) {
-    M[ii] = 0.0;
-  }
-  
-  double2 f;
-  double u, v, u2, v2, u3, v3, u4, v4, u5, v5, u6, v6; //NOTE: all of these could be pre-computed, would take a bit of space though
-  double2 uf, vf, u2f, v2f;
-  
-  for (size_t ii = 0; ii < NV; ii++) {
-    
-    // velocities
-    u = ghV[ii].x;
-    v = ghV[ii].y;
-    
-    // distribution
-    f = F(i,j,ii);
-    
-    // pre-computed velocity combinations
-    u2 = u*u;
-    u3 = u2*u;
-    u4 = u3*u;
-    u5 = u4*u;
-    u6 = u5*u;
-    
-    v2 = v*v;
-    v3 = v2*v;
-    v4 = v3*v;
-    v5 = v4*v;
-    v6 = v5*v;
-    
-    uf = u*f;
-    vf = v*f;
-    
-    u2f = u2*f;
-    v2f = v2*f;
-    
-    // moments
-    M[0] += f;
-    M[1] += uf;
-    M[2] += vf;
-    M[3] += u*vf;
-    M[4] += u2f;
-    M[5] += v2f;
-    M[6] += v2*uf;
-    M[7] += u2*vf;
-    M[8] += u3*f;
-    M[9] += v3*f;
-    M[10] += u3*vf;
-    M[11] += v3*uf;
-    M[12] += u2*v2f;
-    M[13] += u4*f;
-    M[14] += v4*f;
-    M[15] += u3*v2f;
-    M[16] += v3*u2f;
-    M[17] += u4*vf;
-    M[18] += v4*uf;
-    M[19] += u5*f;
-    M[20] += v5*f;
-    M[21] += v4*u2f;
-    M[22] += u4*v2f;
-    M[23] += u3*v3*f;
-    M[24] += v5*uf;
-    M[25] += u5*vf;
-    M[26] += u6*f;
-    M[27] += v6*f;
-  }
-  
-  double D, U, U2, V, V2, E, Txyz, nrg, qx, qy;
-  
-  D = M[0].x;   //density
-  U = M[1].x/D;	// mean velocity x
-  V = M[2].x/D;	// mean velocity y
-  U2 = U*U;
-  V2 = V*V;
-  E = (M[4].x + M[5].x + M[0].y)/D;   // 2 x energy
-  Txyz = (E - U2 - V2)/B;	// temperature
-  nrg = U2 + V2 - 3.0*Txyz;
-  qx = 0.5*((M[8].x + M[6].x + M[1].y/K) + D*U*nrg) - U*M[4].x - V*M[3].x;  //heat flux -x
-  qy = 0.5*((M[7].x + M[9].x + M[2].y/K) + D*V*nrg) - U*M[3].x - V*M[5].x;  //heat flux -y
-  
-  (*rho) = D;
-  (*UV).x = U;
-  (*UV).y = V;
-  (*T) = Txyz;
-  (*Q).x = qx;
-  (*Q).y = qy;
-  
-  return 0;
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // macroProp
@@ -303,8 +83,8 @@ int macroProp(__global double2* Fin, size_t i, size_t j, double* rho, double2* U
   for (size_t ii = 0; ii < NV; ii++) {
     
     // velocities
-    double u = ghV[ii].x;
-    double v = ghV[ii].y;
+    double u = QUAD[ii].x;
+    double v = QUAD[ii].y;
     
     // distribution
     double2 f = F(i,j,ii);
@@ -364,8 +144,8 @@ int macroPropLocal(__local double2 fdist[WSI][WSJ][NV], double* rho, double2* UV
   for (size_t ii = 0; ii < NV; ii++) {
     
     // velocities
-    u = ghV[ii].x;
-    v = ghV[ii].y;
+    u = QUAD[ii].x;
+    v = QUAD[ii].y;
     
     // distribution
     f = fdist[ti][tj][ii];
@@ -407,8 +187,8 @@ int macroShort(__global double2* Fin, size_t i, size_t j, double* rho, double2* 
   for (size_t ii = 0; ii < NV; ii++) {
     
     // velocities
-    double u = ghV[ii].x;
-    double v = ghV[ii].y;
+    double u = QUAD[ii].x;
+    double v = QUAD[ii].y;
     
     // distribution
     double2 f = F(i,j,ii);
@@ -439,7 +219,7 @@ double2 interfaceVelocity(int i, int j, int v, int face, __global double2* norma
   // u -> normal pointing out
   
   // global velocity
-  double2 e = ghV[v];
+  double2 e = QUAD[v];
   
   // normal to edge
   double2 n = NORMAL(i,j,face);

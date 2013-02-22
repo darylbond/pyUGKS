@@ -121,7 +121,6 @@ xyExchange(__global double2* xyA,
   
   size_t gi = get_global_id(0);
   size_t gj = get_global_id(1);
-  size_t gv = get_global_id(2);
   
   switch (this_face) {
     case GNORTH:
@@ -167,7 +166,6 @@ xyExtrapolate(__global double2* xy, int this_face)
   
   size_t gi = get_global_id(0);
   size_t gj = get_global_id(1);
-  size_t gv = get_global_id(2);
   
   // extrapolate index
   size_t ei, ej;
@@ -276,7 +274,7 @@ edgeExchange(__global double2* fA_,
   // distribution functions global index
   size_t gi = get_global_id(0);
   size_t gj = get_global_id(1);
-  size_t gv = get_global_id(2);
+  size_t ti = get_local_id(2);
   
   switch (this_face) {
     case GNORTH:
@@ -302,7 +300,12 @@ edgeExchange(__global double2* fA_,
   
   getSwapIndex(this_face, &iB, &jB, that_face, NIB, NJB);
   
-  fA(gi,gj,gv) = fB(iB,jB,gv);
+  for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+    size_t gv = li*LOCAL_SIZE+ti;
+    if (gv < NV) {
+      fA(gi,gj,gv) = fB(iB,jB,gv);
+    }
+  }
       
   return;
 }
@@ -320,7 +323,7 @@ edgeExtrapolate(__global double2* Fin,
   // distribution functions global index
   size_t gi = get_global_id(0);
   size_t gj = get_global_id(1);
-  size_t gv = get_global_id(2);
+  size_t ti = get_local_id(2);
   
   // extrapolate index
   size_t ei, ej;
@@ -355,8 +358,13 @@ edgeExtrapolate(__global double2* Fin,
       ej = gj;
       break;
   }
-
-  F(gi,gj,gv) = F(ei,ej,gv);
+  
+  for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+    size_t gv = li*LOCAL_SIZE+ti;
+    if (gv < NV) {
+      F(gi,gj,gv) = F(ei,ej,gv);
+    }
+  }
   
   return;
 }
@@ -375,7 +383,7 @@ edgeConstant(__global double2* Fin,
   // distribution functions global index
   size_t gi = get_global_id(0);
   size_t gj = get_global_id(1);
-  size_t gv = get_global_id(2);
+  size_t ti = get_local_id(2);
   
   switch (this_face) {
     case GNORTH:
@@ -405,9 +413,13 @@ edgeConstant(__global double2* Fin,
   UV.y = V;
   Q = 0.0;
   
-  
-  uv = ghV[gv];
-  F(gi,gj,gv) = fS(D, UV, T, Q, uv, gv);
+  for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+    size_t gv = li*LOCAL_SIZE+ti;
+    if (gv < NV) {
+      uv = QUAD[gv];
+      F(gi,gj,gv) = fS(D, UV, T, Q, uv, gv);
+    }
+  }
 
   return;
 }
@@ -425,7 +437,7 @@ edgeMirror(__global double2* Fin,
   // distribution functions global index
   size_t gi = get_global_id(0);
   size_t gj = get_global_id(1);
-  size_t gv = get_global_id(2);
+  size_t ti = get_local_id(2);
   
   // mirrored index
   size_t mi, mj, yes;
@@ -461,13 +473,18 @@ edgeMirror(__global double2* Fin,
       break;
   }
   
-  if (yes == 1) {
-    int mv = mirror_NS[gv];
-    F(gi,gj,gv) = F(mi,mj,mv);
-  }
-  else if (yes == 2) {
-    int mv = mirror_EW[gv];
-    F(gi,gj,gv) = F(mi,mj,mv);
+  for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+    size_t gv = li*LOCAL_SIZE+ti;
+    if (gv < NV) {
+      if (yes == 1) {
+        int mv = mirror_NS[gv];
+        F(gi,gj,gv) = F(mi,mj,mv);
+      }
+      else if (yes == 2) {
+        int mv = mirror_EW[gv];
+        F(gi,gj,gv) = F(mi,mj,mv);
+      }
+    }
   }
   
   return;
@@ -485,7 +502,7 @@ edgeConstGrad(__global double2* Fin, int this_face)
   // distribution functions global index
   size_t gi = get_global_id(0);
   size_t gj = get_global_id(1);
-  size_t gv = get_global_id(2);
+  size_t ti = get_local_id(2);
   
   // extrapolate index
   int ei0, ej0, ei1, ej1;
@@ -544,12 +561,18 @@ edgeConstGrad(__global double2* Fin, int this_face)
   }
   
   double2 f0, f1, df;
-    
-  f0 = F(ei0,ej0,gv);
-  f1 = F(ei1,ej1,gv);
-  df = f1 - f0;
   
-  F(gi,gj,gv) = f1 + m*df;
+  for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+    size_t gv = li*LOCAL_SIZE+ti;
+    if (gv < NV) {
+      
+      f0 = F(ei0,ej0,gv);
+      f1 = F(ei1,ej1,gv);
+      df = f1 - f0;
+      
+      F(gi,gj,gv) = f1 + m*df;
+    }
+  }
 
   return;
 }

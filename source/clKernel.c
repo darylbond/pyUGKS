@@ -251,7 +251,7 @@ getInternalTemp(__global double2* Fin, __global double4* Txyz)
   
   for (int i=0; i < NV; i++) {
     // velocities
-    uv = ghV[i];
+    uv = QUAD[i];
     
     // distribution
     f = F(gi,gj,i);
@@ -294,7 +294,7 @@ __global double* gT, __global double2* gQ)
   // distribution functions global index
   size_t mi = get_global_id(0);
   size_t mj = get_global_id(1);
-  size_t gv = get_global_id(2);
+  size_t ti = get_local_id(2);
 
   // macroscopic properties global index
     
@@ -302,9 +302,14 @@ __global double* gT, __global double2* gQ)
     size_t gj = mj + GHOST;
 
   // compute equilibrium functions
-
-  double2 uv = ghV[gv];
-  F(gi,gj,gv) = fS(GD(mi,mj), GUV(mi,mj), GT(mi,mj), GQ(mi,mj), uv, gv);
+  
+  for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+    size_t gv = li*LOCAL_SIZE+ti;
+    if (gv < NV) {
+      double2 uv = QUAD[gv];
+      F(gi,gj,gv) = fS(GD(mi,mj), GUV(mi,mj), GT(mi,mj), GQ(mi,mj), uv, gv);
+    }
+  }
   
   return;
 }
@@ -316,27 +321,97 @@ calcMacro(__global double2* Fin,
   __global int* flag) 
 {
   // calculate the macroscopic properties
-  
+
   size_t mi = get_global_id(0);
   size_t mj = get_global_id(1);
+  size_t ti = get_local_id(2);
   
   int gi = mi + GHOST;
   int gj = mj + GHOST;
   
+  __local double2 M0[LOCAL_SIZE], M1[LOCAL_SIZE];
+  __local double2 M2[LOCAL_SIZE];
+  
+  __local double M3[LOCAL_SIZE], M4[LOCAL_SIZE];
+  __local double M5[LOCAL_SIZE], M6[LOCAL_SIZE];
+  __local double M7[LOCAL_SIZE], M8[LOCAL_SIZE];
+  __local double M9[LOCAL_SIZE];
+  
+  
+  M0[ti] = 0.0;  M1[ti] = 0.0;  M2[ti] = 0.0;
+  
+  M3[ti] = 0.0;  M4[ti] = 0.0;  M5[ti] = 0.0;  M6[ti] = 0.0;  
+  M7[ti] = 0.0;  M8[ti] = 0.0;  M9[ti] = 0.0;
+  
+  size_t gv;
+  
+  for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+    
+     gv = li*LOCAL_SIZE+ti;
+    
+    if (gv < NV) { 
+    
+      // velocities
+      double u = QUAD[gv].x;
+      double v = QUAD[gv].y;
+      
+      // distribution
+      double2 f = F(gi,gj,gv);
+      
+      // moments
+      M0[ti] += f;
+      M1[ti] += u*f;
+      M2[ti] += v*f;
+      M3[ti] += u*v*f.x;
+      M4[ti] += u*u*f.x;
+      M5[ti] += v*v*f.x;
+      M6[ti] += v*v*u*f.x;
+      M7[ti] += u*u*v*f.x;
+      M8[ti] += u*u*u*f.x;
+      M9[ti] += v*v*v*f.x;
+    }
+  }
+  
+  barrier(CLK_LOCAL_MEM_FENCE);
+  
   double rho, T;
   double2 UV, Q;
-
-  macroProp(Fin, gi, gj, &rho, &UV, &T, &Q);
+  
+  if (ti == 0) {
     
-  if (isnan(rho)) {
-    flag[0] = 2;
-    return;
+    for (size_t li = 1; li < LOCAL_SIZE; ++li) {
+      
+      M0[0] += M0[li];
+      M1[0] += M1[li];
+      M2[0] += M2[li];
+      M3[0] += M3[li];
+      M4[0] += M4[li];
+      M5[0] += M5[li];
+      M6[0] += M6[li];
+      M7[0] += M7[li];
+      M8[0] += M8[li];
+      M9[0] += M9[li];
+    }
+    
+    rho = M0[0].x;
+    UV.x = M1[0].x/M0[0].x;
+    UV.y = M2[0].x/M0[0].x;
+    T = ((M4[0] + M5[0] + M0[0].y)/M0[0].x - dot(UV,UV))/B;	// temperature
+    double nrg = dot(UV,UV) - 3.0*T;
+    Q.x = 0.5*((M8[0] + M6[0] + M1[0].y/K) + M0[0].x*UV.x*nrg) - UV.x*M4[0] - UV.y*M3[0];  //heat flux -x
+    Q.y = 0.5*((M7[0] + M9[0] + M2[0].y/K) + M0[0].x*UV.y*nrg) - UV.x*M3[0] - UV.y*M5[0];  //heat flux -y
+  
+    
+    if (isnan(rho)) {
+      flag[0] = 2;
+      return;
+    }
+
+    GD(mi,mj) = rho;
+    GUV(mi,mj) = UV;
+    GT(mi,mj) = T;
+    GQ(mi,mj) = Q;
   }
 
-  GD(mi, mj) = rho;
-  GUV(mi,mj) = UV;
-  GT(mi,mj) = T;
-  GQ(mi,mj) = Q;
-  
   return;
 }

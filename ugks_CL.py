@@ -8,7 +8,7 @@ Created on Wed Jun 29 09:26:45 2011
 # codeCL.py
 import os
 from math import pi, sqrt
-#import numpy as np
+import numpy as np
 
 #import source.source_CL as sl
 from ugks_data import gdata
@@ -20,24 +20,15 @@ def genHeader(data):
     """
     
     ## LOCAL VARIABLES
-    ghX = gdata.ghX
-    ghY = gdata.ghY
-    ghW = gdata.ghW
+    quad = gdata.quad
+    weight = gdata.weight
     
     bc_list = data['bc_list']
     
-    print gdata.method
     print gdata.platform
     
     s = ''
-    
-    if gdata.method == "RK3":
-        s += '// RK3\n\n'
-        time_method = 3
-    elif gdata.method == "RK4":
-        s += '// RK4\n\n'
-        time_method = 4
-    
+        
     if gdata.flux_method == "vanLeer":
         flux_method = 0
         stencil_length = 3
@@ -59,12 +50,13 @@ def genHeader(data):
     s += '/////////////////////////////////////////\n'
     s += '//CONSTANTS \n'
     s += '/////////////////////////////////////////\n\n'
-    
+    s += '#define LOCAL_SIZE %d\n'%gdata.CL_local_size
+    s += '#define LOCAL_LOOP_LENGTH %d\n'%(np.ceil(gdata.Nv/float(gdata.CL_local_size)))
     s += '#define NI {}\n'.format(data['Ni'])
     s += '#define NJ {}\n'.format(data['Nj'])
     s += '#define ni {}\n'.format(data['ni'])
     s += '#define nj {}\n'.format(data['nj'])
-    s += '#define NV {}\n'.format(gdata.nv)
+    s += '#define NV {}\n'.format(gdata.Nv)
     s += '#define NX {}\n'.format(data['Ni']+1)
     s += '#define NY {}\n'.format(data['Nj']+1)
     s += '#define IMIN {}\n'.format(data['imin'])
@@ -88,7 +80,6 @@ def genHeader(data):
     s += '#define FLUX_IN_S -1.0\n'
     s += '#define FLUX_IN_W -1.0\n'
     s += '#define BLOCK {}\n'.format(data['block_id'])
-    s += '#define TIME_METHOD {}\n'.format(time_method)
     s += '#define FLUX_METHOD {}\n'.format(flux_method)
     s += '#define STENCIL_LENGTH {}\n'.format(stencil_length)
     s += '#define MID_STENCIL {}\n'.format(mid_stencil)
@@ -108,41 +99,41 @@ def genHeader(data):
     
     s += '#define CFL {0:0.15}\n\n'.format(gdata.CFL)
     
-    s += '__constant double2 ghV[{}] = {{'.format(gdata.nv)
+    s += '__constant double2 QUAD[{}] = {{'.format(gdata.Nv)
     
-    for i in range(gdata.nv):
+    for i in range(gdata.Nv):
         if i > 0:
             s += '                              '
-        if i < gdata.nv-1:
+        if i < gdata.Nv-1:
             s += '(double2)('
-            s += '{0:0.15}, '.format(ghX[i])
-            s += '{0:0.15} '.format(ghY[i])
+            s += '{0:0.15}, '.format(quad[i,0])
+            s += '{0:0.15} '.format(quad[i,1])
             s += '),\n'
         else:
             s += '(double2)('
-            s += '{0:0.15},'.format(ghX[i])
-            s += '{0:0.15}'.format(ghY[i])
+            s += '{0:0.15},'.format(quad[i,0])
+            s += '{0:0.15}'.format(quad[i,1])
             s += ')'
     s += '};\n\n'
     
     count = 0
-    s += '__constant double ghW[{}] = {{'.format(gdata.nv)
-    for i in range(gdata.nv):
+    s += '__constant double WEIGHT[{}] = {{'.format(gdata.Nv)
+    for i in range(gdata.Nv):
         count += 1
-        if i < gdata.nv-1:
-            s += '{0:0.15}, '.format(ghW[i])
+        if i < gdata.Nv-1:
+            s += '{0:0.15}, '.format(weight[i])
         else:
-            s += '{0:0.15}'.format(ghW[i])
+            s += '{0:0.15}'.format(weight[i])
         if count == 4:
             s+= '\n                              '
             count = 0
     s += '};\n\n'
     
     count = 0
-    s += '__constant size_t mirror_NS[{}] = {{'.format(gdata.nv)
-    for i in range(gdata.nv):
+    s += '__constant size_t mirror_NS[{}] = {{'.format(gdata.Nv)
+    for i in range(gdata.Nv):
         count += 1
-        if i < gdata.nv-1:
+        if i < gdata.Nv-1:
             s += '{}, '.format(gdata.mirror_NS[i])
         else:
             s += '{}'.format(gdata.mirror_NS[i])
@@ -152,10 +143,10 @@ def genHeader(data):
     s += '};\n'
     
     count = 0
-    s += '__constant size_t mirror_EW[{}] = {{'.format(gdata.nv)
-    for i in range(gdata.nv):
+    s += '__constant size_t mirror_EW[{}] = {{'.format(gdata.Nv)
+    for i in range(gdata.Nv):
         count += 1
-        if i < gdata.nv-1:
+        if i < gdata.Nv-1:
             s += '{}, '.format(gdata.mirror_EW[i])
         else:
             s += '{}'.format(gdata.mirror_EW[i])

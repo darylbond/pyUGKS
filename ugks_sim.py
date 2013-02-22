@@ -68,7 +68,7 @@ class UGKSim(object):
         self.HDF_init = False
         
         # save to file
-        self.saveToFile()
+        self.saveToFile(save_f=gdata.save_options.save_initial_f)
 
         return
 
@@ -667,7 +667,7 @@ class UGKSim(object):
         grp.create_dataset("title",data=gdata.title)
         grp.create_dataset("CFL",data=gdata.CFL)
         grp.create_dataset("t0",data=gdata.t0)
-        grp.create_dataset("nGH",data=gdata.nGH)
+        grp.create_dataset("Nv",data=gdata.Nv)
         grp.create_dataset("chi",data=gdata.chi)
         grp.create_dataset("R",data=gdata.R)
         grp.create_dataset("gamma",data=gdata.gamma)
@@ -676,29 +676,17 @@ class UGKSim(object):
         grp.create_dataset("L_ref",data=gdata.L_ref)
         grp.create_dataset("D_ref",data=gdata.D_ref)
         grp.create_dataset("T_ref",data=gdata.T_ref)
-        grp.create_dataset("Tc",data=gdata.Tc)
         grp.create_dataset("C_ref",data=gdata.C_ref)
         grp.create_dataset("t_ref",data=gdata.t_ref)
-        grp.create_dataset("Cc",data=gdata.Cc)
-        grp.create_dataset("tc",data=gdata.tc)
-        grp.create_dataset("T_lat2ref",data=gdata.T_lat2ref)
-        grp.create_dataset("U_lat2ref",data=gdata.U_lat2ref)
-        grp.create_dataset("V_lat2ref",data=gdata.U_lat2ref)
-        grp.create_dataset("t_lat2ref",data=gdata.t_lat2ref)
         grp.create_dataset("b",data=gdata.b)
         grp.create_dataset("K",data=gdata.K)
         grp.create_dataset("Nb",data=len(self.blocks))
         grp.create_dataset("skip",data=save.save_count)
-        grp.create_dataset("ghX",data=gdata.ghX)
-        grp.create_dataset("ghY",data=gdata.ghY)
-        grp.create_dataset("ghW",data=gdata.ghW)
-        grp.create_dataset("method",data=gdata.method)
+        grp.create_dataset("quad",data=gdata.quad)
+        grp.create_dataset("weight",data=gdata.weight)
         
         if self.restart_hdf:
             grp.create_dataset("restart",data=gdata.restart)
-        
-        if gdata.store:
-            grp.create_dataset("store",data=gdata.store)
         
         # save block constant data
         self.xdmf_blocks = []
