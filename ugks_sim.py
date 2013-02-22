@@ -318,14 +318,13 @@ class UGKSim(object):
 
         # make sure all ghost cells are up to date
         self.updateAllBC()
+        
+        cl.enqueue_barrier(self.queue)
 
-        if gdata.method == "RK3":
-
-            self.RK3oneStep(get_res, check_err)
-
-        elif gdata.method == "RK4":
-
-            self.RK4oneStep(get_res)
+        for b in self.blocks:
+            b.UGKS_flux()
+            cl.enqueue_barrier(self.queue)
+            b.UGKS_update()
             
         cl.enqueue_barrier(self.queue)
         

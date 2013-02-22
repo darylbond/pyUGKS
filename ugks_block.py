@@ -587,10 +587,10 @@ class UGKSBlock(object):
         return self.flag_H[0]
         
 #===============================================================================
-#   Runge-Kutta
+#   Unified Gas Kinetic Scheme (UGKS)
 #===============================================================================
     
-    def RKflux(self, f="f_D", flux = "flux_D"):
+    def UGKS_flux(self, f="f_D", flux = "flux_D"):
         """
         get the fluxes for a specified distribution
         """
@@ -601,8 +601,8 @@ class UGKSBlock(object):
         flux_str = "self."+flux
         flux = eval(flux_str)
         
-        self.prg.initialiseToZero(self.queue, (self.Ni, self.Nj, self.Nv), 
-                                  self.work_size, flux)
+        global_size = m_tuple((self.Ni, self.Nj, 1),self.work_size)
+        self.prg.initialiseToZero(self.queue, global_size, self.work_size, flux)
         
         cl.enqueue_barrier(self.queue)
         
@@ -610,18 +610,29 @@ class UGKSBlock(object):
             for even_odd in range(2):
                 ni = int(np.floor((self.ni - even_odd)/2.0))
                 nj = int(np.floor((self.nj - even_odd)/2.0))
-                global_size = [(self.ni, nj+1, self.Nv), (ni+1, self.nj, self.Nv)]
-                lx = min(global_size[face][0], self.work_size[0])
-                ly = min(global_size[face][1], self.work_size[1])
-                work_size = (lx, ly, self.Nv)
-                self.prg.RK_FLUXES(self.queue, global_size[face], work_size,
+                
+                global_size = [(self.ni, nj+1, 1), (ni+1, self.nj, 1)]
+                global_size = m_tuple(global_size[face], self.work_size)
+                
+                
+                self.prg.UGKS_flux(self.queue, global_size, self.work_size,
                                        f, flux, self.centre_D, self.side_D,
                                        self.normal_D, self.length_D, self.area_D,
                                        np.int32(face), np.int32(even_odd),
                                        self.flag_D)
         
-        return 
+        return
         
+    def UGKS_update(self):
+        """
+        update the cell average values
+        """
+        
+        return
+        
+#==============================================================================
+# INETRNAL DATA
+#==============================================================================
     def getInternal(self):
         """
         get internal data from the simulation

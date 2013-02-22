@@ -13,7 +13,7 @@
  * 	perfrom all West boundary fluxes on odd, then even
  */
 
-/*
+
 __kernel void
 RK_FLUXES(__global double2* Fin,
 	   __global double2* flux,
@@ -521,4 +521,4 @@ RK4_UPDATE(__global double2* Fin,
   return;
 }
 #endif
-*/
+

@@ -94,7 +94,7 @@ def genHeader(data):
     s += '#define umax {}\n'.format(gdata.umax)
     s += '#define vmax {}\n'.format(gdata.vmax)
     s += '#define Kn {}\n'.format(gdata.Kn)
-    s += '#define gamma {}\n'.format(gdata.gamma)
+    s += '#define gam {}\n'.format(gdata.gamma)
     s += '#define B {}\n'.format(gdata.b)
     s += '#define K {} // total number of extra degrees of freedom accounted for\n'.format(gdata.K)
     s += '#define chi {}\n\n'.format(gdata.chi)
@@ -220,7 +220,7 @@ def genOpenCL(data):
 
     # order of compilation
     file_list = ["definitions","clFunctions.c","clKernel.c",\
-                'clRK.c',"clGhostRoutines.c"]
+                'clUGKS.c',"clGhostRoutines.c"]
     
     # the string that everything is added to
     src_str = header
