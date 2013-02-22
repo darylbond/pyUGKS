@@ -209,16 +209,72 @@ cellGeom(__global double2* xy,
 // clFindDT
 /////////////////////////////////////////
 __kernel void
-clFindDT(__global double* gD, __global double* gT, __global double* time_step) 
+clFindDT(__global double2* xy, __global double* area,
+         __global double* gUV, __global double* gT, 
+         __global double* time_step) 
 {
   // calculate the time step parameter for this cell
   
   size_t mi = get_global_id(0);
   size_t mj = get_global_id(1);
   
-  double tau = relaxTime(GD(mi,mj), GT(mi,mj));
+  double2 a = XY(mi+1+GHOST,mj+GHOST);
+  double2 b = XY(mi+1+GHOST,mj+1+GHOST);
+  double2 c = XY(mi+GHOST,mj+1+GHOST);
+  double2 d = XY(mi+GHOST,mj+GHOST);
   
-  TSTEP(mi,mj) = CFL*tau;
+  double dx = fabs(a.x-b.x);
+  double dx_temp = fabs(c.x-b.x);
+  if (dx_temp > dx) {
+    dx = dx_temp;
+  }
+  dx_temp = fabs(c.x-d.x);
+  if (dx_temp > dx) {
+    dx = dx_temp;
+  }
+  dx_temp = fabs(a.x-d.x);
+  if (dx_temp > dx) {
+    dx = dx_temp;
+  }
+  dx_temp = fabs(c.x-a.x);
+  if (dx_temp > dx) {
+    dx = dx_temp;
+  }
+  dx_temp = fabs(b.x-d.x);
+  if (dx_temp > dx) {
+    dx = dx_temp;
+  }
+  
+  double dy = fabs(a.y-b.y);
+  double dy_temp = fabs(c.y-b.y);
+  if (dy_temp > dy) {
+    dy = dy_temp;
+  }
+  dy_temp = fabs(c.y-d.y);
+  if (dy_temp > dy) {
+    dy = dy_temp;
+  }
+  dy_temp = fabs(a.y-d.y);
+  if (dy_temp > dy) {
+    dy = dy_temp;
+  }
+  dy_temp = fabs(c.y-a.y);
+  if (dy_temp > dy) {
+    dy = dy_temp;
+  }
+  dy_temp = fabs(b.y-d.y);
+  if (dy_temp > dy) {
+    dy = dy_temp;
+  }
+  
+  double2 UV = GUV(mi,mj);
+  
+  double sos = soundSpeed(GT(mi,mj));
+  
+  double u = max(umax, fabs(UV.x)) + sos;
+  double v = max(vmax, fabs(UV.y)) + sos;
+  
+  TSTEP(mi,mj) = CFL*(dx*u + dy*v)/AREA(mi+GHOST,mj+GHOST);
     
   return;
 }

@@ -307,7 +307,6 @@ class UGKSBlock(object):
         if not restart_hdf:
             # perform initialisation of distribution functions
             global_size = m_tuple((self.ni, self.nj, 1),self.work_size)
-            print global_size
             self.prg.initFunctions(self.queue, global_size, self.work_size,
                                    self.f_D, self.rho_D, self.UV_D, 
                                    self.T_D, self.Q_D)
@@ -573,9 +572,6 @@ class UGKSBlock(object):
         # the total area of this block
         self.total_area = np.sum(self.area_H[self.ghost:-self.ghost, self.ghost:-self.ghost])
         
-        # the minimum time step based on CFL and cell sizes
-        self.dt_x = np.min(gdata.CFL*(self.length_H[self.ghost:-self.ghost, self.ghost:-self.ghost]/gdata.Cmax)) 
-        
         return
         
     def get_flag(self):
@@ -673,23 +669,17 @@ class UGKSBlock(object):
         """
         
         self.prg.clFindDT(self.queue, (self.ni, self.nj), None,
-                          self.rho_D, self.T_D, self.time_step_D)
+                          self.xy_D, self.area_D, self.UV_D, self.T_D, self.time_step_D)
                           
         cl.enqueue_barrier(self.queue)
         
+        #cl.enqueue_copy(self.queue,self.time_step_H,self.time_step_D)
+        
         # run reduction kernel
-        self.dt_r = cl_array.min(self.time_step_array,queue=self.queue).get()
+        max_freq = cl_array.max(self.time_step_array,queue=self.queue).get()
         
-        if self.dt_x < self.dt_r:
-            s = "spatial resolution"
-        elif self.dt_r < self.dt_x:
-            s = "relaxation"
-        else:
-            s = "spatial resolution & relaxation"
         
-        print "Block %d time step governed by: %s"%(self.id, s)
-        
-        return min(self.dt_x, self.dt_r)
+        return 1.0/max_freq
         
     def return_macro(self, ID):
         """

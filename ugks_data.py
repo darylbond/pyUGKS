@@ -107,7 +107,7 @@ class UGKSData(object):
                 'step','CL_local_size',\
                 'quad','weight',\
                 'mirror_NS',\
-                'mirror_EW','dt_update_count','Cmax',\
+                'mirror_EW','dt_update_count','umax','vmax',\
                 'rootName',\
                 'device','flux_method', 'platform',\
                 'plot_options','save_options','residual_options',\
@@ -150,7 +150,7 @@ class UGKSData(object):
         self.step = 0
         
         # may be useful to change t0 if we are restarting from another job
-        self.dt = 1.0e-6
+        self.dt = 0.0
         self.print_count = 20
         self.max_time = 1.0e-3
         self.max_step = 1
@@ -224,7 +224,6 @@ class UGKSData(object):
         self.weight = np.zeros((self.Nv))
         
         index_array = np.zeros((n,n), dtype=np.int)
-        Cmax = 0.0
         count = 0
         for i in range(n):
             for j in range(n):
@@ -234,13 +233,10 @@ class UGKSData(object):
                 self.quad[count,0] = u
                 self.quad[count,1] = v
                 self.weight[count] = weights[i]*np.exp(u**2)*weights[j]*np.exp(v**2)
-                vel = self.quad[count,:]
-                C = np.linalg.norm(vel)
-                if C > Cmax:
-                    Cmax = C
                 count += 1
 
-        self.Cmax = Cmax
+        self.umax = abs(np.max(vcoords))
+        self.vmax = abs(np.max(vcoords))
         
         self.mirror_NS = np.ravel(np.fliplr(index_array))
         self.mirror_EW = np.ravel(np.flipud(index_array))

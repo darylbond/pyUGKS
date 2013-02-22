@@ -15,7 +15,16 @@ double relaxTime(double rho, double T)
   return tau;
 }
 
+/////////////////////////////////////////
+// soundSpeed
+/////////////////////////////////////////
 
+double soundSpeed(double T)
+{
+  // calculate the sound speed
+  
+  return sqrt(0.5*gamma*T);
+}
 
 /////////////////////////////////////////
 // MAXWELL-BOLTZMANN EQUILIBRIUM

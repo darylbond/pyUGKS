@@ -91,8 +91,10 @@ def genHeader(data):
     
     s += '#define Pr {}\n'.format(gdata.Pr)
     s += '#define Cs {}\n'.format(sqrt(gdata.gamma))
-    s += '#define Cmax {}\n'.format(gdata.Cmax)
+    s += '#define umax {}\n'.format(gdata.umax)
+    s += '#define vmax {}\n'.format(gdata.vmax)
     s += '#define Kn {}\n'.format(gdata.Kn)
+    s += '#define gamma {}\n'.format(gdata.gamma)
     s += '#define B {}\n'.format(gdata.b)
     s += '#define K {} // total number of extra degrees of freedom accounted for\n'.format(gdata.K)
     s += '#define chi {}\n\n'.format(gdata.chi)

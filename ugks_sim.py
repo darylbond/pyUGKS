@@ -52,6 +52,9 @@ class UGKSim(object):
         # initialise all distributions
         print "\n INITIALISE DISTRIBUTION FUNCTIONS\n"
         self.initFunctions()
+        
+        print "\n INITIALISE TIME STEP\n"
+        self.updateTimeStep()
 
         print "\n INITIALISATION COMPLETE\n"
         
