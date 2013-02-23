@@ -2,14 +2,14 @@
 //MACROS 
 /////////////////////////////////////////\n
 #define F(i,j,v) Fin[NV*NJ*(i) + NV*(j) + (v)] 
-#define FLUX(i,j,v) flux[NV*NJ*(i) + NV*(j) + (v)]
 #define TXYZ(i,j) Txyz[(i)*nj + (j)] 
 #define XY(i,j) xy[(i)*NY + (j)] 
 #define RES(i,j) residual[(i)*nj + (j)]
 
-#define GD(i,j) gD[(i)*nj + (j)]
-#define GUV(i,j) gUV[(i)*nj + (j)] 
-#define GT(i,j) gT[(i)*nj + (j)] 
+#define MACRO(i,j) macro[(i)*nj + (j)]
+#define GD(i,j) macro[(i)*nj + (j)].s0
+#define GUV(i,j) macro[(i)*nj + (j)].s12
+#define GL(i,j) macro[(i)*nj + (j)].s3
 #define GQ(i,j) gQ[(i)*nj + (j)] 
 
 
@@ -210,8 +210,7 @@ cellGeom(__global double2* xy,
 /////////////////////////////////////////
 __kernel void
 clFindDT(__global double2* xy, __global double* area,
-         __global double* gUV, __global double* gT, 
-         __global double* time_step) 
+         __global double4* macro, __global double* time_step) 
 {
   // calculate the time step parameter for this cell
   
@@ -269,7 +268,7 @@ clFindDT(__global double2* xy, __global double* area,
   
   double2 UV = GUV(mi,mj);
   
-  double sos = soundSpeed(GT(mi,mj));
+  double sos = soundSpeed(GL(mi,mj));
   
   double u = max(umax, fabs(UV.x)) + sos;
   double v = max(vmax, fabs(UV.y)) + sos;
@@ -342,8 +341,7 @@ getInternalTemp(__global double2* Fin, __global double4* Txyz)
 // KERNEL FUNCTION
 __kernel void
 initFunctions(__global double2* Fin, 
-__global double* gD, __global double2* gUV, 
-__global double* gT, __global double2* gQ) 
+__global double4* macro, __global double2* gQ) 
 {
   // initialise functions, but only those that are within the simulation domain, does not include ghost cells
   
@@ -363,7 +361,7 @@ __global double* gT, __global double2* gQ)
     size_t gv = li*LOCAL_SIZE+ti;
     if (gv < NV) {
       double2 uv = QUAD[gv];
-      F(gi,gj,gv) = fS(GD(mi,mj), GUV(mi,mj), GT(mi,mj), GQ(mi,mj), uv, gv);
+      F(gi,gj,gv) = fEQ(MACRO(mi,mj), GQ(mi,mj), uv, gv);
     }
   }
   
@@ -372,102 +370,43 @@ __global double* gT, __global double2* gQ)
 
 __kernel void
 calcMacro(__global double2* Fin, 
-  __global double* gD, __global double2* gUV, 
-  __global double* gT, __global double2* gQ,
-  __global int* flag) 
+  __global double4* macro, __global double2* gQ) 
 {
   // calculate the macroscopic properties
 
   size_t mi = get_global_id(0);
   size_t mj = get_global_id(1);
-  size_t ti = get_local_id(2);
   
   int gi = mi + GHOST;
   int gj = mj + GHOST;
   
-  __local double2 M0[LOCAL_SIZE], M1[LOCAL_SIZE];
-  __local double2 M2[LOCAL_SIZE];
-  
-  __local double M3[LOCAL_SIZE], M4[LOCAL_SIZE];
-  __local double M5[LOCAL_SIZE], M6[LOCAL_SIZE];
-  __local double M7[LOCAL_SIZE], M8[LOCAL_SIZE];
-  __local double M9[LOCAL_SIZE];
-  
-  
-  M0[ti] = 0.0;  M1[ti] = 0.0;  M2[ti] = 0.0;
-  
-  M3[ti] = 0.0;  M4[ti] = 0.0;  M5[ti] = 0.0;  M6[ti] = 0.0;  
-  M7[ti] = 0.0;  M8[ti] = 0.0;  M9[ti] = 0.0;
-  
   size_t gv;
   
-  for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+  double4 prim = 0.0;
+  double2 f, uv;
+  for (size_t gv = 0; gv < NV; gv++) {
+    f = F(gi,gj,gv);
+    uv = QUAD[gv];
     
-     gv = li*LOCAL_SIZE+ti;
-    
-    if (gv < NV) { 
-    
-      // velocities
-      double u = QUAD[gv].x;
-      double v = QUAD[gv].y;
-      
-      // distribution
-      double2 f = F(gi,gj,gv);
-      
-      // moments
-      M0[ti] += f;
-      M1[ti] += u*f;
-      M2[ti] += v*f;
-      M3[ti] += u*v*f.x;
-      M4[ti] += u*u*f.x;
-      M5[ti] += v*v*f.x;
-      M6[ti] += v*v*u*f.x;
-      M7[ti] += u*u*v*f.x;
-      M8[ti] += u*u*u*f.x;
-      M9[ti] += v*v*v*f.x;
-    }
+    prim.s0 += f.x;
+    prim.s12 += uv*f.x;
+    prim.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
   }
   
-  barrier(CLK_LOCAL_MEM_FENCE);
+  // convert to standard variables
+  prim.s3 = 0.5*prim.s0/(gam-1.0)/(prim.s3 - 0.5*dot(prim.s12,prim.s12)/prim.s0);
+  prim.s12 /= prim.s0;
   
-  double rho, T;
-  double2 UV, Q;
-  
-  if (ti == 0) {
-    
-    for (size_t li = 1; li < LOCAL_SIZE; ++li) {
-      
-      M0[0] += M0[li];
-      M1[0] += M1[li];
-      M2[0] += M2[li];
-      M3[0] += M3[li];
-      M4[0] += M4[li];
-      M5[0] += M5[li];
-      M6[0] += M6[li];
-      M7[0] += M7[li];
-      M8[0] += M8[li];
-      M9[0] += M9[li];
-    }
-    
-    rho = M0[0].x;
-    UV.x = M1[0].x/M0[0].x;
-    UV.y = M2[0].x/M0[0].x;
-    T = ((M4[0] + M5[0] + M0[0].y)/M0[0].x - dot(UV,UV))/B;	// temperature
-    double nrg = dot(UV,UV) - 3.0*T;
-    Q.x = 0.5*((M8[0] + M6[0] + M1[0].y/K) + M0[0].x*UV.x*nrg) - UV.x*M4[0] - UV.y*M3[0];  //heat flux -x
-    Q.y = 0.5*((M7[0] + M9[0] + M2[0].y/K) + M0[0].x*UV.y*nrg) - UV.x*M3[0] - UV.y*M5[0];  //heat flux -y
-  
-    
-    if (isnan(rho)) {
-      flag[0] = 2;
-      return;
-    }
-
-    GD(mi,mj) = rho;
-    GUV(mi,mj) = UV;
-    GT(mi,mj) = T;
-    GQ(mi,mj) = Q;
+  double2 Q = 0.0;
+  for (size_t gv = 0; gv < NV; gv++) {
+    f = F(gi,gj,gv);
+    uv = QUAD[gv];
+    Q.x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
+    Q.y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
   }
+  
+  MACRO(mi, mj) = prim;
+  GQ(mi, mj) = Q;
 
   return;
 }

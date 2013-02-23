@@ -19,60 +19,50 @@ double relaxTime(double rho, double T)
 // soundSpeed
 /////////////////////////////////////////
 
-double soundSpeed(double T)
+double soundSpeed(double lambda)
 {
   // calculate the sound speed
   
-  return sqrt(0.5*gamma*T);
+  return sqrt(0.5*gam/lambda);
 }
 
 /////////////////////////////////////////
 // MAXWELL-BOLTZMANN EQUILIBRIUM
 /////////////////////////////////////////
     
-double2 fM(double rho, double2 UV, double T, double2 uv, size_t i) 
+double2 fM(double4 prim, double2 uv, size_t gv) 
 {  
   // the Maxwellian
   
   double2 M;
-
-  M.x = (rho/(T*PI))*exp(-dot(uv-UV,uv-UV)/T);
+  M.x = prim.s0*(prim.s3/PI)*exp(-prim.s3*dot(uv-prim.s12,uv-prim.s12));
+  M.y = (M.x*K)/(2.0*prim.s3);
   
-  M.y = (M.x*K*T)/2.0;
-  
-  return WEIGHT[i]*M;
+  return WEIGHT[gv]*M;
 }
     
 ////////////////////////////////////////////////////////////////////////////////
 // SHAKHOV EQUATIONS
 ////////////////////////////////////////////////////////////////////////////////
 
-double2 fShakhov(double rho, double2 UV, double T, double2 Q, double2 uv)
+double2 fS(double4 prim, double2 Q, double2 uv, double2 M)
 {
   // Shakhov extension
-  double U = UV.x; 
-  double V = UV.y; 
-  double qx = Q.x; 
-  double qy = Q.y;
-  
-  double u = uv.x; 
-  double v = uv.y;
-  
+    
   double2 S;
-  S.x = (0.8*(1 - Pr)*(K - 5 + (2*((u - U)*(u - U) + (v - V)*(v - V)))/T)*
-        (qx*(u - U) + qy*(v - V)))/(rho*T*T);
+  S.x = 0.8*(1-Pr)*(prim.s3*prim.s3)/prim.s0*((uv.x-prim.s1)*Q.x+(uv.y-prim.s2)*Q.y)*(2*prim.s3*(((uv.x-prim.s1)*(uv.x-prim.s1))+((uv.y-prim.s2)*(uv.y-prim.s2)))+K-5);
+  S.y = 0.8*(1-Pr)*(prim.s3*prim.s3)/prim.s0*((uv.x-prim.s1)*Q.x+(uv.y-prim.s2)*Q.y)*(2*prim.s3*(((uv.x-prim.s1)*(uv.x-prim.s1))+((uv.y-prim.s2)*(uv.y-prim.s2)))+K-3);
   
-  S.y = (0.8*(1 - Pr)*(K - 3 + (2*((u - U)*(u - U) + (v - V)*(v - V)))/T)*
-        (qx*(u - U) + qy*(v - V)))/(rho*T*T);
-  
-  return S;
+  return S*M;
 }
 
-double2 fS(double rho, double2 UV, double T, double2 Q, double2 uv, size_t i)
+double2 fEQ(double4 prim, double2 Q, double2 uv, size_t gv)
 {
-  //Shakhov equation for f
-  double2 out = fM(rho, UV, T, uv, i)*(1 + fShakhov(rho, UV, T, Q, uv));
-  return out;
+  // the full Shakhov equilibrium
+  
+  double2 M = fM(prim, uv, gv);
+  
+  return M + fS(prim, Q, uv, M);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,16 +212,13 @@ int macroShort(__global double2* Fin, size_t i, size_t j, double* rho, double2* 
 // interfaceVelocity
 /////////////////////////////////////////
 
-double2 interfaceVelocity(int i, int j, int v, int face, __global double2* normal)
+double2 interfaceVelocity(int v, double2 n)
 {
   // find velocities aligned with the nominated face
   // u -> normal pointing out
   
   // global velocity
   double2 e = QUAD[v];
-  
-  // normal to edge
-  double2 n = NORMAL(i,j,face);
   
   // tangent to edge
   double2 t;
@@ -243,6 +230,27 @@ double2 interfaceVelocity(int i, int j, int v, int face, __global double2* norma
   uv.y = dot(e,t);
   
   return uv;
+}
+
+/////////////////////////////////////////
+// toGlobal
+/////////////////////////////////////////
+
+double2 toGlobal(double2 in, double2 n)
+{
+  // change from coord system based on 'n'
+  // to the cartesian system
+  
+  // tangent to edge
+  double2 t;
+  t.x = -n.y;
+  t.y = n.x;
+  
+  double2 out;
+  out.x = dot(n*in.x,(double2)(1.0,0.0)) + dot(t*in.y,(double2)(1.0,0.0));
+  out.y = dot(n*in.x,(double2)(0.0,1.0)) + dot(t*in.y,(double2)(0.0,1.0));
+  
+  return out;
 }
 
 /////////////////////////////////////////

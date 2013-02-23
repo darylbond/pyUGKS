@@ -787,86 +787,6 @@ class UGKSim(object):
         print "done"
         
         return
-        
-    def saveVTK(self):
-        """
-        save data to a VTK XML data file
-        """
-        
-        print "saving data to VTK...",
-    
-        # file
-        (dirName,firstName) = os.path.split(gdata.rootName)
-        vtkPath = os.path.join(gdata.rootName,"VTK")
-        if not os.access(vtkPath, os.F_OK):
-            os.makedirs(vtkPath)
-            
-        if gdata.save_options.save_name != "":
-            name = gdata.save_options.save_name
-        else:
-            name = firstName
-
-        vtkName = os.path.join(vtkPath,name + "_" + str(self.step) + ".vtm")
-        
-        
-        data_name = ["D","UV","P","Q"]
-        
-        if gdata.save_options.internal_data:
-            data_name += ["Txyz"]
-        else:
-            data_name += ["T"]
-            
-        nID = len(data_name)
-        
-        multiblock = tvtk.MultiBlockDataSet()
-        sub_block = 0
-        
-        for b in self.blocks:
-            X = b.x
-            Y = b.y
-            
-            pts = np.empty((X.size, 3), dtype=float)
-            pts[:,0] = np.ravel(X,order = "F")
-            pts[:,1] = np.ravel(Y,order = "F")
-            pts[:,2] = 0
-            
-            #pts = pts.transpose(0,1,2).copy()
-            pts.shape = pts.size/3, 3
-            
-            r = tvtk.StructuredGrid()
-                
-            for k in range(nID):
-                data = b.return_macro(data_name[k])
-                dim_3 = len(data.shape)-1
-                if dim_3 == 2:
-                    dim_3 = data.shape[2]
-                    data_in = np.zeros((data[:,:,0].size,dim_3))
-                    for i in range(dim_3):
-                        data_in[:,i] = np.ravel(data[:,:,i], order = "F")
-                    data = r.cell_data.add_array(data_in)
-                    
-                else:
-                    data = r.cell_data.add_array(data.ravel(order = "F"))
-
-                r.cell_data.get_array(data).name = data_name[k]
-                r.cell_data.get_array(data).number_of_components = dim_3
-                
-                r.dimensions = (X.shape[0],X.shape[1], 1)
-
-                r.points = pts
-                
-                multiblock.set_block(sub_block, r)
-            
-            sub_block += 1
-                
-                
-        writer = tvtk.XMLMultiBlockDataWriter(input=multiblock, file_name=vtkName)
-
-        writer.write()
-        
-        print "done"
-            
-        return
 
     def saveToFile(self, close_file=False, save_f=False):
         """
@@ -875,15 +795,12 @@ class UGKSim(object):
         if gdata.save_options.save & (not self.saved):
             
             print "saving step: ",self.step
-            if gdata.save_options.writeHDF:
-                self.saveHDF5(save_f)
-            if gdata.save_options.writeVTK:
-                self.saveVTK()
+            self.saveHDF5(save_f)
             
             self.saved = True
             
-        if close_file & gdata.save_options.writeHDF:
-                self.close_HDF5()
+        if close_file:
+            self.close_HDF5()
 
         return
         

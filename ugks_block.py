@@ -211,37 +211,32 @@ class UGKSBlock(object):
         ## common
         self.f_H = -1.0*np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64) # mass.x, energy.y
         
-        self.flux_H = np.zeros((self.Ni,self.Nj,self.Nv,2),dtype=np.float64) # mass.x, energy.y
+        self.flux_f_H = np.zeros((self.Ni,self.Nj,self.Nv,2),dtype=np.float64) # mass.x, energy.y
+        self.flux_macro_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
 
-        # conserved properties, without ghost cells
+        # macro variables, without ghost cells
         #.s0 -> density
         #.s1 -> x velocity
         #.s2 -> y-velocity
-        #.s3 -> temperature
-        #.s4 -> pressure
-        #.s5 -> heat flux x
-        #.s6 -> heat flux y
-        #.s7 -> relaxation time
+        #.s3 -> 1/temperature
         
-        self.rho_H = np.ones((self.ni,self.nj),dtype=np.float64)
-        self.UV_H = np.ones((self.ni,self.nj,2),dtype=np.float64)
-        self.T_H = np.ones((self.ni,self.nj),dtype=np.float64)
+        self.macro_H = np.ones((self.ni,self.nj,4),dtype=np.float64)
         self.Q_H = np.ones((self.ni,self.nj,2),dtype=np.float64)
         
         if restart_hdf:
             step = restart_hdf['global_data/final_step'][()]
             data = restart_hdf['step_%d/block_%d'%(step, self.id)]
-            self.rho_H[:] = data['rho'][()]
-            self.UV_H[:] = data['UV'][()]
-            self.T_H[:] = data['T'][()]
+            self.macro_H[:,:,0] = data['rho'][()]
+            self.macro_H[:,:,1:2] = data['UV'][()]
+            self.macro_H[:,:,3] = 1.0/data['T'][()]
             self.Q_H[:] = data['Q'][()]
             self.f_H[:] = data['f'][()]
             
         else:
-            self.rho_H *= self.fill_condition.D # density
-            self.UV_H[:,:,0] *= self.fill_condition.U # x-velocity
-            self.UV_H[:,:,1] *= self.fill_condition.V # y-velocity
-            self.T_H *= self.fill_condition.T # temperature
+            self.macro_H[:,:,0] *= self.fill_condition.D # density
+            self.macro_H[:,:,1] *= self.fill_condition.U # x-velocity
+            self.macro_H[:,:,2] *= self.fill_condition.V # y-velocity
+            self.macro_H[:,:,3] *= 1.0/self.fill_condition.T # temperature
             self.Q_H[:,:,0] *= self.fill_condition.qx # qx
             self.Q_H[:,:,1] *= self.fill_condition.qy # qy
             
@@ -253,16 +248,16 @@ class UGKSBlock(object):
                         
                         if self.fill_condition.UDF_D:
                             fval = eval(self.fill_condition.UDF_D)
-                            self.rho_H[i,j] = fval
+                            self.macro_H[i,j,0] = fval
                         if self.fill_condition.UDF_U:
                             fval = eval(self.fill_condition.UDF_U)
-                            self.UV_H[i,j,0] = fval
+                            self.macro_H[i,j,1] = fval
                         if self.fill_condition.UDF_V:
                             fval = eval(self.fill_condition.UDF_V)
-                            self.UV_H[i,j,1] = fval
+                            self.macro_H[i,j,2] = fval
                         if self.fill_condition.UDF_T:
                             fval = eval(self.fill_condition.UDF_T)
-                            self.T_H[i,j] = fval
+                            self.macro_H[i,j,3] = 1.0/fval
         # time step
         self.time_step_H = np.zeros((self.ni,self.nj),dtype=np.float64)
 
@@ -274,12 +269,11 @@ class UGKSBlock(object):
         ## common
         self.f_D = self.set_buffer(self.f_H)
         
-        self.flux_D = self.set_buffer(self.flux_H)
+        self.flux_f_D = self.set_buffer(self.flux_f_H)
+        self.flux_macro_D = self.set_buffer(self.flux_macro_H)
         
         # macroscopic properties, without ghost cells
-        self.rho_D = self.set_buffer(self.rho_H)
-        self.UV_D = self.set_buffer(self.UV_H)
-        self.T_D = self.set_buffer(self.T_H)
+        self.macro_D = self.set_buffer(self.macro_H)
         self.Q_D = self.set_buffer(self.Q_H)
         
         # time step
@@ -308,8 +302,7 @@ class UGKSBlock(object):
             # perform initialisation of distribution functions
             global_size = m_tuple((self.ni, self.nj, 1),self.work_size)
             self.prg.initFunctions(self.queue, global_size, self.work_size,
-                                   self.f_D, self.rho_D, self.UV_D, 
-                                   self.T_D, self.Q_D)
+                                   self.f_D, self.macro_D, self.Q_D)
             cl.enqueue_barrier(self.queue)
             
             #cl.enqueue_copy(self.queue, self.f_H, self.f_D)
@@ -655,15 +648,13 @@ class UGKSBlock(object):
         #print "block = {}".format(self.id)
         
         if self.host_update == 0:
-            global_size = m_tuple((self.ni, self.nj, 1),self.work_size)
-            self.prg.calcMacro(self.queue, global_size, self.work_size,
-                   self.f_D, self.rho_D, self.UV_D, self.T_D, 
-                   self.Q_D, self.flag_D)
+            global_size = (self.ni, self.nj)
+            self.prg.calcMacro(self.queue, global_size, (1,1),
+                   self.f_D, self.macro_D, self.Q_D)
             cl.enqueue_barrier(self.queue)
-            cl.enqueue_copy(self.queue,self.rho_H,self.rho_D)
-            cl.enqueue_copy(self.queue,self.UV_H,self.UV_D)
-            cl.enqueue_copy(self.queue,self.T_H,self.T_D)
+            cl.enqueue_copy(self.queue,self.macro_H,self.macro_D)
             cl.enqueue_copy(self.queue,self.Q_H,self.Q_D)
+            
             self.host_update == 1
         
         # get internal data, if specified
@@ -680,7 +671,7 @@ class UGKSBlock(object):
         """
         
         self.prg.clFindDT(self.queue, (self.ni, self.nj), None,
-                          self.xy_D, self.area_D, self.UV_D, self.T_D, self.time_step_D)
+                          self.xy_D, self.area_D, self.macro_D, self.time_step_D)
                           
         cl.enqueue_barrier(self.queue)
         
@@ -691,29 +682,6 @@ class UGKSBlock(object):
         
         
         return 1.0/max_freq
-        
-    def return_macro(self, ID):
-        """
-        return the macro data in numpy arrays
-        """
-        
-        self.updateHost()
-        
-        if ID == "Txyz":
-            data = self.Txyz_H
-        else:
-            if ID in ["D","rho"]:
-                data = self.rho_H
-            elif ID in ["UV", "uv"]:
-                data = self.UV_H
-            elif ID in ["T", "temperature"]:
-                data = self.T_H
-            elif ID in ["Q", "Qxy","q","qxy"]:
-                data = self.Q_H
-            elif ID in ["P", "p"]:
-                data = self.rho_H*self.T_H
-        
-        return data
         
     def save_hdf(self, h5Name, grp, step, all_data=False):
         """
@@ -728,14 +696,14 @@ class UGKSBlock(object):
         
         self.updateHost(getF = all_data)
         
-        sgrp.create_dataset("rho",data=self.rho_H, compression=gdata.save_options.compression)
+        sgrp.create_dataset("rho",data=self.macro_H[:,:,0], compression=gdata.save_options.compression)
         xdmf += '<Attribute Name="rho" AttributeType="Scalar" Center="Cell">\n'
         xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
         xdmf += '%s:/step_%d/block_%d/rho\n'%(h5Name, step, self.id)
         xdmf += '</DataItem>\n'
         xdmf += '</Attribute>\n'
         
-        sgrp.create_dataset("UV",data=self.UV_H, compression=gdata.save_options.compression)
+        sgrp.create_dataset("UV",data=self.macro_H[:,:,1:3], compression=gdata.save_options.compression)
         # fancy shenanigans to get a zero valued third element in the vector
         xdmf += '<Attribute Name="UV" AttributeType="Vector" Center="Cell">\n'
         xdmf += '<DataItem Dimensions="%d %d 3" Function="JOIN($0, $1)" ItemType="Function">\n'%(self.ni, self.nj)
@@ -775,7 +743,7 @@ class UGKSBlock(object):
             xdmf += '</DataItem>\n'
             xdmf += '</Attribute>\n'
 
-        sgrp.create_dataset("T",data=self.T_H, compression=gdata.save_options.compression)
+        sgrp.create_dataset("T",data=1.0/self.macro_H[:,:,3], compression=gdata.save_options.compression)
         
         xdmf += '<Attribute Name="T" AttributeType="Scalar" Center="Cell">\n'
         xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
@@ -810,6 +778,6 @@ class UGKSBlock(object):
         
         self.updateHost()
         
-        mass = np.sum(self.area_H[self.ghost:-self.ghost,self.ghost:-self.ghost]*self.rho_H)
+        mass = np.sum(self.area_H[self.ghost:-self.ghost,self.ghost:-self.ghost]*self.macro_H[:,:,0])
         
         return mass

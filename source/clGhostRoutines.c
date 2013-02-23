@@ -406,18 +406,20 @@ edgeConstant(__global double2* Fin,
 
   double2 uv;
   
-  double2 UV;
+  double4 prim;
   double2 Q;
   
-  UV.x = U;
-  UV.y = V;
+  prim.s0 = D;
+  prim.s1 = U;
+  prim.s2 = V;
+  prim.s3 = 1.0/T;
   Q = 0.0;
   
   for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
     size_t gv = li*LOCAL_SIZE+ti;
     if (gv < NV) {
       uv = QUAD[gv];
-      F(gi,gj,gv) = fS(D, UV, T, Q, uv, gv);
+      F(gi,gj,gv) = fEQ(prim, Q, uv);
     }
   }
 

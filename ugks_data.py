@@ -48,9 +48,7 @@ class SaveOptions:
     
     save = False
     save_name = ""
-    writeHDF = False
     h5Name = ""
-    writeVTK = False
     save_initial_f = False
     save_final_f = False
     internal_data = False
