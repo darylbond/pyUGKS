@@ -305,6 +305,11 @@ class UGKSBlock(object):
                                    self.f_D, self.macro_D, self.Q_D)
             cl.enqueue_barrier(self.queue)
             
+            global_size = (self.ni, self.nj)
+            self.prg.calcMacro(self.queue, global_size, (1,1),
+                   self.f_D, self.macro_D, self.Q_D)
+            cl.enqueue_barrier(self.queue)
+            
             #cl.enqueue_copy(self.queue, self.f_H, self.f_D)
             #print np.sum(self.f_H[:,:,:,0],axis=2)
         
@@ -312,7 +317,7 @@ class UGKSBlock(object):
         print("global buffers initialised") 
 
 
-    def ghostExchange(self, f, this_face, other_block, other_face):
+    def ghostExchange(self, this_face, other_block, other_face):
         """
         perform ghost cell updating
 
@@ -330,42 +335,41 @@ class UGKSBlock(object):
         NiB = np.int32(other_block.Ni)
         NjB = np.int32(other_block.Nj)
         
-        this_f_str = "self."+f
-        this_f = eval(this_f_str)
-        
-        that_f_str = "other_block."+f
-        that_f = eval(that_f_str)
+        this_f = self.f_D
+        that_f = other_block.f_D
         
         if this_face in [NORTH, SOUTH]:
-            global_size = (self.ni, self.ghost, self.Nv)
+            global_size = (self.ni, self.ghost, 1)
         else:
-            global_size = (self.ghost, self.nj, self.Nv)
+            global_size = (self.ghost, self.nj, 1)
+            
+        global_size = m_tuple(global_size,self.work_size)
         
         self.prg.edgeExchange(self.queue, global_size, self.work_size,
                                this_f, faceA,
-                               that_f,
-                               NiB, NjB, faceB)
+                               that_f, NiB, NjB, faceB)
 
-    def ghostExtrapolate(self, f, this_face):
+    def ghostExtrapolate(self, this_face):
         """
         update the ghost cells to give constant gradient across the face
         """
         
         face = np.int32(this_face)
         
-        f_str = "self."+f
-        f = eval(f_str)
+        f = self.f_D
         
         if this_face in [NORTH, SOUTH]:
-            global_size = (self.ni, self.ghost, self.Nv)
+            global_size = (self.ni, self.ghost, 1)
         else:
-            global_size = (self.ghost, self.nj, self.Nv)
+            global_size = (self.ghost, self.nj, 1)
+        
+        global_size = m_tuple(global_size,self.work_size)
         
         self.prg.edgeExtrapolate(self.queue, global_size, self.work_size,
                                f, face)
         
     
-    def ghostConstant(self, f, this_face):
+    def ghostConstant(self, this_face):
         """
         generate distribution function values from the defined 
          constants and populate the ghost cells with this data
@@ -379,53 +383,56 @@ class UGKSBlock(object):
         V = np.float64(bc.Vwall)
         T = np.float64(bc.Twall)
         
-        f_str = "self."+f
-        f = eval(f_str)
+        f = self.f_D
         
         if this_face in [NORTH, SOUTH]:
-            global_size = (self.ni, self.ghost, self.Nv)
+            global_size = (self.ni, self.ghost, 1)
         else:
-            global_size = (self.ghost, self.nj, self.Nv)
+            global_size = (self.ghost, self.nj, 1)
+            
+        global_size = m_tuple(global_size,self.work_size)
         
         self.prg.edgeConstant(self.queue, global_size, self.work_size,
                                f, face, D, U, V, T)
     
-    def ghostMirror(self, f, this_face):
+    def ghostMirror(self, this_face):
         """
         update the ghost cells to give zero gradient across the face
         """
         
         face = np.int32(this_face)
         
-        f_str = "self."+f
-        f = eval(f_str)
+        f = self.f_D
         
         if this_face in [NORTH, SOUTH]:
-            global_size = (self.ni, self.ghost, self.Nv)
+            global_size = (self.ni, self.ghost, 1)
         else:
-            global_size = (self.ghost, self.nj, self.Nv)
+            global_size = (self.ghost, self.nj, 1)
+            
+        global_size = m_tuple(global_size,self.work_size)
         
         self.prg.edgeMirror(self.queue, global_size, self.work_size, f, face)
                                
-    def edgeConstGrad(self, f, this_face):
+    def edgeConstGrad(self, this_face):
         """
         update the ghost cells to give constant gradient across the face
         """
         
         face = np.int32(this_face)
         
-        f_str = "self."+f
-        f = eval(f_str)
+        f = self.f_D
         
         if this_face in [NORTH, SOUTH]:
-            global_size = (self.ni, self.ghost, self.Nv)
+            global_size = (self.ni, self.ghost, 1)
         else:
-            global_size = (self.ghost, self.nj, self.Nv)
+            global_size = (self.ghost, self.nj, 1)
+            
+        global_size = m_tuple(global_size,self.work_size)
         
         self.prg.edgeConstGrad(self.queue, global_size, self.work_size,
                                f, face)
         
-    def updateBC(self, f = "f_D"):
+    def updateBC(self):
         """
         update all boundary conditions
         this function must be called prior to every time step
@@ -437,30 +444,30 @@ class UGKSBlock(object):
             
             if bc.type_of_BC == ADJACENT:
                 # exchange ghost cell information with adjacent cell
-                self.ghostExchange(f, this_face, bc.other_block, bc.other_face)
+                self.ghostExchange(this_face, bc.other_block, bc.other_face)
                 
             if bc.type_of_BC == PERIODIC:
                 # exchange ghost cell information with adjacent cell
-                self.ghostExchange(f, this_face, bc.other_block, bc.other_face)
+                self.ghostExchange(this_face, bc.other_block, bc.other_face)
                 
             elif bc.type_of_BC == EXTRAPOLATE_OUT:
                 # extrapolate the cell data to give ZERO gradient
-                self.ghostExtrapolate(f, this_face)
+                self.ghostExtrapolate(this_face)
             
             elif bc.type_of_BC == CONSTANT:
                 # generate distribution function values from the defined 
                 # constants and populate the ghost cells with this data
-                self.ghostConstant(f, this_face)
+                self.ghostConstant(this_face)
             
             elif bc.type_of_BC == REFLECT:
                 # populate ghost cells with mirror image of interior data
                 """ NOTE: This only works for cartesian grids where the velocity space
                 is aligned with the grid"""
-                self.ghostMirror(f, this_face)
+                self.ghostMirror(this_face)
             
             elif bc.type_of_BC == DIFFUSE:
                 # extrapolate the cell data to give CONSTANT gradient
-                self.edgeConstGrad(f, this_face)
+                self.edgeConstGrad(this_face)
             
             #print "block {}, face {}: b.c. updated".format(self.id, this_face)            
             
@@ -600,16 +607,24 @@ class UGKSBlock(object):
                 ni = int(np.floor((self.ni - even_odd)/2.0))
                 nj = int(np.floor((self.nj - even_odd)/2.0))
                 
-                global_size = [(self.ni, nj+1, 1), (ni+1, self.nj, 1)]
-                global_size = m_tuple(global_size[face], self.work_size)
+                global_size = [(self.ni, nj+1), (ni+1, self.nj)]
                 
-                
-                self.prg.UGKS_flux(self.queue, global_size, self.work_size,
+                self.prg.UGKS_flux(self.queue, global_size[face], (1,1),
                                        self.f_D, self.flux_f_D, self.flux_macro_D,
                                        self.centre_D, self.side_D,
                                        self.normal_D, self.length_D, self.area_D,
                                        np.int32(face), np.int32(even_odd),
-                                       dt)
+                                       dt).wait()
+        
+#        self.queue.finish()
+#        #cl.enqueue_copy(self.queue,self.flux_macro_H,self.flux_macro_D)
+#        cl.enqueue_copy(self.queue,self.flux_f_H,self.flux_f_D)
+#        
+#        print "\nFLUX BLOCK %d"%self.id
+#        #print "macro 1/T: ",self.flux_macro_H[self.ghost:-self.ghost,self.ghost:-self.ghost,3]
+#        print "f: ",self.flux_f_H[self.ghost:-self.ghost,self.ghost:-self.ghost,0,0]
+        
+        #sys.exit()
         
         return
         
@@ -617,6 +632,12 @@ class UGKSBlock(object):
         """
         update the cell average values
         """
+        
+#        print "\nORIGINAL BLOCK %d"%self.id
+#        cl.enqueue_copy(self.queue,self.macro_H,self.macro_D)
+#        cl.enqueue_copy(self.queue,self.f_H,self.f_D)
+#        print "macro: ",self.macro_H[:,:,0]
+#        print "f: ",self.f_H[self.ghost:-self.ghost,self.ghost:-self.ghost,0,0]
         
         dt = np.float64(gdata.dt)
         
@@ -626,6 +647,14 @@ class UGKSBlock(object):
                              self.macro_D, dt)
                              
         cl.enqueue_barrier(self.queue)
+        
+#        self.queue.finish()
+#        cl.enqueue_copy(self.queue,self.macro_H,self.macro_D)
+#        cl.enqueue_copy(self.queue,self.f_H,self.f_D)
+#        
+#        print "\nUPDATE BLOCK %d"%self.id
+#        print "macro: ",self.macro_H[:,:,0]
+#        print "f: ",self.f_H[self.ghost:-self.ghost,self.ghost:-self.ghost,0,0]
         
         return
         
@@ -654,9 +683,6 @@ class UGKSBlock(object):
         #print "block = {}".format(self.id)
         
         if self.host_update == 0:
-            global_size = (self.ni, self.nj)
-            self.prg.calcMacro(self.queue, global_size, (1,1),
-                   self.f_D, self.macro_D, self.Q_D)
             cl.enqueue_barrier(self.queue)
             cl.enqueue_copy(self.queue,self.macro_H,self.macro_D)
             cl.enqueue_copy(self.queue,self.Q_H,self.Q_D)
@@ -682,12 +708,13 @@ class UGKSBlock(object):
         cl.enqueue_barrier(self.queue)
         
         #cl.enqueue_copy(self.queue,self.time_step_H,self.time_step_D)
+        #print self.time_step_H
         
         # run reduction kernel
         max_freq = cl_array.max(self.time_step_array,queue=self.queue).get()
         
         
-        return 1.0/max_freq
+        return gdata.CFL/max_freq
         
     def save_hdf(self, h5Name, grp, step, all_data=False):
         """

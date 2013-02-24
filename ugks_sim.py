@@ -179,132 +179,13 @@ class UGKSim(object):
 
         return
 
-    def updateAllBC(self, f = "f_D"):
+    def updateAllBC(self):
         """
         update the ghost cells of all blocks
         """
 
         for b in self.blocks:
-            b.updateBC(f)
-
-        return
-
-    def RK3oneStep(self,get_residual, check_flag=False):
-        """
-        one step of RK3 method
-        """
-
-        ## step 1
-        for b in self.blocks:
-            b.RKflux(f="f_D", flux = "flux_D")
-        
-        cl.enqueue_barrier(self.queue)
-        
-
-        for b in self.blocks:
-            b.RK3step1()
-            
-        cl.enqueue_barrier(self.queue)
-
-        self.updateAllBC(f="f1_D")
-        
-        cl.enqueue_barrier(self.queue)
-
-        ## step 2
-        for b in self.blocks:
-            b.RKflux(f="f1_D", flux = "flux_D")
-            
-        cl.enqueue_barrier(self.queue)
-
-        for b in self.blocks:
-            b.RK3step2()
-            
-        cl.enqueue_barrier(self.queue)
-
-        self.updateAllBC(f="f2_D")
-        
-        cl.enqueue_barrier(self.queue)
-
-        ## update
-        for b in self.blocks:
-            b.RKflux(f="f2_D", flux = "flux_D")
-            
-        cl.enqueue_barrier(self.queue)
-
-        for b in self.blocks:
-            b.RK3_UPDATE(get_residual)
-            
-        cl.enqueue_barrier(self.queue)
-        
-        if (check_flag):
-            for b in self.blocks:
-                if b.get_flag():
-                    raise RuntimeError('NaN detected after RK3_UPDATE()')
-
-        return
-
-    def RK4oneStep(self,get_residual):
-        """
-        one step of RK4 method
-        """
-
-        ## step 1
-
-        for b in self.blocks:
-            b.RKflux(f="f_D", flux = "flux_D")
-        
-        cl.enqueue_barrier(self.queue)
-
-        for b in self.blocks:
-            b.RK4step1()
-            
-        cl.enqueue_barrier(self.queue)
-
-        self.updateAllBC(f="f1_D")
-        
-        cl.enqueue_barrier(self.queue)
-
-        ## step 2
-
-        for b in self.blocks:
-            b.RKflux(f="f1_D", flux = "flux_D")
-            
-        cl.enqueue_barrier(self.queue)
-
-        for b in self.blocks:
-            b.RK4step2()
-        
-        cl.enqueue_barrier(self.queue)
-
-        self.updateAllBC(f="f2_D")
-        
-        cl.enqueue_barrier(self.queue)
-
-        ## step 3
-
-        for b in self.blocks:
-            b.RKflux(f="f2_D", flux = "flux_D")
-            
-        cl.enqueue_barrier(self.queue)
-
-        for b in self.blocks:
-            b.RK4step3()
-            
-        cl.enqueue_barrier(self.queue)
-
-        self.updateAllBC(f="f3_D")
-        
-        cl.enqueue_barrier(self.queue)
-
-        ## update
-
-        for b in self.blocks:
-            b.RKflux(f="f3_D", flux = "flux_D")
-            
-        cl.enqueue_barrier(self.queue)
-
-        for b in self.blocks:
-            b.RK4_UPDATE(get_residual)
+            b.updateBC()
 
         return
 

@@ -295,7 +295,7 @@ clFindDT(__global double2* xy, __global double* area,
   double u = max(umax, fabs(UV.x)) + sos;
   double v = max(vmax, fabs(UV.y)) + sos;
   
-  TSTEP(mi,mj) = CFL*(dx*u + dy*v)/AREA(mi+GHOST,mj+GHOST);
+  TSTEP(mi,mj) = (dx*u + dy*v)/AREA(mi+GHOST,mj+GHOST);
     
   return;
 }

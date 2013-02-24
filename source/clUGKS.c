@@ -17,16 +17,8 @@
 void getInterfaceDist(__global double2* Fin, __global double2* centre, __global double2* mid_side, size_t gi, size_t gj, int face, double2 face_normal, 
     __local double2 face_dist[NV], __local double2 face_slope[NV]) {
     // calculate the interface distribution using a choice of limiter
-    
-    size_t thread_id = get_local_id(2);
 
-    for (size_t loop_id = 0; loop_id < LOCAL_LOOP_LENGTH; ++loop_id) {
-
-        size_t gv = loop_id*LOCAL_SIZE + thread_id;
-
-        if (gv >= NV) {
-            continue;
-        }
+    for (size_t gv = 0; gv < NV; ++gv) {
 
         // the normal and tangential velocity components relative to the edge
         double2 uv = interfaceVelocity(gv, face_normal);
@@ -84,8 +76,6 @@ void getInterfaceDist(__global double2* Fin, __global double2* centre, __global 
         face_slope[gv] = sigma;
     }
     
-    barrier(CLK_LOCAL_MEM_FENCE);
-    
     return;
 }
  
@@ -103,9 +93,6 @@ double4 getConserved_local(__local double2 f[NV], double2 normal) {
         w.s12 += uv*f[v_id].x;
         w.s3 += 0.5*(dot(uv,uv)*f[v_id].x + f[v_id].y);
     }
-    // convert to standard variables
-    w.s3 = 0.5*w.s0/(gam-1.0)/(w.s3 - 0.5*dot(w.s12,w.s12)/w.s0);
-    w.s12 /= w.s0;
     
     return w;
  }
@@ -193,13 +180,14 @@ void momentU(double4 prim, double Mu[MNUM], double Mv[MTUM], double Mxi[3], doub
     
     // moments of normal velocity
     Mu_L[0] = 0.5*erfc(-sqrt(prim.s3)*prim.s1);
-    Mu_L[1] = prim.s1*Mu_L[0]+0.5*exp(-prim.s3*(prim.s1*prim.s1))/sqrt(PI*prim.s3);
+    Mu_L[1] = prim.s1*Mu_L[0] + 0.5*exp(-prim.s3*(prim.s1*prim.s1))/sqrt(PI*prim.s3);
+    
     Mu_R[0] = 0.5*erfc(sqrt(prim.s3)*prim.s1);
     Mu_R[1] = prim.s1*Mu_R[0]-0.5*exp(-prim.s3*(prim.s1*prim.s1))/sqrt(PI*prim.s3);
 
     for (int i = 2; i < MNUM; ++i) {
-        Mu_L[i] = prim.s1*Mu_L[i-1]+0.5*(i-1)*Mu_L[i-2]/prim.s3;
-        Mu_R[i] = prim.s1*Mu_R[i-1]+0.5*(i-1)*Mu_R[i-2]/prim.s3;
+        Mu_L[i] = prim.s1*Mu_L[i-1] + 0.5*(i-1)*Mu_L[i-2]/prim.s3;
+        Mu_R[i] = prim.s1*Mu_R[i-1] + 0.5*(i-1)*Mu_R[i-2]/prim.s3;
     }
     
     for (int i = 0; i < MNUM; ++i) {
@@ -249,6 +237,9 @@ double4 moment_au(double4 a, double Mu[MNUM], double Mv[MTUM], double Mxi[3], in
 #define FLUXF(i,j,v) flux_f[NV*NJ*(i) + NV*(j) + (v)]
 #define FLUXM(i,j) flux_macro[(i)*NJ + (j)] 
 
+
+#define DEBUG(x) if ((gi == GHOST) && (gj == GHOST)) { x }
+
 __kernel void
 UGKS_flux(__global double2* Fin,
 	   __global double2* flux_f,
@@ -267,9 +258,7 @@ UGKS_flux(__global double2* Fin,
 
     // global index
 
-    size_t gi, gj, gv, thread_id;
-
-    thread_id = get_local_id(2);
+    size_t gi, gj;
 
     gi = (1-face)*(get_global_id(0)) + face*(2*get_global_id(0) + even_odd) + GHOST;
     gj = (1-face)*(2*get_global_id(1) + even_odd) + face*(get_global_id(1)) + GHOST;
@@ -283,100 +272,124 @@ UGKS_flux(__global double2* Fin,
     
     getInterfaceDist(Fin, centre, mid_side, gi, gj, face, face_normal, face_dist, face_slope);
     
-    // we now have the interface distribution in a local array
-  
+    //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (face == 1)) {
+        //int v_id = 0;
+        //printf("gv = %d, h_L = %g, h = %g, h_R = %g, sigma = %g\n",v_id, F(gi-1, gj, v_id), face_dist[v_id], F(gi+1, gj, v_id), face_slope[v_id]);
+    //}
     
-    for (size_t loop_id = 0; loop_id < LOCAL_LOOP_LENGTH; ++loop_id) {
+    // we now have the interface distribution in a local array
 
-        gv = loop_id*LOCAL_SIZE + thread_id;
 
-        if (gv >= NV) {
-            continue;
-        }
-        
-        // ---< STEP 2 >---
-        // calculate the macroscopic variables in the local frame of reference at the interface
-        
-        double4 w = getConserved_local(face_dist, face_normal);
-        double4 prim = prim = getPrimary(w); // convert to primary variables
-        
-        // ---< STEP 3 >---
-        // calculate a^L and a^R
-        double4 sw, aL, aR;
-        
-        // the slope of the primary variables on the left side of the interface
-        sw = (w - getConserved_global(Fin, gi-face, gj-(1-face), face_normal)); // the difference
-        sw /= length(MIDSIDE(gi,gj,face) - CENTRE(gi-face, gj-(1-face))); // the length from cell centre to interface
-        
-        aL = microSlope(prim, sw);
-        
-        // the slope of the primary variables on the right side of the interface
-        sw = (w - getConserved_global(Fin, gi+face, gj+(1-face), face_normal)); // the difference
-        sw /= length(MIDSIDE(gi,gj,face) - CENTRE(gi+face, gj+(1-face))); // the length from cell centre to interface
-        
-        aR = microSlope(prim, sw);
-        
-        
-        // ---< STEP 4 >---
-        // calculate the time slope of W and A
-        double Mu[MNUM], Mv[MTUM], Mxi[3], Mu_L[MNUM], Mu_R[MNUM];
-        
-        momentU(prim, Mu, Mv, Mxi, Mu_L, Mu_R);
-        
-        double4 Mau_L, Mau_R, aT;
-        
-        Mau_L = moment_au(aL,Mu_L,Mv,Mxi,1,0); //<aL*u*\psi>_{>0}
-        Mau_R = moment_au(aR,Mu_R,Mv,Mxi,1,0); //<aR*u*\psi>_{<0}
+    // ---< STEP 2 >---
+    // calculate the macroscopic variables in the local frame of reference at the interface
+    
+    double4 w = getConserved_local(face_dist, face_normal);
+    double4 prim = getPrimary(w); // convert to primary variables
+    
+    // ---< STEP 3 >---
+    // calculate a^L and a^R
+    double4 sw, aL, aR;
+    
+    // the slope of the primary variables on the left side of the interface
+    sw = w - getConserved_global(Fin, gi-face, gj-(1-face), face_normal); // the difference
+    sw /= length(MIDSIDE(gi,gj,face) - CENTRE(gi-face, gj-(1-face))); // the length from cell centre to interface
+    
+    aL = microSlope(prim, sw);
+    
+    // the slope of the primary variables on the right side of the interface
+    sw = getConserved_global(Fin, gi+face, gj+(1-face), face_normal) - w; // the difference
+    sw /= length(MIDSIDE(gi,gj,face) - CENTRE(gi, gj)); // the length from cell centre to interface
+    
+    aR = microSlope(prim, sw);
+    
+    //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (face == 1)) {
+        //printf("w = [%v4g]\nwR = [%v4g]\nsw = [%v4g]\naR = [%v4g]\nlength = %g\n",w, getConserved_global(Fin, gi+face, gj+(1-face), face_normal), sw, aR, length(MIDSIDE(gi,gj,face) - CENTRE(gi, gj)));
+        //printf("midside = [%v2g], centre = [%v2g]\n\n",MIDSIDE(gi,gj,face), CENTRE(gi+face, gj+(1-face)));
+    //}
+    
+    // ---< STEP 4 >---
+    // calculate the time slope of W and A
+    double Mu[MNUM], Mv[MTUM], Mxi[3], Mu_L[MNUM], Mu_R[MNUM];
+    
+    momentU(prim, Mu, Mv, Mxi, Mu_L, Mu_R);
+    
+    double4 Mau_L, Mau_R, aT;
+    
+    Mau_L = moment_au(aL,Mu_L,Mv,Mxi,1,0); //<aL*u*\psi>_{>0}
+    Mau_R = moment_au(aR,Mu_R,Mv,Mxi,1,0); //<aR*u*\psi>_{<0}
 
-        sw = -prim.s0*(Mau_L+Mau_R); //time slope of W
-        aT = microSlope(prim,sw); //calculate A
+    sw = -prim.s0*(Mau_L+Mau_R); //time slope of W
+    aT = microSlope(prim,sw); //calculate A
+    
+    // ---< STEP 5 >---
+    // calculate collision time and some time integration terms
+    double tau = relaxTime(prim);
+    
+    double Mt[5];
+    
+    Mt[3] = tau*(1.0-exp(-dt/tau));
+    Mt[4] = -tau*dt*exp(-dt/tau)+tau*Mt[3];
+    Mt[0] = dt-Mt[3];
+    Mt[1] = -tau*Mt[0]+Mt[4]; 
+    Mt[2] = (dt*dt)/2.0-tau*Mt[0];
+    
+    // ---< STEP 6 >---
+    // calculate the flux of conservative variables related to g0
+    double4 Mau_0, Mau_T;
+    
+    Mau_0 = moment_uv(Mu,Mv,Mxi,1,0,0); //<u*\psi>
+    Mau_L = moment_au(aL,Mu_L,Mv,Mxi,2,0); //<aL*u^2*\psi>_{>0}
+    Mau_R = moment_au(aR,Mu_R,Mv,Mxi,2,0); //<aR*u^2*\psi>_{<0}
+    Mau_T = moment_au(aT,Mu,Mv,Mxi,1,0); //<A*u*\psi>
+    
+    double4 face_macro_flux = prim.s0*(Mt[0]*Mau_0 + Mt[1]*(Mau_L+Mau_R) + Mt[2]*Mau_T);
+    
+    // ---< STEP 7 >---
+    // calculate the flux of conservative variables related to g+ and f0
+    
+    double2 Q = getHeatFlux_local(face_dist, face_normal, prim);
+    
+    double2 F0, f0, uv;
+    
+    
+    double4 macro_flux_temp = 0.0;
+    
+    // macro flux related to g+ and f0
+    for (size_t v_id = 0; v_id < NV; ++v_id) {
+        uv = interfaceVelocity(v_id, face_normal);
+        F0 = fS(prim, Q, uv, fM(prim, uv, v_id));
+        face_macro_flux.s0 += Mt[0]*uv.x*F0.x + Mt[3]*uv.x*face_dist[v_id].x - Mt[4]*uv.x*uv.x*face_slope[v_id].x;
+        face_macro_flux.s1 += Mt[0]*uv.x*uv.x*F0.x + Mt[3]*uv.x*uv.x*face_dist[v_id].x - Mt[4]*uv.x*uv.x*uv.x*face_slope[v_id].x;
+        face_macro_flux.s2 += Mt[0]*uv.y*uv.x*F0.x + Mt[3]*uv.y*uv.x*face_dist[v_id].x - Mt[4]*uv.y*uv.x*uv.x*face_slope[v_id].x;
+        face_macro_flux.s3 += Mt[0]*0.5*(uv.x*dot(uv,uv)*F0.x + uv.x*F0.y) + 
+                              Mt[3]*0.5*(uv.x*dot(uv,uv)*face_dist[v_id].x + uv.x*face_dist[v_id].y) - 
+                              Mt[4]*0.5*(uv.x*uv.x*dot(uv,uv)*face_slope[v_id].x + uv.x*uv.x*face_slope[v_id].y);
+    }
+    
+    // convert macro to global frame
+    face_macro_flux.s12 = toGlobal(face_macro_flux.s12, face_normal);
+    
+    double A;
+    double interface_length = LENGTH(gi,gj,face);
+    
+    if ((face == SOUTH) && (gi <= IMAX)) {
+        A = AREA(gi,gj);
+        FLUXM(gi,gj) += (interface_length/A)*face_macro_flux;
+        A = AREA(gi,gj-1);
+        FLUXM(gi,gj-1) -= (interface_length/A)*face_macro_flux;
+    }
+    else if ((face == WEST) && (gj <= JMAX)) {
+        A = AREA(gi,gj);
+        FLUXM(gi,gj) += (interface_length/A)*face_macro_flux;
+        A = AREA(gi-1,gj);
+        FLUXM(gi-1,gj) -= (interface_length/A)*face_macro_flux;
+    }
+    
+    // ---< STEP 8 >---
+    // calculate flux of distribution function
+    double2 face_flux;
         
-        // ---< STEP 5 >---
-        // calculate collision time and some time integration terms
-        double tau = relaxTime(prim);
-        
-        double Mt[5];
-        
-        Mt[3] = tau*(1.0-exp(-dt/tau));
-        Mt[4] = -tau*dt*exp(-dt/tau)+tau*Mt[3];
-        Mt[0] = dt-Mt[3];
-        Mt[1] = -tau*Mt[0]+Mt[4]; 
-        Mt[2] = (dt*dt)/2.0-tau*Mt[0];
-        
-        // ---< STEP 6 >---
-        // calculate the flux of conservative variables related to g0
-        double4 Mau_0, Mau_T;
-        
-        Mau_0 = moment_uv(Mu,Mv,Mxi,1,0,0); //<u*\psi>
-        Mau_L = moment_au(aL,Mu_L,Mv,Mxi,2,0); //<aL*u^2*\psi>_{>0}
-        Mau_R = moment_au(aR,Mu_R,Mv,Mxi,2,0); //<aR*u^2*\psi>_{<0}
-        Mau_T = moment_au(aT,Mu,Mv,Mxi,1,0); //<A*u*\psi>
-        
-        double4 face_macro_flux = Mt[0]*prim.s0*Mau_0+Mt[1]*prim.s0*(Mau_L+Mau_R)+Mt[2]*prim.s0*Mau_T;
-        
-        // ---< STEP 7 >---
-        // calculate the flux of conservative variables related to g+ and f0
-        
-        // the normal and tangential velocity components relative to the edge
-        
-        double2 Q = getHeatFlux_local(face_dist, face_normal, prim);
-        
-        double2 F0, f0, uv; 
-        
-        // macro flux related to g+ and f0
-        for (size_t v_id = 0; v_id < NV; ++v_id) {
-            uv = interfaceVelocity(v_id, face_normal);
-            F0 = fS(prim, Q, uv, fM(prim, uv, v_id));
-            face_macro_flux.s0 += Mt[0]*uv.x*F0.x + Mt[3]*uv.x*face_dist[v_id].x - Mt[4]*uv.x*uv.x*face_slope[v_id].x;
-            face_macro_flux.s1 += Mt[0]*uv.x*uv.x*F0.x + Mt[3]*uv.x*uv.x*face_dist[v_id].x - Mt[4]*uv.x*uv.x*uv.x*face_slope[v_id].x;
-            face_macro_flux.s2 += Mt[0]*uv.y*uv.x*F0.x + Mt[3]*uv.y*uv.x*face_dist[v_id].x - Mt[4]*uv.y*uv.x*uv.x*face_slope[v_id].x;
-            face_macro_flux.s3 += Mt[0]*0.5*(uv.x*dot(uv,uv)*F0.x) + uv.x*F0.y + Mt[3]*0.5*(uv.x*dot(uv,uv)*face_dist[v_id].x) + 
-                            uv.x*face_dist[v_id].y - Mt[4]*0.5*(uv.x*uv.x*dot(uv,uv)*face_slope[v_id].x) + uv.x*uv.x*face_slope[v_id].y;
-        }
-        
-        // ---< STEP 8 >---
-        // calculate flux of distribution function
-        double2 face_flux;
+    for (size_t gv = 0; gv < NV; ++gv) {
         
         uv = interfaceVelocity(gv, face_normal);
         
@@ -386,17 +399,32 @@ UGKS_flux(__global double2* Fin,
         F0 = fS(prim, Q, uv, f0);
         
         face_flux.x = Mt[0]*uv.x*(f0.x+F0.x)+
-                          Mt[1]*uv.x*uv.x*(aL.s0*f0.x+aL.s1*uv.x*f0.x+aL.s2*uv.y*f0.x+0.5*aL.s3*(dot(uv,uv)*f0.x+f0.y))*delta+
-                          Mt[1]*uv.x*uv.x*(aR.s0*f0.x+aR.s1*uv.x*f0.x+aR.s2*uv.y*f0.x+0.5*aR.s3*(dot(uv,uv)*f0.x+f0.y))*(1-delta)+
-                          Mt[2]*uv.x*(aT.s0*f0.x+aT.s1*uv.x*f0.x+aT.s2*uv.y*f0.x+0.5*aT.s3*(dot(uv,uv)*f0.x+f0.y))+
-                          Mt[3]*uv.x*face_dist[gv].x-Mt[4]*uv.x*uv.x*face_slope[gv].x;
+                      Mt[1]*(uv.x*uv.x)*(aL.s0*f0.x+aL.s1*uv.x*f0.x+aL.s2*uv.y*f0.x+0.5*aL.s3*(dot(uv,uv)*f0.x+f0.y))*delta+
+                      Mt[1]*(uv.x*uv.x)*(aR.s0*f0.x+aR.s1*uv.x*f0.x+aR.s2*uv.y*f0.x+0.5*aR.s3*(dot(uv,uv)*f0.x+f0.y))*(1-delta)+
+                      Mt[2]*uv.x*(aT.s0*f0.x+aT.s1*uv.x*f0.x+aT.s2*uv.y*f0.x+0.5*aT.s3*(dot(uv,uv)*f0.x+f0.y))+
+                      Mt[3]*uv.x*face_dist[gv].x-
+                      Mt[4]*(uv.x*uv.x)*face_slope[gv].x;
         
         face_flux.y = Mt[0]*uv.x*(f0.y+F0.y)+
-                          Mt[1]*uv.x*uv.x*(aL.s0*f0.y+aL.s1*uv.x*f0.y+aL.s2*uv.y*f0.y+0.5*aL.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))*delta+
-                          Mt[1]*uv.x*uv.x*(aR.s0*f0.y+aR.s1*uv.x*f0.y+aR.s2*uv.y*f0.y+0.5*aR.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))*(1-delta)+
-                          Mt[2]*uv.x*(aT.s0*f0.y+aT.s1*uv.x*f0.y+aT.s2*uv.y*f0.x+0.5*aT.s3*(dot(uv,uv)*f0.x+Mxi[2]*f0.x))+
-                          Mt[3]*uv.x*face_dist[gv].y-Mt[4]*uv.x*uv.x*face_slope[gv].y;
+                      Mt[1]*(uv.x*uv.x)*(aL.s0*f0.y+aL.s1*uv.x*f0.y+aL.s2*uv.y*f0.y+0.5*aL.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))*delta+
+                      Mt[1]*(uv.x*uv.x)*(aR.s0*f0.y+aR.s1*uv.x*f0.y+aR.s2*uv.y*f0.y+0.5*aR.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))*(1-delta)+
+                      Mt[2]*uv.x*(aT.s0*f0.y+aT.s1*uv.x*f0.y+aT.s2*uv.y*f0.y+0.5*aT.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))+
+                      Mt[3]*uv.x*face_dist[gv].y-
+                      Mt[4]*(uv.x*uv.x)*face_slope[gv].y;
+                      
         
+        //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (gv == 0) && (face == 1)) {
+            //printf("dt = %0.15g, tau = %0.15g\n",dt, tau);
+            //printf("uv = [%0.15v2g]\n",uv);
+            //printf("Mt = [%0.15g, %0.15g, %0.15g, %0.15g, %0.15g]\n",Mt[0], Mt[1], Mt[2], Mt[3], Mt[4]);
+            //printf("Mxi = [%0.15g, %0.15g, %0.15g]\n",Mxi[0], Mxi[1], Mxi[2]);
+            //printf("f0 = [%0.15v2g], F0 = [%0.15v2g]\n",f0, F0);
+            //printf("aL = [%0.15v4g]\naR = [%0.15v4g]\n",aL, aR);
+            //printf("aT = [%0.15v4g]\n",aT);
+            //printf("face_dist = [%0.15v2g]\n",face_dist[gv]);
+            //printf("face_slope = [%0.15v2g]\n",face_slope[gv]);
+            //printf("gv = %d, flux_f = [%0.15v2g]\n\n",gv,face_flux);
+        //}
     
     
     /*
@@ -443,27 +471,18 @@ UGKS_flux(__global double2* Fin,
         // ---< STEP 9 >---
         // update the global flux counters
         
-        // convert macro to global frame
-        face_macro_flux.s12 = toGlobal(face_macro_flux.s12, face_normal);
-        
         // update FLUX
-        double A;
-        double interface_length = LENGTH(gi,gj,face);
         if ((face == SOUTH) && (gi <= IMAX)) {
             A = AREA(gi,gj);
             FLUXF(gi,gj,gv) += (interface_length/A)*face_flux;
-            FLUXM(gi,gj) += (interface_length/A)*face_macro_flux;
             A = AREA(gi,gj-1);
             FLUXF(gi,gj-1,gv) -= (interface_length/A)*face_flux;
-            FLUXM(gi,gj-1) -= (interface_length/A)*face_macro_flux;
         }
         else if ((face == WEST) && (gj <= JMAX)) {
             A = AREA(gi,gj);
             FLUXF(gi,gj,gv) += (interface_length/A)*face_flux;
-            FLUXM(gi,gj) += (interface_length/A)*face_macro_flux;
             A = AREA(gi-1,gj);
             FLUXF(gi-1,gj,gv) -= (interface_length/A)*face_flux;
-            FLUXM(gi-1,gj) += (interface_length/A)*face_macro_flux;
         }
     }
 
@@ -490,6 +509,25 @@ UGKS_update(__global double2* Fin,
     gi = mi + GHOST;
     gj = mj + GHOST;
     
+    // old stuff at t_n
+    double4 prim_old = MACRO(mi,mj);
+    double tau_old =  relaxTime(prim_old);
+    double2 Q = getHeatFlux_global(Fin, gi, gj, (double2)(1.0, 0.0), prim_old); // aligned with global coords
+    
+    // update the macro variables
+    double4 prim = prim_old + FLUXM(gi, gj);
+    
+    // new relaxation rate
+    double tau = relaxTime(prim);
+        
+    if (thread_id == 0) {
+        MACRO(mi,mj) = prim;
+        
+        //if (gi == IMAX) {
+            //printf("flux_macro = [%v4g], prim = [%v4g]\n", FLUXM(gi, gj), prim);
+        //}
+    }
+    
     for (size_t loop_id = 0; loop_id < LOCAL_LOOP_LENGTH; ++loop_id) {
 
         gv = loop_id*LOCAL_SIZE + thread_id;
@@ -498,28 +536,21 @@ UGKS_update(__global double2* Fin,
             continue;
         }
         
-        // old stuff at t_n
-        // save a copy of the old primary variables
-        double4 prim_old = MACRO(mi,mj);
-        double tau_old =  relaxTime(prim_old);
-        double2 Q = getHeatFlux_global(Fin, gi, gj, (double2)(1.0, 0.0), prim_old); // aligned with global coords
-        
+        // old equilibrium
         double2 feq_old = fEQ(prim_old, Q, QUAD[gv], gv);
-        
-        // update the macro variables and find the new maxwellian
-        double4 prim = MACRO(mi,mj) + FLUXM(gi, gj);
-        MACRO(mi,mj) = prim;
         
         // new stuff at t^n+1
         double2 feq = fEQ(prim, Q, QUAD[gv], gv);
-        double tau = relaxTime(prim);
-        
         
         // update the distribution function
         
         double2 f_old = F(gi,gj,gv);
         
         F(gi,gj,gv) = (f_old + FLUXF(gi,gj,gv) + 0.5*dt*(feq/tau+(feq_old-f_old)/tau_old))/(1.0+0.5*dt/tau);
+        
+        //if ((gv == 0) && (gi == IMAX)) {
+            //printf("gi = %d, gj = %d, gv = %d\n f_old = [%v2g]\n flux = [%v2g]\n feq = [%v2g]\n prim_old = [%v4g]\n feq_old = [%v2g]\n tau = %g\n tau_old = %g\n, dt = %g\n",gi,gj,gv,f_old,FLUXF(gi,gj,gv), feq, prim_old, feq_old, tau, tau_old, dt);
+        //}
     }
     
     return;
