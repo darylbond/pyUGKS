@@ -631,7 +631,6 @@ class UGKSim(object):
         print "initialising HDF5...",
         
         save = gdata.save_options
-        self.writeHDF = save.writeHDF
         
          # file
         (dirName,firstName) = os.path.split(gdata.rootName)
@@ -820,7 +819,7 @@ class UGKSim(object):
         """
         clean up on exit
         """
-        if self.writeHDF:
+        if self.HDF_init:
             self.close_HDF5()
         
         return

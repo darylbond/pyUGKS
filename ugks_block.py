@@ -583,21 +583,17 @@ class UGKSBlock(object):
 #   Unified Gas Kinetic Scheme (UGKS)
 #===============================================================================
     
-    def UGKS_flux(self, f="f_D", flux = "flux_D"):
+    def UGKS_flux(self):
         """
         get the fluxes for a specified distribution
         """
         
-        f_str = "self."+f
-        f = eval(f_str)
-        
-        flux_str = "self."+flux
-        flux = eval(flux_str)
-        
         global_size = m_tuple((self.Ni, self.Nj, 1),self.work_size)
-        self.prg.initialiseToZero(self.queue, global_size, self.work_size, flux)
-        
+        self.prg.zeroFluxF(self.queue, global_size, self.work_size, self.flux_f_D)
+        self.prg.zeroFluxM(self.queue, (self.Ni, self.Nj), (1,1), self.flux_macro_D)
         cl.enqueue_barrier(self.queue)
+        
+        dt = np.float64(gdata.dt)
         
         for face in range(2):
             for even_odd in range(2):
@@ -609,10 +605,11 @@ class UGKSBlock(object):
                 
                 
                 self.prg.UGKS_flux(self.queue, global_size, self.work_size,
-                                       f, flux, self.centre_D, self.side_D,
+                                       self.f_D, self.flux_f_D, self.flux_macro_D,
+                                       self.centre_D, self.side_D,
                                        self.normal_D, self.length_D, self.area_D,
                                        np.int32(face), np.int32(even_odd),
-                                       self.flag_D)
+                                       dt)
         
         return
         
@@ -620,6 +617,15 @@ class UGKSBlock(object):
         """
         update the cell average values
         """
+        
+        dt = np.float64(gdata.dt)
+        
+        global_size = m_tuple((self.ni, self.nj, 1),self.work_size)
+        self.prg.UGKS_update(self.queue, global_size, self.work_size,
+                             self.f_D, self.flux_f_D, self.flux_macro_D, 
+                             self.macro_D, dt)
+                             
+        cl.enqueue_barrier(self.queue)
         
         return
         

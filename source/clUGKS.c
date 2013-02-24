@@ -14,9 +14,11 @@
  #define MTUM 5
 
 
-void getInterfaceDist(size_t gi, size_t gj, double2 face_normal, 
+void getInterfaceDist(__global double2* Fin, __global double2* centre, __global double2* mid_side, size_t gi, size_t gj, int face, double2 face_normal, 
     __local double2 face_dist[NV], __local double2 face_slope[NV]) {
     // calculate the interface distribution using a choice of limiter
+    
+    size_t thread_id = get_local_id(2);
 
     for (size_t loop_id = 0; loop_id < LOCAL_LOOP_LENGTH; ++loop_id) {
 
@@ -87,7 +89,7 @@ void getInterfaceDist(size_t gi, size_t gj, double2 face_normal,
     return;
 }
  
-double4 getPrimary_local(__local f[NV], double2 normal) {
+double4 getConserved_local(__local double2 f[NV], double2 normal) {
     // calculate the primary variables given a __local list for the 
     // distribution value
     // RELATIVE TO INTERFACE
@@ -102,20 +104,30 @@ double4 getPrimary_local(__local f[NV], double2 normal) {
         w.s3 += 0.5*(dot(uv,uv)*f[v_id].x + f[v_id].y);
     }
     // convert to standard variables
-    w.s3 = 0.5*w.s0/(gam-1.0)/(w.s3 - 0.5*dot(w.s12,w.s12)/w.s0);  // lambda0 = 1/(3(gam-1)*theta)
+    w.s3 = 0.5*w.s0/(gam-1.0)/(w.s3 - 0.5*dot(w.s12,w.s12)/w.s0);
     w.s12 /= w.s0;
     
     return w;
  }
  
-double2 getHeatFlux_local(__local f[NV], double2 normal, double4 w) {
+double4 getPrimary(double4 w) {
+    // convert to primary variables
+    
+    // convert to standard variables
+    w.s3 = 0.5*w.s0/(gam-1.0)/(w.s3 - 0.5*dot(w.s12,w.s12)/w.s0);
+    w.s12 /= w.s0;
+    
+    return w;
+}
+ 
+double2 getHeatFlux_local(__local double2 f[NV], double2 normal, double4 w) {
     // calculate the heat flux given a __local list for the 
     // distribution value
     // RELATIVE TO INTERFACE
     
     double2 Q = 0.0;
     for (size_t v_id = 0; v_id < NV; ++v_id) {
-        uv = interfaceVelocity(v_id, normal);
+        double2 uv = interfaceVelocity(v_id, normal);
         Q.x += 0.5*((uv.x-w.s1)*dot(uv-w.s12, uv-w.s12)*f[v_id].x + (uv.x-w.s1)*f[v_id].y);
         Q.y += 0.5*((uv.y-w.s2)*dot(uv-w.s12, uv-w.s12)*f[v_id].x + (uv.y-w.s2)*f[v_id].y);
     }
@@ -123,7 +135,7 @@ double2 getHeatFlux_local(__local f[NV], double2 normal, double4 w) {
     return Q;
  }
  
-double4 getPrimary_global(__global double2* Fin, int gi, int gj, double2 normal) {
+double4 getConserved_global(__global double2* Fin, int gi, int gj, double2 normal) {
     // calculate the primary variables given a __global list for the 
     // distribution value
     // RELATIVE TO INTERFACE
@@ -134,13 +146,10 @@ double4 getPrimary_global(__global double2* Fin, int gi, int gj, double2 normal)
     for (size_t v_id = 0; v_id < NV; ++v_id) {
         uv = interfaceVelocity(v_id, normal);
         f = F(gi, gj, v_id);
-        w.s0 += f[v_id].x;
-        w.s12 += uv*f[v_id].x;
-        w.s3 += 0.5*(dot(uv,uv)*f[v_id].x + f[v_id].y);
+        w.s0 += f.x;
+        w.s12 += uv*f.x;
+        w.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
     }
-    // convert to standard variables
-    w.s3 = 0.5*w.s0/(gam-1.0)/(w.s3 - 0.5*dot(w.s12,w.s12)/w.s0);  // lambda0 = 1/(3(gam-1)*theta)
-    w.s12 /= w.s0;
     
     return w;
  }
@@ -155,8 +164,8 @@ double4 getPrimary_global(__global double2* Fin, int gi, int gj, double2 normal)
     for (size_t v_id = 0; v_id < NV; ++v_id) {
         uv = interfaceVelocity(v_id, normal);
         f = F(gi, gj, v_id);
-        Q.x += 0.5*((uv.x-w.s1)*dot(uv-w.s12, uv-w.s12)*f[v_id].x + (uv.x-w.s1)*f[v_id].y);
-        Q.y += 0.5*((uv.y-w.s2)*dot(uv-w.s12, uv-w.s12)*f[v_id].x + (uv.y-w.s2)*f[v_id].y);
+        Q.x += 0.5*((uv.x-w.s1)*dot(uv-w.s12, uv-w.s12)*f.x + (uv.x-w.s1)*f.y);
+        Q.y += 0.5*((uv.y-w.s2)*dot(uv-w.s12, uv-w.s12)*f.x + (uv.y-w.s2)*f.y);
     }
 
     return Q;
@@ -173,7 +182,7 @@ double4 microSlope(double4 prim, double4 sw) {
     micro_slope.s2 = 2.0*prim.s3/prim.s0*(sw.s2-prim.s2*sw.s0)-prim.s2*micro_slope.s3;
     micro_slope.s1 = 2.0*prim.s3/prim.s0*(sw.s1-prim.s1*sw.s0)-prim.s1*micro_slope.s3;
     micro_slope.s0 = sw.s0/prim.s0-prim.s1*micro_slope.s1-prim.s2
-                        *micro_slope.s2-0.5*(prim.s1**2+(prim.s2*
+                        *micro_slope.s2-0.5*((prim.s1*prim.s1)+(prim.s2*
                         prim.s2)+0.5*(K+2)/prim.s3)*micro_slope.s3;
     
     return micro_slope;
@@ -272,7 +281,7 @@ UGKS_flux(__global double2* Fin,
     // ---< STEP 1 >---
     // reconstruct the initial distribution at the face
     
-    getInterfaceDist(gi, gj, face_normal, face_dist);
+    getInterfaceDist(Fin, centre, mid_side, gi, gj, face, face_normal, face_dist, face_slope);
     
     // we now have the interface distribution in a local array
   
@@ -288,20 +297,21 @@ UGKS_flux(__global double2* Fin,
         // ---< STEP 2 >---
         // calculate the macroscopic variables in the local frame of reference at the interface
         
-        double4 prim = getPrimary_local(face_dist, face_normal);
+        double4 w = getConserved_local(face_dist, face_normal);
+        double4 prim = prim = getPrimary(w); // convert to primary variables
         
         // ---< STEP 3 >---
         // calculate a^L and a^R
         double4 sw, aL, aR;
         
         // the slope of the primary variables on the left side of the interface
-        sw = (w - getPrimary_global(Fin, gi-face, gj-(1-face), face_normal)) // the difference
+        sw = (w - getConserved_global(Fin, gi-face, gj-(1-face), face_normal)); // the difference
         sw /= length(MIDSIDE(gi,gj,face) - CENTRE(gi-face, gj-(1-face))); // the length from cell centre to interface
         
         aL = microSlope(prim, sw);
         
         // the slope of the primary variables on the right side of the interface
-        sw = (w - getPrimary_global(Fin, gi+face, gj+(1-face), face_normal)) // the difference
+        sw = (w - getConserved_global(Fin, gi+face, gj+(1-face), face_normal)); // the difference
         sw /= length(MIDSIDE(gi,gj,face) - CENTRE(gi+face, gj+(1-face))); // the length from cell centre to interface
         
         aR = microSlope(prim, sw);
@@ -319,11 +329,11 @@ UGKS_flux(__global double2* Fin,
         Mau_R = moment_au(aR,Mu_R,Mv,Mxi,1,0); //<aR*u*\psi>_{<0}
 
         sw = -prim.s0*(Mau_L+Mau_R); //time slope of W
-        aT = micro_slope(prim,sw); //calculate A
+        aT = microSlope(prim,sw); //calculate A
         
         // ---< STEP 5 >---
         // calculate collision time and some time integration terms
-        double tau = relaxTime(prim.s0, 1.0/prim.s3);
+        double tau = relaxTime(prim);
         
         double Mt[5];
         
@@ -349,19 +359,17 @@ UGKS_flux(__global double2* Fin,
         
         // the normal and tangential velocity components relative to the edge
         
-        
-        double2 f0 = fM(prim, uv);
-        
         double2 Q = getHeatFlux_local(face_dist, face_normal, prim);
         
-        double2 F0 = fS(prim, Q, uv, f0);
+        double2 F0, f0, uv; 
         
         // macro flux related to g+ and f0
-        for (size_t v_id = 0; v_id < NV ++ v_id) {
+        for (size_t v_id = 0; v_id < NV; ++v_id) {
             uv = interfaceVelocity(v_id, face_normal);
+            F0 = fS(prim, Q, uv, fM(prim, uv, v_id));
             face_macro_flux.s0 += Mt[0]*uv.x*F0.x + Mt[3]*uv.x*face_dist[v_id].x - Mt[4]*uv.x*uv.x*face_slope[v_id].x;
             face_macro_flux.s1 += Mt[0]*uv.x*uv.x*F0.x + Mt[3]*uv.x*uv.x*face_dist[v_id].x - Mt[4]*uv.x*uv.x*uv.x*face_slope[v_id].x;
-            face_macro_flux.s2 += Mt[0]*uv.y*uv.x*F0.x + Mt[3]*uv.y*uv.x*face_dist[v_id.x) - Mt[4]*uv.y*uv.x*uv.x*face_slope[v_id].x;
+            face_macro_flux.s2 += Mt[0]*uv.y*uv.x*F0.x + Mt[3]*uv.y*uv.x*face_dist[v_id].x - Mt[4]*uv.y*uv.x*uv.x*face_slope[v_id].x;
             face_macro_flux.s3 += Mt[0]*0.5*(uv.x*dot(uv,uv)*F0.x) + uv.x*F0.y + Mt[3]*0.5*(uv.x*dot(uv,uv)*face_dist[v_id].x) + 
                             uv.x*face_dist[v_id].y - Mt[4]*0.5*(uv.x*uv.x*dot(uv,uv)*face_slope[v_id].x) + uv.x*uv.x*face_slope[v_id].y;
         }
@@ -372,7 +380,10 @@ UGKS_flux(__global double2* Fin,
         
         uv = interfaceVelocity(gv, face_normal);
         
-        int delta = (sign(1.0,uv.x)+1)/2;
+        int delta = (sign(uv.x)+1)/2;
+        
+        f0 = fM(prim, uv, gv);
+        F0 = fS(prim, Q, uv, f0);
         
         face_flux.x = Mt[0]*uv.x*(f0.x+F0.x)+
                           Mt[1]*uv.x*uv.x*(aL.s0*f0.x+aL.s1*uv.x*f0.x+aL.s2*uv.y*f0.x+0.5*aL.s3*(dot(uv,uv)*f0.x+f0.y))*delta+
@@ -457,4 +468,59 @@ UGKS_flux(__global double2* Fin,
     }
 
   return;
+}
+
+#define RES(i,j) residual[(i)*nj + (j)]
+
+__kernel void
+UGKS_update(__global double2* Fin,
+	   __global double2* flux_f,
+       __global double4* flux_macro,
+       __global double4* macro,
+       double dt)
+{
+    // update the macro-properties and distribution
+    
+    size_t mi, mj, gi, gj, gv, thread_id;
+    
+    mi = get_global_id(0);
+    mj = get_global_id(1);
+    thread_id = get_local_id(2);
+    
+    gi = mi + GHOST;
+    gj = mj + GHOST;
+    
+    for (size_t loop_id = 0; loop_id < LOCAL_LOOP_LENGTH; ++loop_id) {
+
+        gv = loop_id*LOCAL_SIZE + thread_id;
+
+        if (gv >= NV) {
+            continue;
+        }
+        
+        // old stuff at t_n
+        // save a copy of the old primary variables
+        double4 prim_old = MACRO(mi,mj);
+        double tau_old =  relaxTime(prim_old);
+        double2 Q = getHeatFlux_global(Fin, gi, gj, (double2)(1.0, 0.0), prim_old); // aligned with global coords
+        
+        double2 feq_old = fEQ(prim_old, Q, QUAD[gv], gv);
+        
+        // update the macro variables and find the new maxwellian
+        double4 prim = MACRO(mi,mj) + FLUXM(gi, gj);
+        MACRO(mi,mj) = prim;
+        
+        // new stuff at t^n+1
+        double2 feq = fEQ(prim, Q, QUAD[gv], gv);
+        double tau = relaxTime(prim);
+        
+        
+        // update the distribution function
+        
+        double2 f_old = F(gi,gj,gv);
+        
+        F(gi,gj,gv) = (f_old + FLUXF(gi,gj,gv) + 0.5*dt*(feq/tau+(feq_old-f_old)/tau_old))/(1.0+0.5*dt/tau);
+    }
+    
+    return;
 }

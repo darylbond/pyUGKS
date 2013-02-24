@@ -4,7 +4,7 @@
 #define F(i,j,v) Fin[NV*NJ*(i) + NV*(j) + (v)] 
 #define TXYZ(i,j) Txyz[(i)*nj + (j)] 
 #define XY(i,j) xy[(i)*NY + (j)] 
-#define RES(i,j) residual[(i)*nj + (j)]
+
 
 #define MACRO(i,j) macro[(i)*nj + (j)]
 #define GD(i,j) macro[(i)*nj + (j)].s0
@@ -26,15 +26,37 @@
 /////////////////////////////////////////
 
 __kernel void
-initialiseToZero(__global double2* flux)
+zeroFluxF(__global double2* flux_f)
+{
+  // set all values to zero
+  
+  size_t gi = get_global_id(0);
+  size_t gj = get_global_id(1);
+  size_t thread_id = get_local_id(2);
+  
+  for (size_t loop_id = 0; loop_id < LOCAL_LOOP_LENGTH; ++loop_id) {
+
+    size_t gv = loop_id*LOCAL_SIZE + thread_id;
+
+    if (gv >= NV) {
+      continue;
+    }
+
+    FLUXF(gi,gj,gv) = 0.0;
+  }
+  
+  return;
+}
+
+__kernel void
+zeroFluxM(__global double2* flux_macro)
 {
   // set all values to zero
   
   size_t i = get_global_id(0);
   size_t j = get_global_id(1);
-  size_t v = get_global_id(2);
   
-  FLUX(i,j,v) = 0.0;
+  FLUXM(i,j) = 0.0;
   
   return;
 }
@@ -379,8 +401,6 @@ calcMacro(__global double2* Fin,
   
   int gi = mi + GHOST;
   int gj = mj + GHOST;
-  
-  size_t gv;
   
   double4 prim = 0.0;
   double2 f, uv;

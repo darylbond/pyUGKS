@@ -5,11 +5,13 @@
 // relaxTime
 /////////////////////////////////////////
 
-double relaxTime(double rho, double T)
+double relaxTime(double4 prim)
 {
   // calculate the non-dimensional relaxation time
   
-  double tau = (Kn/rho)*sqrt(2.0/PI)*pow(T,chi - 1.0);
+  double tau = (Kn/prim.s0)*sqrt(2.0/PI)*pow(prim.s3,1.0 - chi);
+  
+  //double tau = (Kn/rho)*sqrt(2.0/PI)*pow(T,chi - 1.0);
   //double tau = (5./8.)*(Kn/rho)*sqrt(2.0/PI)*pow(T,chi - 1.0);
   
   return tau;

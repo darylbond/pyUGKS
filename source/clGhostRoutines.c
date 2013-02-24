@@ -419,7 +419,7 @@ edgeConstant(__global double2* Fin,
     size_t gv = li*LOCAL_SIZE+ti;
     if (gv < NV) {
       uv = QUAD[gv];
-      F(gi,gj,gv) = fEQ(prim, Q, uv);
+      F(gi,gj,gv) = fEQ(prim, Q, uv, gv);
     }
   }
 
