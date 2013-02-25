@@ -205,7 +205,7 @@ class UGKSim(object):
         for b in self.blocks:
             b.UGKS_flux()
             cl.enqueue_barrier(self.queue)
-            b.UGKS_update()
+            b.UGKS_update(get_res)
             
         cl.enqueue_barrier(self.queue)
         
@@ -329,7 +329,7 @@ class UGKSim(object):
                 self.time_history_residual_N.append(self.step)
                 if res.plot_residual:
                     self.plotResidualUpdate(self.step)
-                if (res.global_residual <= res.min_residual):
+                if np.any(res.global_residual <= res.min_residual):
                     print "simulation exit -> minimum residual reached"
                     print "step ",self.step," t = ",gdata.get_time()
                     break
@@ -338,7 +338,7 @@ class UGKSim(object):
                     slope = np.polyfit(np.log(self.time_history_residual_N[-3::]), np.log(self.time_history_residual[-3::]), 1)
                     slope = np.abs(slope[0])
                     print "residual slope = ",slope
-                    if slope < res.min_slope:
+                    if np.any(slope < res.min_slope):
                         print "simulation exit -> residual stabilised"
                         print "step ",self.step," t = ",gdata.get_time()
                         break
@@ -414,12 +414,15 @@ class UGKSim(object):
         
         self.resPlot = self.resFig.add_subplot(111)
         
-        if self.time_history_residual_N:
-            self.line_residual, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual)
-            max_res = np.max(self.time_history_residual)
-        else:
-            self.line_residual, = self.resPlot.loglog([1,2], [1,2])
+        self.line_residual_0, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual,'r',label="rho")
+        self.line_residual_1, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'g', label="U")
+        self.line_residual_2, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'b', label="V")
+        self.line_residual_3, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'k', label="1/T")
+        
+        if not self.time_history_residual:
             max_res = 1
+        else:
+            max_res = np.max(self.time_history_residual[-1])
         
         plot_title = "Residual"
         if gdata.title:
@@ -428,7 +431,7 @@ class UGKSim(object):
         
         plt.grid(True)
         self.residual_plot_limits = True
-        plt.xlim(0,gdata.max_step)
+        plt.xlim(1,gdata.max_step)
         plt.ylim(gdata.residual_options.min_residual,max_res)
         plt.ion()
         plt.show()
@@ -455,14 +458,23 @@ class UGKSim(object):
 #            plt.ylim(gdata.residual_options.min_residual,self.time_history_residual[0])
 #            self.residual_plot_limits = False
 
-        plt.ylim(gdata.residual_options.min_residual,max(self.time_history_residual))
+        plt.ylim(gdata.residual_options.min_residual,np.max(self.time_history_residual))
         
-        self.line_residual.set_xdata(self.time_history_residual_N)
-        self.line_residual.set_ydata(self.time_history_residual)
+        self.line_residual_0.set_xdata(self.time_history_residual_N)
+        self.line_residual_0.set_ydata(self.time_history_residual[-1][0])
+        
+        self.line_residual_1.set_xdata(self.time_history_residual_N)
+        self.line_residual_1.set_ydata(self.time_history_residual[-1][0])
+        
+        self.line_residual_2.set_xdata(self.time_history_residual_N)
+        self.line_residual_2.set_ydata(self.time_history_residual[-1][0])
+        
+        self.line_residual_3.set_xdata(self.time_history_residual_N)
+        self.line_residual_3.set_ydata(self.time_history_residual[-1][0])
         
         plt.draw()
         
-        print "residual = %g"%gdata.residual_options.global_residual
+        print "residual = ",gdata.residual_options.global_residual
 
         #print "done"
 
@@ -646,7 +658,10 @@ class UGKSim(object):
             self.hdf.create_dataset("global_data/final_step",data=self.step)
             
             if gdata.residual_options.get_residual & (len(self.time_history_residual_N) != 0):
-                residual_xy = np.array([self.time_history_residual_N, self.time_history_residual])
+                length = len(self.time_history_residual_N)
+                residual_xy = np.zeros((length,5))
+                residual_xy[:,0] = self.time_history_residual_N
+                residual_xy[:,1:5] = self.time_history_residual
                 self.hdf.create_dataset("global_data/residual_xy",data=residual_xy, compression=gdata.save_options.compression)
             
             self.xdmf.write('</Grid>\n')

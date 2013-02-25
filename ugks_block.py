@@ -18,8 +18,6 @@ from ugks_CL import genOpenCL
 from geom.geom_bc_defs import *
 from geom.geom_defs import *
 
-np.set_printoptions(precision=16)
-
 def m_tuple(x, y):
     """
     multiply two tuples or lists, return a tuple
@@ -35,6 +33,7 @@ class UGKSBlock(object):
     blockList = []
     
     host_update = 0 # flag to indicate if the host is up to date
+    macro_update = 0
     
     def __init__(self, block_id, cl_ctx, cl_queue):
         """
@@ -284,14 +283,9 @@ class UGKSBlock(object):
         # create an pyopencl.array instance, this is used for reduction (max) later
         self.time_step_array = cl_array.Array(self.queue, shape=self.time_step_H.shape, dtype=np.float64, data=self.time_step_D)
             
-            
         ### RESIDUAL
-        if gdata.residual_options.get_residual:
-            self.residual_H = np.zeros((self.ni,self.nj,2),dtype=np.float64)
-            self.residual_D = self.set_buffer(self.residual_H)
-            self.residual_array = cl_array.Array(self.queue, shape=self.residual_H.shape, dtype=np.float64, data=self.residual_D)
-            self.f_copy_H = np.zeros((self.Ni,self.Nj,self.Nv,2),dtype=np.float64)
-            self.f_copy_D = self.set_buffer(self.f_copy_H)
+        self.residual_H = np.zeros((self.ni,self.nj,4),dtype=np.float64)
+        self.residual_D = self.set_buffer(self.residual_H)
         
         ### INTERNAL DATA
         if gdata.save_options.internal_data:
@@ -620,7 +614,7 @@ class UGKSBlock(object):
         
         return
         
-    def UGKS_update(self):
+    def UGKS_update(self, get_residual=False):
         """
         update the cell average values
         """
@@ -630,11 +624,22 @@ class UGKSBlock(object):
         global_size = m_tuple((self.ni, self.nj, 1),self.work_size)
         self.prg.UGKS_update(self.queue, global_size, self.work_size,
                              self.f_D, self.flux_f_D, self.flux_macro_D, 
-                             self.macro_D, dt)
+                             self.macro_D, self.residual_D, dt)
                              
-        cl.enqueue_barrier(self.queue)
+        
         
         self.host_update = 0
+        self.macro_update = 0
+        
+        if get_residual:
+            cl.enqueue_barrier(self.queue)
+            cl.enqueue_copy(self.queue,self.residual_H,self.residual_D)
+            self.updateHostMacro()
+            
+            sum_res = np.sum(np.sum(self.residual_H, axis=0),axis=0)
+            sum_avg = np.sum(np.sum(np.abs(self.macro_H), axis=0),axis=0)
+            
+            self.residual = np.sqrt(self.ni*self.nj*sum_res)/(sum_avg+sys.float_info.min)
         
         return
         
@@ -654,6 +659,18 @@ class UGKSBlock(object):
                                  
             cl.enqueue_copy(self.queue,self.Txyz_H,self.Txyz_D)
         return
+
+    def updateHostMacro(self):
+        """
+        grab macro from device
+        """
+        
+        if self.macro_update == 0:
+            cl.enqueue_barrier(self.queue)
+            cl.enqueue_copy(self.queue,self.macro_H,self.macro_D)
+            self.macro_update = 1
+            
+        return
     
     def updateHost(self, getF = False):
         """
@@ -664,7 +681,7 @@ class UGKSBlock(object):
             cl.enqueue_barrier(self.queue)
             
             # grab the primary variables
-            cl.enqueue_copy(self.queue,self.macro_H,self.macro_D)
+            self.updateHostMacro()
             
             # have to calculate the heat flux vector
             global_size = (self.ni, self.nj)

@@ -65,58 +65,17 @@ zeroFluxM(__global double4* flux_macro)
 }
 
 /////////////////////////////////////////
-// KERNEL: copyBuffer
-/////////////////////////////////////////
-
-__kernel void
-copyBuffer(__global double2* Ain, __global double2* Bout)
-{
-  // copy from buffer A to buffer B
-  
-  size_t i = get_global_id(0);
-  size_t j = get_global_id(1);
-  size_t v = get_global_id(2);
-  
-  Bout[NV*NJ*(i) + NV*(j) + (v)] = Ain[NV*NJ*(i) + NV*(j) + (v)];
-  
-  return;
-}
-
-/////////////////////////////////////////
 // KERNEL: cellResidual
 /////////////////////////////////////////
 
 __kernel void
-cellResidual(__global double2* Anew, 
-    __global double2* Bold,
-    __global double* area,
-    __global double2* residual)
+blockResidual(__global double4* residual)
 {
   // residual
   
   size_t mi = get_global_id(0);
   size_t mj = get_global_id(1);
   
-  int gi = mi + GHOST;
-  int gj = mj + GHOST;
-  
-  double rho_n, T_n;
-  double2 UV_n;
-
-  macroShort(Anew, gi, gj, &rho_n, &UV_n, &T_n);
-  
-  double rho_o, T_o;
-  double2 UV_o;
-
-  macroShort(Bold, gi, gj, &rho_o, &UV_o, &T_o);
-  
-  double d_rho, d_M, d_T;
-  
-  d_rho = rho_n - rho_o;
-  d_M = rho_n*length(UV_n) - rho_o*length(UV_o);
-  d_T = T_n - T_o;
-  
-  RES(mi,mj) = AREA(gi, gj)*sqrt(d_rho*d_rho + d_M*d_M + d_T*d_T);
   
   return;
 }

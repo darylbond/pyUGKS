@@ -472,6 +472,7 @@ UGKS_update(__global double2* Fin,
 	   __global double2* flux_f,
        __global double4* flux_macro,
        __global double4* macro,
+       __global double4* residual,
        double dt)
 {
     // update the macro-properties and distribution
@@ -501,6 +502,7 @@ UGKS_update(__global double2* Fin,
         
     if (thread_id == 0) {
         MACRO(mi,mj) = prim;
+        RES(mi,mj) = (prim_old - prim)*(prim_old - prim);
     }
     
     for (size_t loop_id = 0; loop_id < LOCAL_LOOP_LENGTH; ++loop_id) {
