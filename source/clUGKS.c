@@ -270,11 +270,6 @@ UGKS_flux(__global double2* Fin,
     
     getInterfaceDist(Fin, centre, mid_side, gi, gj, face, face_normal, face_dist, face_slope);
     
-    //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (face == 1)) {
-        //int v_id = 0;
-        //printf("gv = %d, h_L = %g, h = %g, h_R = %g, sigma = %g\n",v_id, F(gi-1, gj, v_id), face_dist[v_id], F(gi+1, gj, v_id), face_slope[v_id]);
-    //}
-    
     // we now have the interface distribution in a local array
 
 
@@ -299,11 +294,6 @@ UGKS_flux(__global double2* Fin,
     sw /= length(MIDSIDE(gi,gj,face) - CENTRE(gi, gj)); // the length from cell centre to interface
     
     aR = microSlope(prim, sw);
-    
-    //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (face == 1)) {
-        //printf("w = [%v4g]\nwR = [%v4g]\nsw = [%v4g]\naR = [%v4g]\nlength = %g\n",w, getConserved_global(Fin, gi+face, gj+(1-face), face_normal), sw, aR, length(MIDSIDE(gi,gj,face) - CENTRE(gi, gj)));
-        //printf("midside = [%v2g], centre = [%v2g]\n\n",MIDSIDE(gi,gj,face), CENTRE(gi+face, gj+(1-face)));
-    //}
     
     // ---< STEP 4 >---
     // calculate the time slope of W and A
@@ -342,10 +332,6 @@ UGKS_flux(__global double2* Fin,
     
     double4 face_macro_flux = prim.s0*(Mt[0]*Mau_0 + Mt[1]*(Mau_L+Mau_R) + Mt[2]*Mau_T);
     
-    //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (face == 1)) {
-        //printf("macro_flux_1 = [%0.15v4g]\n",face_macro_flux);
-    //}
-    
     // ---< STEP 7 >---
     // calculate the flux of conservative variables related to g+ and f0
     
@@ -368,16 +354,8 @@ UGKS_flux(__global double2* Fin,
                               Mt[4]*0.5*(uv.x*uv.x*dot(uv,uv)*face_slope[v_id].x + uv.x*uv.x*face_slope[v_id].y);
     }
     
-    //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (face == 1)) {
-        //printf("macro_flux_2 = [%0.15v4g]\n",face_macro_flux);
-    //}
-    
     // convert macro to global frame
     face_macro_flux.s12 = toGlobal(face_macro_flux.s12, face_normal);
-    
-    //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (face == 1)) {
-        //printf("macro_flux_3 = [%0.15v4g]\n",face_macro_flux);
-    //}
     
     
     
@@ -396,10 +374,6 @@ UGKS_flux(__global double2* Fin,
         A = AREA(gi-1,gj);
         FLUXM(gi-1,gj) -= (interface_length/A)*face_macro_flux;
     }
-    
-    //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (face == 1)) {
-        //printf("fluxm = [%0.15v4g]\n\n",(interface_length)*face_macro_flux);
-    //}
     
     // ---< STEP 8 >---
     // calculate flux of distribution function
@@ -427,20 +401,6 @@ UGKS_flux(__global double2* Fin,
                       Mt[2]*uv.x*(aT.s0*f0.y+aT.s1*uv.x*f0.y+aT.s2*uv.y*f0.y+0.5*aT.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))+
                       Mt[3]*uv.x*face_dist[gv].y-
                       Mt[4]*(uv.x*uv.x)*face_slope[gv].y;
-                      
-        
-        //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (gv == 1) && (face == 1)) {
-            //printf("dt = %0.15g, tau = %0.15g\n",dt, tau);
-            //printf("uv = [%0.15v2g]\n",uv);
-            //printf("Mt = [%0.15g, %0.15g, %0.15g, %0.15g, %0.15g]\n",Mt[0], Mt[1], Mt[2], Mt[3], Mt[4]);
-            //printf("Mxi = [%0.15g, %0.15g, %0.15g]\n",Mxi[0], Mxi[1], Mxi[2]);
-            //printf("f0 = [%0.15v2g], F0 = [%0.15v2g]\n",f0, F0);
-            //printf("aL = [%0.15v4g]\naR = [%0.15v4g]\n",aL, aR);
-            //printf("aT = [%0.15v4g]\n",aT);
-            //printf("face_dist = [%0.15v2g]\n",face_dist[gv]);
-            //printf("face_slope = [%0.15v2g]\n",face_slope[gv]);
-            //printf("gv = %d, flux_f = [%0.15v2g]\n\n",gv,face_flux);
-        //}
     
     
     /*
@@ -500,10 +460,6 @@ UGKS_flux(__global double2* Fin,
             A = AREA(gi-1,gj);
             FLUXF(gi-1,gj,gv) -= (interface_length/A)*face_flux;
         }
-        
-        //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (gv == 1) && (face == 1)) {
-            //printf("fluxf = [%0.15v2g]\n\n",(interface_length)*face_flux);
-        //}
     }
 
   return;
@@ -545,17 +501,6 @@ UGKS_update(__global double2* Fin,
         
     if (thread_id == 0) {
         MACRO(mi,mj) = prim;
-        
-        //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN)) {
-            //printf("w_old = [%0.15v4g]\n",w_old);
-            //printf("prim_old = [%0.15v4g]\n",prim_old);
-            //printf("tau_old = [%0.15g]\n",tau_old);
-            //printf("Q = [%0.15v2g]\n",Q);
-            //printf("fluxm = [%0.15v4g]\n",FLUXM(gi, gj));
-            //printf("w = [%0.15v4g]\n",w);
-            //printf("prim = [%0.15v4g]\n",prim);
-            //printf("tau = %0.15g\n",tau);
-        //}
     }
     
     for (size_t loop_id = 0; loop_id < LOCAL_LOOP_LENGTH; ++loop_id) {
@@ -578,14 +523,6 @@ UGKS_update(__global double2* Fin,
         
         F(gi,gj,gv) = (f_old + FLUXF(gi,gj,gv) + 0.5*dt*(feq/tau+(feq_old-f_old)/tau_old))/(1.0+0.5*dt/tau);
         
-        //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (gv == 1)) {
-            //printf("\nfeq_old = [%0.15v2g]\n",feq_old);
-            //printf("feq = [%0.15v2g]\n",feq);
-            //printf("f_old = [%0.15v2g]\n",f_old);
-            //printf("fluxf = [%0.15v2g]\n",FLUXF(gi,gj,gv));
-            //printf("tau = %0.15g\n",tau);
-            //printf("f_new = [%0.15v2g]\n\n",F(gi,gj,gv));
-        //}
     }
     
     return;

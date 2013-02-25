@@ -194,8 +194,6 @@ class UGKSim(object):
         run one step of the simulation
         """
         
-        print "\n\n---------------------STEP---------------------\n\n"
-        
         if get_res:
             res = 0.0
 
