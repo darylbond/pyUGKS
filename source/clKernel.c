@@ -21,6 +21,9 @@
 
 #define TSTEP(i,j) time_step[(i)*nj + (j)]
 
+#define FLUXF(i,j,v) flux_f[NV*NJ*(i) + NV*(j) + (v)]
+#define FLUXM(i,j) flux_macro[(i)*NJ + (j)] 
+
 /////////////////////////////////////////
 // KERNEL: initialiseToZero
 /////////////////////////////////////////
@@ -49,14 +52,14 @@ zeroFluxF(__global double2* flux_f)
 }
 
 __kernel void
-zeroFluxM(__global double2* flux_macro)
+zeroFluxM(__global double4* flux_macro)
 {
   // set all values to zero
   
-  size_t i = get_global_id(0);
-  size_t j = get_global_id(1);
+  size_t gi = get_global_id(0);
+  size_t gj = get_global_id(1);
   
-  FLUXM(i,j) = 0.0;
+  FLUXM(gi,gj) = 0.0;
   
   return;
 }
@@ -416,6 +419,35 @@ calcMacro(__global double2* Fin,
   // convert to standard variables
   prim.s3 = 0.5*prim.s0/(gam-1.0)/(prim.s3 - 0.5*dot(prim.s12,prim.s12)/prim.s0);
   prim.s12 /= prim.s0;
+  
+  double2 Q = 0.0;
+  for (size_t gv = 0; gv < NV; gv++) {
+    f = F(gi,gj,gv);
+    uv = QUAD[gv];
+    Q.x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
+    Q.y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
+  }
+  
+  MACRO(mi, mj) = prim;
+  GQ(mi, mj) = Q;
+
+  return;
+}
+
+__kernel void
+calcQ(__global double2* Fin, 
+  __global double4* macro, __global double2* gQ) 
+{
+  // calculate the heat flux vector properties
+
+  size_t mi = get_global_id(0);
+  size_t mj = get_global_id(1);
+  
+  int gi = mi + GHOST;
+  int gj = mj + GHOST;
+  
+  double4 prim = MACRO(mi,mj);
+  double2 f, uv;
   
   double2 Q = 0.0;
   for (size_t gv = 0; gv < NV; gv++) {

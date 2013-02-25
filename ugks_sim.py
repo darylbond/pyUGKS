@@ -194,6 +194,8 @@ class UGKSim(object):
         run one step of the simulation
         """
         
+        print "\n\n---------------------STEP---------------------\n\n"
+        
         if get_res:
             res = 0.0
 
@@ -243,8 +245,6 @@ class UGKSim(object):
         
         print "\n\n RUNNING SIM\n"
         
-        self.updateTimeStep()
-        
         gdata.update()
         save = gdata.save_options
         res = gdata.residual_options
@@ -261,9 +261,6 @@ class UGKSim(object):
         t0 = time.time()
         
         self.step = gdata.step
-        
-        
-        
         
         # save files?
         if save.save:
@@ -367,7 +364,7 @@ class UGKSim(object):
                 if self.step == gdata.max_step:
                     self.saveToFile(save_f=save.save_final_f)
                 else:
-                    self.saveToFile()
+                    self.saveToFile(save_f=True)
 
         self.queue.finish()        
         

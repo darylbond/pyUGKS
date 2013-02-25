@@ -18,6 +18,8 @@ from ugks_CL import genOpenCL
 from geom.geom_bc_defs import *
 from geom.geom_defs import *
 
+np.set_printoptions(precision=16)
+
 def m_tuple(x, y):
     """
     multiply two tuples or lists, return a tuple
@@ -597,7 +599,8 @@ class UGKSBlock(object):
         
         global_size = m_tuple((self.Ni, self.Nj, 1),self.work_size)
         self.prg.zeroFluxF(self.queue, global_size, self.work_size, self.flux_f_D)
-        self.prg.zeroFluxM(self.queue, (self.Ni, self.Nj), (1,1), self.flux_macro_D)
+        self.prg.zeroFluxM(self.queue, (self.Ni, self.Nj), None, 
+                           self.flux_macro_D)
         cl.enqueue_barrier(self.queue)
         
         dt = np.float64(gdata.dt)
@@ -608,7 +611,6 @@ class UGKSBlock(object):
                 nj = int(np.floor((self.nj - even_odd)/2.0))
                 
                 global_size = [(self.ni, nj+1), (ni+1, self.nj)]
-                
                 self.prg.UGKS_flux(self.queue, global_size[face], (1,1),
                                        self.f_D, self.flux_f_D, self.flux_macro_D,
                                        self.centre_D, self.side_D,
@@ -616,28 +618,12 @@ class UGKSBlock(object):
                                        np.int32(face), np.int32(even_odd),
                                        dt).wait()
         
-#        self.queue.finish()
-#        #cl.enqueue_copy(self.queue,self.flux_macro_H,self.flux_macro_D)
-#        cl.enqueue_copy(self.queue,self.flux_f_H,self.flux_f_D)
-#        
-#        print "\nFLUX BLOCK %d"%self.id
-#        #print "macro 1/T: ",self.flux_macro_H[self.ghost:-self.ghost,self.ghost:-self.ghost,3]
-#        print "f: ",self.flux_f_H[self.ghost:-self.ghost,self.ghost:-self.ghost,0,0]
-        
-        #sys.exit()
-        
         return
         
     def UGKS_update(self):
         """
         update the cell average values
         """
-        
-#        print "\nORIGINAL BLOCK %d"%self.id
-#        cl.enqueue_copy(self.queue,self.macro_H,self.macro_D)
-#        cl.enqueue_copy(self.queue,self.f_H,self.f_D)
-#        print "macro: ",self.macro_H[:,:,0]
-#        print "f: ",self.f_H[self.ghost:-self.ghost,self.ghost:-self.ghost,0,0]
         
         dt = np.float64(gdata.dt)
         
@@ -648,13 +634,7 @@ class UGKSBlock(object):
                              
         cl.enqueue_barrier(self.queue)
         
-#        self.queue.finish()
-#        cl.enqueue_copy(self.queue,self.macro_H,self.macro_D)
-#        cl.enqueue_copy(self.queue,self.f_H,self.f_D)
-#        
-#        print "\nUPDATE BLOCK %d"%self.id
-#        print "macro: ",self.macro_H[:,:,0]
-#        print "f: ",self.f_H[self.ghost:-self.ghost,self.ghost:-self.ghost,0,0]
+        self.host_update = 0
         
         return
         
@@ -680,20 +660,26 @@ class UGKSBlock(object):
         update host data arrays
         """
         
-        #print "block = {}".format(self.id)
-        
         if self.host_update == 0:
             cl.enqueue_barrier(self.queue)
+            
+            # grab the primary variables
             cl.enqueue_copy(self.queue,self.macro_H,self.macro_D)
+            
+            # have to calculate the heat flux vector
+            global_size = (self.ni, self.nj)
+            self.prg.calcQ(self.queue, global_size, (1,1),
+                   self.f_D, self.macro_D, self.Q_D)
+            cl.enqueue_barrier(self.queue)
             cl.enqueue_copy(self.queue,self.Q_H,self.Q_D)
             
-            self.host_update == 1
+            self.host_update = 1
         
-        # get internal data, if specified
-        self.getInternal()
-        
-        if getF:
-            cl.enqueue_copy(self.queue,self.f_H,self.f_D)
+            # get internal data, if specified
+            self.getInternal()
+            
+            if getF:
+                cl.enqueue_copy(self.queue,self.f_H,self.f_D)
         
         return
     

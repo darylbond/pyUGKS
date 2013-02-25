@@ -99,12 +99,16 @@ double4 getConserved_local(__local double2 f[NV], double2 normal) {
  
 double4 getPrimary(double4 w) {
     // convert to primary variables
-    
-    // convert to standard variables
     w.s3 = 0.5*w.s0/(gam-1.0)/(w.s3 - 0.5*dot(w.s12,w.s12)/w.s0);
     w.s12 /= w.s0;
-    
     return w;
+}
+
+double4 getConserved(double4 prim) {
+    // convert to conserved variables
+    prim.s3 = 0.5*prim.s0/prim.s3/(gam-1.0)+0.5*prim.s0*(dot(prim.s12,prim.s12));
+    prim.s12 *= prim.s0;
+    return prim;
 }
  
 double2 getHeatFlux_local(__local double2 f[NV], double2 normal, double4 w) {
@@ -234,12 +238,6 @@ double4 moment_au(double4 a, double Mu[MNUM], double Mv[MTUM], double Mxi[3], in
             0.5*a.s3*moment_uv(Mu,Mv,Mxi,alpha+0,beta+0,2);
 }
 
-#define FLUXF(i,j,v) flux_f[NV*NJ*(i) + NV*(j) + (v)]
-#define FLUXM(i,j) flux_macro[(i)*NJ + (j)] 
-
-
-#define DEBUG(x) if ((gi == GHOST) && (gj == GHOST)) { x }
-
 __kernel void
 UGKS_flux(__global double2* Fin,
 	   __global double2* flux_f,
@@ -297,7 +295,7 @@ UGKS_flux(__global double2* Fin,
     aL = microSlope(prim, sw);
     
     // the slope of the primary variables on the right side of the interface
-    sw = getConserved_global(Fin, gi+face, gj+(1-face), face_normal) - w; // the difference
+    sw = getConserved_global(Fin, gi, gj, face_normal) - w; // the difference
     sw /= length(MIDSIDE(gi,gj,face) - CENTRE(gi, gj)); // the length from cell centre to interface
     
     aR = microSlope(prim, sw);
@@ -344,6 +342,10 @@ UGKS_flux(__global double2* Fin,
     
     double4 face_macro_flux = prim.s0*(Mt[0]*Mau_0 + Mt[1]*(Mau_L+Mau_R) + Mt[2]*Mau_T);
     
+    //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (face == 1)) {
+        //printf("macro_flux_1 = [%0.15v4g]\n",face_macro_flux);
+    //}
+    
     // ---< STEP 7 >---
     // calculate the flux of conservative variables related to g+ and f0
     
@@ -366,8 +368,18 @@ UGKS_flux(__global double2* Fin,
                               Mt[4]*0.5*(uv.x*uv.x*dot(uv,uv)*face_slope[v_id].x + uv.x*uv.x*face_slope[v_id].y);
     }
     
+    //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (face == 1)) {
+        //printf("macro_flux_2 = [%0.15v4g]\n",face_macro_flux);
+    //}
+    
     // convert macro to global frame
     face_macro_flux.s12 = toGlobal(face_macro_flux.s12, face_normal);
+    
+    //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (face == 1)) {
+        //printf("macro_flux_3 = [%0.15v4g]\n",face_macro_flux);
+    //}
+    
+    
     
     double A;
     double interface_length = LENGTH(gi,gj,face);
@@ -384,6 +396,10 @@ UGKS_flux(__global double2* Fin,
         A = AREA(gi-1,gj);
         FLUXM(gi-1,gj) -= (interface_length/A)*face_macro_flux;
     }
+    
+    //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (face == 1)) {
+        //printf("fluxm = [%0.15v4g]\n\n",(interface_length)*face_macro_flux);
+    //}
     
     // ---< STEP 8 >---
     // calculate flux of distribution function
@@ -413,7 +429,7 @@ UGKS_flux(__global double2* Fin,
                       Mt[4]*(uv.x*uv.x)*face_slope[gv].y;
                       
         
-        //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (gv == 0) && (face == 1)) {
+        //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (gv == 1) && (face == 1)) {
             //printf("dt = %0.15g, tau = %0.15g\n",dt, tau);
             //printf("uv = [%0.15v2g]\n",uv);
             //printf("Mt = [%0.15g, %0.15g, %0.15g, %0.15g, %0.15g]\n",Mt[0], Mt[1], Mt[2], Mt[3], Mt[4]);
@@ -484,6 +500,10 @@ UGKS_flux(__global double2* Fin,
             A = AREA(gi-1,gj);
             FLUXF(gi-1,gj,gv) -= (interface_length/A)*face_flux;
         }
+        
+        //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (gv == 1) && (face == 1)) {
+            //printf("fluxf = [%0.15v2g]\n\n",(interface_length)*face_flux);
+        //}
     }
 
   return;
@@ -511,11 +531,14 @@ UGKS_update(__global double2* Fin,
     
     // old stuff at t_n
     double4 prim_old = MACRO(mi,mj);
+    double4 w_old = getConserved(prim_old);
     double tau_old =  relaxTime(prim_old);
     double2 Q = getHeatFlux_global(Fin, gi, gj, (double2)(1.0, 0.0), prim_old); // aligned with global coords
     
     // update the macro variables
-    double4 prim = prim_old + FLUXM(gi, gj);
+    double4 w = w_old + FLUXM(gi, gj);
+    double4 prim = getPrimary(w);
+    
     
     // new relaxation rate
     double tau = relaxTime(prim);
@@ -523,8 +546,15 @@ UGKS_update(__global double2* Fin,
     if (thread_id == 0) {
         MACRO(mi,mj) = prim;
         
-        //if (gi == IMAX) {
-            //printf("flux_macro = [%v4g], prim = [%v4g]\n", FLUXM(gi, gj), prim);
+        //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN)) {
+            //printf("w_old = [%0.15v4g]\n",w_old);
+            //printf("prim_old = [%0.15v4g]\n",prim_old);
+            //printf("tau_old = [%0.15g]\n",tau_old);
+            //printf("Q = [%0.15v2g]\n",Q);
+            //printf("fluxm = [%0.15v4g]\n",FLUXM(gi, gj));
+            //printf("w = [%0.15v4g]\n",w);
+            //printf("prim = [%0.15v4g]\n",prim);
+            //printf("tau = %0.15g\n",tau);
         //}
     }
     
@@ -548,8 +578,13 @@ UGKS_update(__global double2* Fin,
         
         F(gi,gj,gv) = (f_old + FLUXF(gi,gj,gv) + 0.5*dt*(feq/tau+(feq_old-f_old)/tau_old))/(1.0+0.5*dt/tau);
         
-        //if ((gv == 0) && (gi == IMAX)) {
-            //printf("gi = %d, gj = %d, gv = %d\n f_old = [%v2g]\n flux = [%v2g]\n feq = [%v2g]\n prim_old = [%v4g]\n feq_old = [%v2g]\n tau = %g\n tau_old = %g\n, dt = %g\n",gi,gj,gv,f_old,FLUXF(gi,gj,gv), feq, prim_old, feq_old, tau, tau_old, dt);
+        //if ((BLOCK == 1) && (gi == IMIN) && (gj == JMIN) && (gv == 1)) {
+            //printf("\nfeq_old = [%0.15v2g]\n",feq_old);
+            //printf("feq = [%0.15v2g]\n",feq);
+            //printf("f_old = [%0.15v2g]\n",f_old);
+            //printf("fluxf = [%0.15v2g]\n",FLUXF(gi,gj,gv));
+            //printf("tau = %0.15g\n",tau);
+            //printf("f_new = [%0.15v2g]\n\n",F(gi,gj,gv));
         //}
     }
     
