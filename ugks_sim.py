@@ -362,7 +362,7 @@ class UGKSim(object):
                 if self.step == gdata.max_step:
                     self.saveToFile(save_f=save.save_final_f)
                 else:
-                    self.saveToFile(save_f=True)
+                    self.saveToFile()
 
         self.queue.finish()        
         

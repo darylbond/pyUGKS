@@ -578,3 +578,164 @@ edgeConstGrad(__global double2* Fin, int this_face)
 
   return;
 }
+
+/////////////////////////////////////////
+// diffuseWall
+/////////////////////////////////////////
+#if HAS_DIFFUSE_WALL == 1
+__kernel void
+diffuseWall(__global double2* Fin, __global double2* centre, 
+            __global double2* mid_side, __global double2* normal,
+            __global double* side_length, int face, 
+            __global double2* flux_f, __global double4* flux_macro, 
+            double dt)
+{
+  // given the flux information for each wall of each cell
+  // modify the fluxes at the defined wall to give a diffuse wall
+  
+  size_t gi = get_global_id(0);
+  size_t gj = get_global_id(1);
+  int rot;
+  int face_id;
+  
+  switch (face) {
+    case GNORTH:
+      gi += GHOST;
+      gj += NJ - GHOST;
+      rot = -1;
+      face_id = SOUTH;
+      break;
+    case GEAST:
+      gi += NI - GHOST;
+      gj += GHOST;
+      rot = -1;
+      face_id = WEST;
+      break;
+    case GSOUTH:
+      gi += GHOST;
+      gj += GHOST;
+      rot = 1;
+      face_id = SOUTH;
+      break;
+    case GWEST:
+      gi += GHOST;
+      gj += GHOST;
+      rot = 1;
+      face_id = WEST;
+      break;
+  }
+  
+  // get the interface distribution and the flux out due to this distribution
+  
+  double4 wall;
+  
+  wall.s0 = 1.0;
+  wall.s1 = 0.0;
+  wall.s2 = BC_cond[face].s1;
+  wall.s3 = 1.0/BC_cond[face].s0;
+  
+  double2 face_normal = NORMAL(gi,gj,face_id);
+  double2 uv;
+  int delta;
+  
+  double sum_out = 0.0;
+  double sum_in = 0.0;
+  
+  __local double2 face_dist[NV];
+  __local double2 wall_dist[NV];
+  for (size_t gv = 0; gv < NV; ++gv) {
+
+        // the normal and tangential velocity components relative to the edge
+        uv = interfaceVelocity(gv, face_normal);
+
+        // now make a stencil for the incoming flow into this cell
+        // the stencil will be upwinding
+        //  flow direction : -->
+        //  +--+-|-+ : van Leer
+        //  +--+--+-|-+--+ : WENO5
+
+        int2 direction = sign(uv.x);
+        direction.x = abs((direction.x + 1)/2); // -> 0 when u < 0
+        direction.y = abs((direction.y - 1)/2); // -> 0 when u > 0
+
+        double2 c_stencil[STENCIL_LENGTH];
+        double2 f_stencil[STENCIL_LENGTH];
+
+        int2 sij;
+        int offset = 0;
+        //#pragma unroll
+        for (int si = 0; si < STENCIL_LENGTH; si++) {
+            if (face_id == SOUTH) {
+                sij.x = gi;
+                sij.y = (direction.x)*(gj - MID_STENCIL - 1 + offset);  // into cell
+                sij.y += (direction.y)*(gj + MID_STENCIL - offset); // out of cell
+            } else if (face_id == WEST) {
+                sij.x = (direction.x)*(gi - MID_STENCIL - 1 + offset);  // into cell
+                sij.x += (direction.y)*(gi + MID_STENCIL - offset); // out of cell
+                sij.y = gj;
+            }
+            offset += 1;
+
+            // the stencils
+            f_stencil[si] = F(sij.x, sij.y, gv);
+            c_stencil[si] = CENTRE(sij.x,sij.y);
+        }
+
+        // made the stencil, now reconstruct the interface distribution
+
+        // distance from the middle of the interface to the centre of the upwind cell
+        double interface_distance = length(MIDSIDE(gi,gj,face) - c_stencil[MID_STENCIL]);
+
+        #if FLUX_METHOD == 0 // van Leer
+        double2 s1 = (f_stencil[MID_STENCIL] - f_stencil[MID_STENCIL-1])/length(c_stencil[MID_STENCIL] - c_stencil[MID_STENCIL-1]);
+        double2 s2 = (f_stencil[MID_STENCIL+1] - f_stencil[MID_STENCIL])/length(c_stencil[MID_STENCIL-1] - c_stencil[MID_STENCIL]);
+        double2 sigma = vanLeer(s1,s2);
+        #endif
+        #if FLUX_METHOD == 1 // WENO5
+        // left side of interface
+        double2 sigma = WENO5(f_stencil, interface_distance);
+        #endif
+
+        // the interface value of f
+        face_dist[gv] = f_stencil[MID_STENCIL] + sigma*interface_distance;
+        
+        delta = (sign(uv.x)*rot + 1)/2;
+        
+        sum_out += uv.x*(1-delta)*face_dist[gv].x;
+        
+        wall_dist[gv] = fM(wall, uv, gv);
+        
+        sum_in -= uv.x*delta*wall_dist[gv].x;
+    }
+    
+    double ratio = sum_out/sum_in;
+    
+    double face_length = LENGTH(gi,gj,face_id);
+    
+    // calculate the flux that would come back in if an equilibrium distribution resided in the wall
+    double4 macro_flux = 0.0;
+    for (size_t gv = 0; gv < NV; ++gv) {
+      uv = interfaceVelocity(gv, face_normal);
+      delta = (sign(uv.x)*rot + 1)/2;
+      wall_dist[gv] = ratio*delta*wall_dist[gv] + (1-delta)*face_dist[gv];
+      
+      macro_flux.s0 += uv.x*wall_dist[gv].x;
+      macro_flux.s1 += uv.x*uv.x*wall_dist[gv].x;
+      macro_flux.s2 += uv.x*uv.y*wall_dist[gv].x;
+      macro_flux.s3 += 0.5*uv.x*(dot(uv,uv)*wall_dist[gv].x + wall_dist[gv].y);
+      
+      FLUXF(gi,gj,gv) = uv.x*wall_dist[gv]*face_length*dt;
+      
+    }
+    
+    // convert macro to global frame
+    macro_flux.s12 = toGlobal(macro_flux.s12, face_normal);
+    
+    macro_flux *= dt*face_length;
+    
+    FLUXM(gi,gj) = macro_flux;
+    
+  return;
+  
+}
+#endif

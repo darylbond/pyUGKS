@@ -246,9 +246,7 @@ UGKS_flux(__global double2* Fin,
 	   __global double2* mid_side,
 	   __global double2* normal,
 	   __global double* side_length,
-	   __global double* area,
-	   int face, int even_odd,
-     double dt)
+	   int face, double dt)
 {
   
     // EVEN: even_odd = 0
@@ -257,9 +255,9 @@ UGKS_flux(__global double2* Fin,
     // global index
 
     size_t gi, gj;
-
-    gi = (1-face)*(get_global_id(0)) + face*(2*get_global_id(0) + even_odd) + GHOST;
-    gj = (1-face)*(2*get_global_id(1) + even_odd) + face*(get_global_id(1)) + GHOST;
+    
+    gi = get_global_id(0) + GHOST;
+    gj = get_global_id(1) + GHOST;
     
     double2 face_normal = NORMAL(gi,gj,face);
     // the interface value of f and its slope
@@ -339,9 +337,6 @@ UGKS_flux(__global double2* Fin,
     
     double2 F0, f0, uv;
     
-    
-    double4 macro_flux_temp = 0.0;
-    
     // macro flux related to g+ and f0
     for (size_t v_id = 0; v_id < NV; ++v_id) {
         uv = interfaceVelocity(v_id, face_normal);
@@ -357,28 +352,13 @@ UGKS_flux(__global double2* Fin,
     // convert macro to global frame
     face_macro_flux.s12 = toGlobal(face_macro_flux.s12, face_normal);
     
-    
-    
-    double A;
     double interface_length = LENGTH(gi,gj,face);
     
-    if ((face == SOUTH) && (gi <= IMAX)) {
-        A = AREA(gi,gj);
-        FLUXM(gi,gj) += (interface_length/A)*face_macro_flux;
-        A = AREA(gi,gj-1);
-        FLUXM(gi,gj-1) -= (interface_length/A)*face_macro_flux;
-    }
-    else if ((face == WEST) && (gj <= JMAX)) {
-        A = AREA(gi,gj);
-        FLUXM(gi,gj) += (interface_length/A)*face_macro_flux;
-        A = AREA(gi-1,gj);
-        FLUXM(gi-1,gj) -= (interface_length/A)*face_macro_flux;
-    }
+    FLUXM(gi,gj) = interface_length*face_macro_flux;
     
     // ---< STEP 8 >---
     // calculate flux of distribution function
     double2 face_flux;
-        
     for (size_t gv = 0; gv < NV; ++gv) {
         
         uv = interfaceVelocity(gv, face_normal);
@@ -389,88 +369,81 @@ UGKS_flux(__global double2* Fin,
         F0 = fS(prim, Q, uv, f0);
         
         face_flux.x = Mt[0]*uv.x*(f0.x+F0.x)+
-                      Mt[1]*(uv.x*uv.x)*(aL.s0*f0.x+aL.s1*uv.x*f0.x+aL.s2*uv.y*f0.x+0.5*aL.s3*(dot(uv,uv)*f0.x+f0.y))*delta+
-                      Mt[1]*(uv.x*uv.x)*(aR.s0*f0.x+aR.s1*uv.x*f0.x+aR.s2*uv.y*f0.x+0.5*aR.s3*(dot(uv,uv)*f0.x+f0.y))*(1-delta)+
-                      Mt[2]*uv.x*(aT.s0*f0.x+aT.s1*uv.x*f0.x+aT.s2*uv.y*f0.x+0.5*aT.s3*(dot(uv,uv)*f0.x+f0.y))+
-                      Mt[3]*uv.x*face_dist[gv].x-
-                      Mt[4]*(uv.x*uv.x)*face_slope[gv].x;
+                          Mt[1]*(uv.x*uv.x)*(aL.s0*f0.x+aL.s1*uv.x*f0.x+aL.s2*uv.y*f0.x+0.5*aL.s3*(dot(uv,uv)*f0.x+f0.y))*delta+
+                          Mt[1]*(uv.x*uv.x)*(aR.s0*f0.x+aR.s1*uv.x*f0.x+aR.s2*uv.y*f0.x+0.5*aR.s3*(dot(uv,uv)*f0.x+f0.y))*(1-delta)+
+                          Mt[2]*uv.x*(aT.s0*f0.x+aT.s1*uv.x*f0.x+aT.s2*uv.y*f0.x+0.5*aT.s3*(dot(uv,uv)*f0.x+f0.y))+
+                          Mt[3]*uv.x*face_dist[gv].x-
+                          Mt[4]*(uv.x*uv.x)*face_slope[gv].x;
         
         face_flux.y = Mt[0]*uv.x*(f0.y+F0.y)+
-                      Mt[1]*(uv.x*uv.x)*(aL.s0*f0.y+aL.s1*uv.x*f0.y+aL.s2*uv.y*f0.y+0.5*aL.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))*delta+
-                      Mt[1]*(uv.x*uv.x)*(aR.s0*f0.y+aR.s1*uv.x*f0.y+aR.s2*uv.y*f0.y+0.5*aR.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))*(1-delta)+
-                      Mt[2]*uv.x*(aT.s0*f0.y+aT.s1*uv.x*f0.y+aT.s2*uv.y*f0.y+0.5*aT.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))+
-                      Mt[3]*uv.x*face_dist[gv].y-
-                      Mt[4]*(uv.x*uv.x)*face_slope[gv].y;
-    
-    
-    /*
-  #if HAS_DIFFUSE_WALL == 1
-  __local double2 wall_flux[WSI][WSJ][NV];
-  __local double ratio[WSI][WSJ][1];
-  __local double wall_velocity[WSI][WSJ][NV];
-  // check for Diffuse boundary, update fL and fR if on the boundary
-  #if ((DIFFUSE_NORTH == 1) || (DIFFUSE_SOUTH == 1))
-  if ((face == SOUTH) && (gi <= IMAX)) {
-    #if DIFFUSE_SOUTH == 1
-    if (gj == JMIN){
-      // SOUTH face of cell at "SOUTH" of block
-      diffuseReflect(cell_flux, wall_flux, ratio, wall_velocity, GSOUTH, uv, FLUX_IN_S, gi, gj);
-    }
-    #endif
-    #if DIFFUSE_NORTH == 1
-    if (gj == JMAX+1) {
-      // NORTH face of cell at "NORTH" of block
-      diffuseReflect(cell_flux, wall_flux, ratio, wall_velocity, GNORTH, uv, FLUX_IN_N, gi, gj);
-    }
-    #endif
-  }
-  #endif
-  #if (DIFFUSE_EAST == 1) || (DIFFUSE_WEST == 1)
-  if ((face == WEST) && (gj <= JMAX)) {
-    #if DIFFUSE_WEST == 1
-    if (gi == IMIN) {
-      // WEST face of cell at "WEST" of block
-      diffuseReflect(cell_flux, wall_flux, ratio, wall_velocity, GWEST, uv, FLUX_IN_W, gi, gj);
-    }
-    #endif
-    #if DIFFUSE_EAST == 1
-    if (gi == IMAX+1) {
-      // EAST face of cell at "EAST" of block
-      diffuseReflect(cell_flux, wall_flux, ratio, wall_velocity, GEAST, uv, FLUX_IN_E, gi, gj);
-    }
-    #endif
-  }
-  #endif
-  #endif
-  * */
-        
-        // ---< STEP 9 >---
-        // update the global flux counters
+                          Mt[1]*(uv.x*uv.x)*(aL.s0*f0.y+aL.s1*uv.x*f0.y+aL.s2*uv.y*f0.y+0.5*aL.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))*delta+
+                          Mt[1]*(uv.x*uv.x)*(aR.s0*f0.y+aR.s1*uv.x*f0.y+aR.s2*uv.y*f0.y+0.5*aR.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))*(1-delta)+
+                          Mt[2]*uv.x*(aT.s0*f0.y+aT.s1*uv.x*f0.y+aT.s2*uv.y*f0.y+0.5*aT.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))+
+                          Mt[3]*uv.x*face_dist[gv].y-
+                          Mt[4]*(uv.x*uv.x)*face_slope[gv].y;
         
         // update FLUX
-        if ((face == SOUTH) && (gi <= IMAX)) {
-            A = AREA(gi,gj);
-            FLUXF(gi,gj,gv) += (interface_length/A)*face_flux;
-            A = AREA(gi,gj-1);
-            FLUXF(gi,gj-1,gv) -= (interface_length/A)*face_flux;
-        }
-        else if ((face == WEST) && (gj <= JMAX)) {
-            A = AREA(gi,gj);
-            FLUXF(gi,gj,gv) += (interface_length/A)*face_flux;
-            A = AREA(gi-1,gj);
-            FLUXF(gi-1,gj,gv) -= (interface_length/A)*face_flux;
-        }
+        FLUXF(gi,gj,gv) = interface_length*face_flux;
     }
 
   return;
 }
 
+/*
+#if HAS_DIFFUSE_WALL == 1
+    __local double2 wall_flux[NV];
+    // check for Diffuse boundary, update fL and fR if on the boundary
+    #if ((DIFFUSE_NORTH == 1) || (DIFFUSE_SOUTH == 1))
+        if ((face == SOUTH) && (gi <= IMAX)) {
+            #if DIFFUSE_SOUTH == 1
+                if (gj == JMIN){
+                    // SOUTH face of cell at "SOUTH" of block
+                    diffuseReflect(face_flux, wall_flux, GSOUTH, face_normal, FLUX_IN_S, gi, gj);
+                    face_macro_flux = getConserved_local(face_flux, face_normal);
+                }
+            #endif
+            #if DIFFUSE_NORTH == 1
+                if (gj == JMAX+1) {
+                    // NORTH face of cell at "NORTH" of block
+                    diffuseReflect(face_flux, wall_flux, GNORTH, face_normal, FLUX_IN_N, gi, gj);
+                    face_macro_flux = getConserved_local(face_flux, face_normal);
+                }
+            #endif
+        }
+    #endif
+    #if (DIFFUSE_EAST == 1) || (DIFFUSE_WEST == 1)
+        if ((face == WEST) && (gj <= JMAX)) {
+            #if DIFFUSE_WEST == 1
+                if (gi == IMIN) {
+                    // WEST face of cell at "WEST" of block
+                    diffuseReflect(face_flux, wall_flux, GWEST, face_normal, FLUX_IN_W, gi, gj);
+                    face_macro_flux = getConserved_local(face_flux, face_normal);
+                }
+            #endif
+            #if DIFFUSE_EAST == 1
+                if (gi == IMAX+1) {
+                    // EAST face of cell at "EAST" of block
+                    diffuseReflect(face_flux, wall_flux, GEAST, face_normal, FLUX_IN_E, gi, gj);
+                    face_macro_flux = getConserved_local(face_flux, face_normal);
+                }
+            #endif
+        }
+    #endif
+    #endif
+    */
+
 #define RES(i,j) residual[(i)*nj + (j)]
+
+#define FLUXFS(i,j,v) flux_f_S[NV*NJ*(i) + NV*(j) + (v)]
+#define FLUXFW(i,j,v) flux_f_W[NV*NJ*(i) + NV*(j) + (v)]
+#define FLUXMS(i,j) flux_macro_S[(i)*NJ + (j)]
+#define FLUXMW(i,j) flux_macro_W[(i)*NJ + (j)]
 
 __kernel void
 UGKS_update(__global double2* Fin,
-	   __global double2* flux_f,
-       __global double4* flux_macro,
+	   __global double2* flux_f_S, __global double2* flux_f_W,
+       __global double4* flux_macro_S, __global double4* flux_macro_W,
+       __global double* area,
        __global double4* macro,
        __global double4* residual,
        double dt)
@@ -493,7 +466,8 @@ UGKS_update(__global double2* Fin,
     double2 Q = getHeatFlux_global(Fin, gi, gj, (double2)(1.0, 0.0), prim_old); // aligned with global coords
     
     // update the macro variables
-    double4 w = w_old + FLUXM(gi, gj);
+    double A = AREA(gi,gj);
+    double4 w = w_old + (FLUXMS(gi, gj) - FLUXMS(gi, gj+1) + FLUXMW(gi,gj) - FLUXMW(gi+1,gj))/A;
     double4 prim = getPrimary(w);
     
     
@@ -523,7 +497,8 @@ UGKS_update(__global double2* Fin,
         
         double2 f_old = F(gi,gj,gv);
         
-        F(gi,gj,gv) = (f_old + FLUXF(gi,gj,gv) + 0.5*dt*(feq/tau+(feq_old-f_old)/tau_old))/(1.0+0.5*dt/tau);
+        F(gi,gj,gv) = (f_old + (FLUXFS(gi,gj,gv) - FLUXFS(gi,gj+1,gv) + FLUXFW(gi,gj,gv) - FLUXFW(gi+1,gj,gv))/A
+                      + 0.5*dt*(feq/tau+(feq_old-f_old)/tau_old))/(1.0+0.5*dt/tau);
         
     }
     
