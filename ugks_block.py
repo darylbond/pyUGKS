@@ -220,6 +220,11 @@ class UGKSBlock(object):
         
         self.flux_macro_S_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
         self.flux_macro_W_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
+        
+        self.prim_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
+        self.aL_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
+        self.aR_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
+        self.aT_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
 
         # macro variables, without ghost cells
         #.s0 -> density
@@ -282,6 +287,11 @@ class UGKSBlock(object):
 
         self.flux_f_W_D = self.set_buffer(self.flux_f_W_H)
         self.flux_macro_W_D = self.set_buffer(self.flux_macro_W_H)
+        
+        self.prim_D = self.set_buffer(self.prim_H)
+        self.aL_D = self.set_buffer(self.aL_H)
+        self.aR_D = self.set_buffer(self.aR_H)
+        self.aT_D = self.set_buffer(self.aT_H)
         
         # macroscopic properties, without ghost cells
         self.macro_D = self.set_buffer(self.macro_H)
@@ -601,85 +611,55 @@ class UGKSBlock(object):
         #print "BLOCK %d"%self.id
         
         dt = np.float64(gdata.dt)
-        
-        # do the south face first
-        south = 0
-#        v_id = 0
-#        cl.enqueue_copy(self.queue,self.flux_f_S_H,self.flux_f_S_D)
-#        print self.flux_f_S_H[:,:,v_id,0]
-        global_size = m_tuple((self.ni, self.nj+1, 1),self.work_size)
-        self.prg.iFace(self.queue, global_size, self.work_size,
-                       self.f_D, self.flux_f_S_D, self.sigma_D, 
-                       self.centre_D, self.side_D, self.normal_D, 
-                       self.length_D, np.int32(south))
-                       
-        cl.enqueue_barrier(self.queue)
-        
-#        cl.enqueue_copy(self.queue,self.flux_f_S_H,self.flux_f_S_D)
-#        print self.flux_f_S_H[:,:,v_id,0]
-                       
-#        cl.enqueue_copy(self.queue,self.flux_macro_S_H,self.flux_macro_S_D)
-#        print self.flux_macro_S_H[:,:,2]
-        
-        self.prg.macroFlux(self.queue, (self.ni, self.nj+1), (1,1),
-                           self.f_D, self.flux_f_S_D, self.sigma_D,
-                           self.flux_macro_S_D, self.centre_D, 
-                           self.side_D, self.normal_D, self.length_D,
-                           np.int32(south), dt)
-                           
-#        cl.enqueue_copy(self.queue,self.flux_macro_S_H,self.flux_macro_S_D)
-#        print self.flux_macro_S_H[:,:,2]
-        
-        cl.enqueue_barrier(self.queue)
 
-#        v_id = 0
-#        cl.enqueue_copy(self.queue,self.flux_f_S_H,self.flux_f_S_D)
-#        print self.flux_f_S_H[:,:,v_id,0]
-        global_size = m_tuple((self.ni, self.nj+1, 1),self.work_size)
-        self.prg.distFlux(self.queue, global_size, self.work_size,
-                          self.f_D, self.flux_f_S_D, self.sigma_D,
+        gsize_full = [(self.ni, self.nj+1, 1), (self.ni+1, self.nj, 1)]
+        gsize = [(self.ni, self.nj+1, 1), (self.ni+1, self.nj, 1)]
+        gsize_wall = [(self.ni, 1), (1, self.nj)]
+        
+        flux_f = [self.flux_f_S_D, self.flux_f_W_D]
+        flux_m = [self.flux_macro_S_D, self.flux_macro_W_D]
+        
+        for face in np.int32([0,1]):
+            
+            # we do the iface dist for all boundaries
+            global_size = m_tuple(gsize_full[face],self.work_size)
+            self.prg.iFace(self.queue, global_size, self.work_size,
+                           self.f_D, flux_f[face], self.sigma_D, 
                            self.centre_D, self.side_D, self.normal_D, 
-                           self.length_D, np.int32(south), dt)
-                           
-#        cl.enqueue_copy(self.queue,self.flux_f_S_H,self.flux_f_S_D)
-#        print self.flux_f_S_H[:,:,v_id,0]
-
-#        self.prg.UGKS_flux(self.queue, global_size, (1,1), self.f_D, 
-#                           self.flux_f_S_D, self.flux_macro_S_D,
-#                           self.centre_D, self.side_D,
-#                           self.normal_D, self.length_D,
-#                           np.int32(south), dt)
-                           
-        #then the west face
-        west = 1
-        
-        global_size = m_tuple((self.ni+1, self.nj, 1),self.work_size)
-        self.prg.iFace(self.queue, global_size, self.work_size,
-                       self.f_D, self.flux_f_W_D, self.sigma_D, 
-                       self.centre_D, self.side_D, self.normal_D,
-                       self.length_D, np.int32(west))
+                           self.length_D, face)
                        
-        cl.enqueue_barrier(self.queue)
-                       
-        self.prg.macroFlux(self.queue, (self.ni+1, self.nj), (1,1),
-                           self.f_D, self.flux_f_W_D, self.sigma_D, 
-                           self.flux_macro_W_D, self.centre_D, 
-                           self.side_D, self.normal_D, self.length_D,
-                           np.int32(west), dt)
-        
-        cl.enqueue_barrier(self.queue)
-        
-        global_size = m_tuple((self.ni+1, self.nj, 1),self.work_size)
-        self.prg.distFlux(self.queue, global_size, self.work_size,
-                           self.f_D, self.flux_f_W_D, self.sigma_D,
-                           self.centre_D, self.side_D, self.normal_D,
-                           self.length_D, np.int32(west), dt)
+            cl.enqueue_barrier(self.queue)
+            
+            work_size = (8,8,1)
+            global_size = []
+            for i, s in enumerate(gsize[face]):
+                w = work_size[i]
+                global_size.append(int(int(s/w)*w + np.sign(s%w)*w))
+            
+            global_size = tuple(global_size)
+            
+            self.prg.getFluxParam(self.queue, global_size, work_size,
+                                  self.f_D, flux_f[face], self.centre_D,
+                                  self.side_D, self.normal_D, face,
+                                  self.prim_D, self.aL_D, self.aR_D, self.Q_D)
+            
+            cl.enqueue_barrier(self.queue)
+                                  
+            self.prg.macroFlux(self.queue, global_size, work_size,
+                               self.f_D, flux_f[face], self.sigma_D,
+                               flux_m[face], self.centre_D, 
+                               self.side_D, self.normal_D, self.length_D,
+                               face, dt, self.prim_D, self.aL_D, self.aR_D, 
+                               self.Q_D)
+            
+            cl.enqueue_barrier(self.queue)
 
-#        self.prg.UGKS_flux(self.queue, global_size, (1,1), self.f_D, 
-#                           self.flux_f_W_D, self.flux_macro_W_D,
-#                           self.centre_D, self.side_D,
-#                           self.normal_D, self.length_D,
-#                           np.int32(west), dt)
+            global_size = m_tuple(gsize[face],self.work_size)
+            self.prg.distFlux(self.queue, global_size, self.work_size,
+                              self.f_D, flux_f[face], self.sigma_D,
+                               self.centre_D, self.side_D, self.normal_D, 
+                               self.length_D, face, dt, self.prim_D, 
+                               self.aL_D, self.aR_D, self.Q_D)
                            
         cl.enqueue_barrier(self.queue)
        
@@ -687,18 +667,14 @@ class UGKSBlock(object):
         if self.has_diffuse:
             cl.enqueue_barrier(self.queue)
             
-            flux_f_list = [self.flux_f_S_D, self.flux_f_W_D]
-            flux_m_list = [self.flux_macro_S_D, self.flux_macro_W_D]
-            global_list = [(self.ni, 1), (1, self.nj)]
-            
             for face, bc in enumerate(self.bc_list):
                 if bc.type_of_BC == DIFFUSE:
                     list_id = face%2
-                    self.prg.diffuseWall(self.queue, global_list[list_id],(1,1),
+                    self.prg.diffuseWall(self.queue, gsize_wall[list_id],(1,1),
                                          self.f_D, self.centre_D, self.side_D,
                                          self.normal_D, self.length_D, 
-                                         np.int32(face), flux_f_list[list_id], 
-                                         flux_m_list[list_id], dt)
+                                         np.int32(face), flux_f[list_id], 
+                                         flux_m[list_id], dt)
                                          
             
         return
