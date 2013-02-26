@@ -23,6 +23,18 @@ def m_tuple(x, y):
     multiply two tuples or lists, return a tuple
     """
     return tuple(a*b for a, b in zip(x, y))
+    
+def size_cl(global_size, work_size):
+    """
+    generate an appropriate global size
+    """
+
+    gsize = []
+    for i, s in enumerate(global_size):
+        w = work_size[i]
+        gsize.append(int(int(s/w)*w + np.sign(s%w)*w))
+    
+    return tuple(global_size), tuple(work_size)
 
 class UGKSBlock(object):
     """
@@ -631,12 +643,7 @@ class UGKSBlock(object):
             cl.enqueue_barrier(self.queue)
             
             work_size = (8,8,1)
-            global_size = []
-            for i, s in enumerate(gsize[face]):
-                w = work_size[i]
-                global_size.append(int(int(s/w)*w + np.sign(s%w)*w))
-            
-            global_size = tuple(global_size)
+            global_size, work_size = size_cl(gsize[face], work_size)
             
             self.prg.getFluxParam(self.queue, global_size, work_size,
                                   self.f_D, flux_f[face], self.centre_D,
@@ -667,14 +674,19 @@ class UGKSBlock(object):
         if self.has_diffuse:
             cl.enqueue_barrier(self.queue)
             
-            for face, bc in enumerate(self.bc_list):
+            for wall, bc in enumerate(self.bc_list):
                 if bc.type_of_BC == DIFFUSE:
-                    list_id = face%2
-                    self.prg.diffuseWall(self.queue, gsize_wall[list_id],(1,1),
+                    face = wall%2
+                    
+                    work_size = [1,1]
+                    work_size[face] *= 16
+                    global_size, work_size = size_cl(gsize_wall[face], work_size)
+                    
+                    self.prg.diffuseWall(self.queue, global_size,work_size,
                                          self.f_D, self.centre_D, self.side_D,
                                          self.normal_D, self.length_D, 
-                                         np.int32(face), flux_f[list_id], 
-                                         flux_m[list_id], dt)
+                                         np.int32(wall), flux_f[face], 
+                                         flux_m[face], dt)
                                          
             
         return

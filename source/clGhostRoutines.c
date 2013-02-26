@@ -625,6 +625,16 @@ diffuseWall(__global double2* Fin, __global double2* centre,
       break;
   }
   
+  if (face_id == SOUTH) {
+    if (((gi < IMIN) || (gi > IMAX)) || ((gj < JMIN) || (gj > JMAX+1))) {
+      return;
+    }
+  } else if (face_id == WEST) {
+    if (((gi < IMIN) || (gi > IMAX+1)) || ((gj < JMIN) || (gj > JMAX))) {
+      return;
+    }
+  }
+
   // get the interface distribution and the flux out due to this distribution
   
   double4 wall;
@@ -634,12 +644,26 @@ diffuseWall(__global double2* Fin, __global double2* centre,
   wall.s3 = 1.0/BC_cond[face].s0;
   
   double2 face_normal = NORMAL(gi,gj,face_id);
+  double2 sums = 0.0;
   
-  __local double2 face_dist[NV];
-  __local double2 wall_dist[NV];
+  for (size_t gv = 0; gv < NV; ++gv) {
+
+      double4 f_sigma = getInterfaceSingle(Fin, centre, mid_side, gi, gj, gv, face_id, face_normal);
+      
+      // the interface value of f
+      FLUXF(gi,gj,gv) = f_sigma.s01;
+      
+      double2 uv = interfaceVelocity(gv, face_normal);
+      
+      int delta = (sign(uv.x)*rot + 1)/2;
+      
+      sums.x += uv.x*(1-delta)*f_sigma.x;
+      
+      double2 wall_dist = fM(wall, uv, gv);
+      
+      sums.y -= uv.x*delta*wall_dist.x;
+  }
   
-  double2 sums = getWallDistribution (Fin, centre, mid_side, gi, gj, rot, face_id, face_normal, wall, face_dist, wall_dist);
-    
   double face_length = LENGTH(gi,gj,face_id);
     
   // calculate the flux that would come back in if an equilibrium distribution resided in the wall
@@ -647,14 +671,14 @@ diffuseWall(__global double2* Fin, __global double2* centre,
   for (size_t gv = 0; gv < NV; ++gv) {
     double2 uv = interfaceVelocity(gv, face_normal);
     int delta = (sign(uv.x)*rot + 1)/2;
-    wall_dist[gv] = (sums.x/sums.y)*delta*wall_dist[gv] + (1-delta)*face_dist[gv];
+    double2 wall_dist = (sums.x/sums.y)*delta*fM(wall, uv, gv) + (1-delta)*FLUXF(gi,gj,gv);
     
-    macro_flux.s0 += uv.x*wall_dist[gv].x;
-    macro_flux.s1 += uv.x*uv.x*wall_dist[gv].x;
-    macro_flux.s2 += uv.x*uv.y*wall_dist[gv].x;
-    macro_flux.s3 += 0.5*uv.x*(dot(uv,uv)*wall_dist[gv].x + wall_dist[gv].y);
+    macro_flux.s0 += uv.x*wall_dist.x;
+    macro_flux.s1 += uv.x*uv.x*wall_dist.x;
+    macro_flux.s2 += uv.x*uv.y*wall_dist.x;
+    macro_flux.s3 += 0.5*uv.x*(dot(uv,uv)*wall_dist.x + wall_dist.y);
     
-    FLUXF(gi,gj,gv) = uv.x*wall_dist[gv]*face_length*dt;
+    FLUXF(gi,gj,gv) = uv.x*wall_dist*face_length*dt;
     
   }
   
