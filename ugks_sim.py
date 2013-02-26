@@ -653,7 +653,7 @@ class UGKSim(object):
         close the HDF5 file opened by init_HDF5()
         """
         
-        if not self.closed:
+        if ((not self.closed) & self.HDF_init):
             
             self.hdf.create_dataset("global_data/final_step",data=self.step)
             
