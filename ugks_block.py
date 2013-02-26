@@ -213,13 +213,13 @@ class UGKSBlock(object):
         ## common
         self.f_H = -1.0*np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64) # mass.x, energy.y
         
-        self.sigma_H = np.zeros((self.Ni,self.Nj,self.Nv,2),dtype=np.float64) # slope
+        self.sigma_H = np.zeros((self.ni+1,self.nj+1,self.Nv,2),dtype=np.float64) # slope
         
-        self.flux_f_S_H = np.zeros((self.Ni,self.Nj,self.Nv,2),dtype=np.float64) # mass.x, energy.y
-        self.flux_f_W_H = np.zeros((self.Ni,self.Nj,self.Nv,2),dtype=np.float64) # mass.x, energy.y
+        self.flux_f_S_H = np.zeros((self.ni+1,self.nj+1,self.Nv,2),dtype=np.float64) # mass.x, energy.y
+        self.flux_f_W_H = np.zeros((self.ni+1,self.nj+1,self.Nv,2),dtype=np.float64) # mass.x, energy.y
         
-        self.flux_macro_S_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
-        self.flux_macro_W_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
+        self.flux_macro_S_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
+        self.flux_macro_W_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
 
         # macro variables, without ghost cells
         #.s0 -> density
@@ -600,14 +600,6 @@ class UGKSBlock(object):
         
         #print "BLOCK %d"%self.id
         
-        # do the zeroing internally
-#        global_size = m_tuple((self.Ni, self.Nj, 1),self.work_size)
-#        self.prg.zeroFluxF(self.queue, global_size, self.work_size, self.flux_f_S_D)
-#        self.prg.zeroFluxF(self.queue, global_size, self.work_size, self.flux_f_W_D)
-#        self.prg.zeroFluxM(self.queue, (self.Ni, self.Nj), None,self.flux_macro_S_D)
-#        self.prg.zeroFluxM(self.queue, (self.Ni, self.Nj), None,self.flux_macro_W_D)
-#        cl.enqueue_barrier(self.queue)
-        
         dt = np.float64(gdata.dt)
         
         # do the south face first
@@ -724,7 +716,6 @@ class UGKSBlock(object):
                              self.flux_macro_S_D, self.flux_macro_W_D,
                              self.area_D, self.macro_D, self.residual_D, dt)
                              
-        
         
         self.host_update = 0
         self.macro_update = 0
