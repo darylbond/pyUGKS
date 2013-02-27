@@ -9,7 +9,7 @@
 
 import os
 
-os.environ["PYOPENCL_COMPILER_OUTPUT"]="1"
+os.environ["PYOPENCL_COMPILER_OUTPUT"] = "1"
 
 #local
 
@@ -38,9 +38,6 @@ class UGKS(object):
         if svg and gdata.dimensions == 2:
             gdata.sketch.write_svg_file(gdata, FlowCondition.flowList,
             Block.blockList, faceList2D)
-            
-        if vtk:
-            self.sim.saveVTK()
 
         return
 

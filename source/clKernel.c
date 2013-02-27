@@ -321,6 +321,12 @@ calcMacro(__global double2* Fin,
   int gi = mi + GHOST;
   int gj = mj + GHOST;
   
+  if (((gi < IMIN) || (gi > IMAX)) || ((gj < JMIN) || (gj > JMAX))) {
+    return;
+  } else if (((gi < IMIN) || (gi > IMAX)) || ((gj < JMIN) || (gj > JMAX))) {
+    return;
+  }
+  
   double4 prim = 0.0;
   double2 f, uv;
   for (size_t gv = 0; gv < NV; gv++) {
@@ -361,6 +367,12 @@ calcQ(__global double2* Fin,
   
   int gi = mi + GHOST;
   int gj = mj + GHOST;
+  
+  if (((gi < IMIN) || (gi > IMAX)) || ((gj < JMIN) || (gj > JMAX))) {
+    return;
+  } else if (((gi < IMIN) || (gi > IMAX)) || ((gj < JMIN) || (gj > JMAX))) {
+    return;
+  }
   
   double4 prim = MACRO(mi,mj);
   double2 f, uv;

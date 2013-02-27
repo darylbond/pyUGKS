@@ -189,7 +189,7 @@ class UGKSim(object):
 
         return
 
-    def one_step(self, get_dt, get_res, check_err=False):
+    def one_step(self, get_dt, get_res):
         """
         run one step of the simulation
         """
@@ -290,14 +290,8 @@ class UGKSim(object):
             else:
                 get_dt = False
                 
-            if (not self.step % gdata.check_err_count) & (gdata.check_err_count != -1):
-                print "error check"
-                check_err = True
-            else:
-                check_err = False
-                
             # one iteration of the method
-            step_finished = self.one_step(get_dt, get_res, check_err)
+            step_finished = self.one_step(get_dt, get_res)
             
             self.saved = False
 
@@ -442,7 +436,7 @@ class UGKSim(object):
 
         return
 
-    def plotResidualUpdate(self, fit=False):
+    def plotResidualUpdate(self):
         """
         update the residual plot
         """
