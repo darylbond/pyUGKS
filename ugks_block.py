@@ -619,14 +619,14 @@ class UGKSBlock(object):
         
 #===============================================================================
 #   Unified Gas Kinetic Scheme (UGKS)
-#===============================================================================
+#===============================================================================        
     
     def UGKS_flux(self):
         """
         get the fluxes for a specified distribution
         """
         
-        #print "BLOCK %d"%self.id
+        print "BLOCK %d"%self.id
         
         dt = np.float64(gdata.dt)
 
@@ -637,81 +637,66 @@ class UGKSBlock(object):
         flux_f = [self.flux_f_S_D, self.flux_f_W_D]
         flux_m = [self.flux_macro_S_D, self.flux_macro_W_D]
         
-        w_size = 8
+        w_size = 4
         
+        cl.enqueue_barrier(self.queue)
+        
+        print "getDomainConserved"
         # first calculate the conserved variables over the domain
         global_size, work_size = size_cl((self.ni+2, self.nj+2),(w_size,w_size))
         self.prg.getDomainConserved(self.queue, global_size, work_size,
-                                    self.f_D, self.cons_D)
+                                    self.f_D, self.cons_D).wait()
         
         for face in np.int32([0,1]):
             
+            print "iFace"
             # we do the iface dist for all boundaries
             global_size = m_tuple(gsize_full[face],self.work_size)
             self.prg.iFace(self.queue, global_size, self.work_size,
                            self.f_D, flux_f[face], self.sigma_D, 
                            self.centre_D, self.side_D, self.normal_D, 
-                           self.length_D, face)
+                           self.length_D, face).wait()
                        
             cl.enqueue_barrier(self.queue)
             
             work_size = (w_size,w_size,1)
             global_size, work_size = size_cl(gsize[face], work_size)
-            
+            print "getIfaceConserved"
             self.prg.getIfaceConserved(self.queue, global_size, work_size,
                                   flux_f[face], self.normal_D, face,
-                                  self.prim_D)
+                                  self.prim_D).wait()
                                   
             cl.enqueue_barrier(self.queue)     
-                 
+            print "getALRQ"
             self.prg.getALRQ(self.queue, global_size, work_size,
                              flux_f[face], self.centre_D, self.side_D, 
                              self.normal_D, face, self.cons_D, 
-                             self.prim_D, self.aL_D, self.aR_D, self.Q_D)
-                             
-                             
-#            self.queue.finish()
-#            cl.enqueue_copy(self.queue,self.aL_H,self.aL_D)
-#            print "aL A"
-#            print self.aL_H[:,:,0]
-#            
-#                             
-#            cl.enqueue_barrier(self.queue)
-#            self.prg.getFluxParam_1(self.queue, global_size, work_size,
-#                                  self.f_D, flux_f[face], self.centre_D,
-#                                  self.side_D, self.normal_D, face,
-#                                  self.prim_D, self.aL_D, self.aR_D, self.Q_D)
-#                                  
-#            self.queue.finish()
-#            cl.enqueue_copy(self.queue,self.aL_H,self.aL_D)
-#            print "aL B"
-#            print self.aL_H[:,:,0]
-                                  
+                             self.prim_D, self.aL_D, self.aR_D, self.Q_D).wait()
+                               
             cl.enqueue_barrier(self.queue)
-                                  
-            self.prg.getFluxParam_2(self.queue, global_size, work_size,
-                                    face, self.prim_D, self.aL_D, self.aR_D, 
-                                    self.aT_D, self.Mxi_D)
+            print "getATMX"
+            self.prg.getATMX(self.queue, global_size, work_size,
+                             face, self.prim_D, self.aL_D, self.aR_D, 
+                             self.aT_D, self.Mxi_D).wait()
             
             cl.enqueue_barrier(self.queue)
-                                  
+            print "macroFlux"
             self.prg.macroFlux(self.queue, global_size, work_size,
                                self.f_D, flux_f[face], self.sigma_D,
                                flux_m[face], self.centre_D, 
                                self.side_D, self.normal_D, self.length_D,
                                face, dt, self.prim_D, self.aL_D, self.aR_D, 
-                               self.Q_D)
+                               self.Q_D).wait()
             
             cl.enqueue_barrier(self.queue)
-
+            print "distFlux"
             global_size = m_tuple(gsize[face],self.work_size)
             self.prg.distFlux(self.queue, global_size, self.work_size,
                               flux_f[face], self.sigma_D,
                                self.normal_D, self.length_D, face, dt, 
                                self.prim_D, self.aL_D, self.aR_D, self.aT_D,
-                               self.Q_D, self.Mxi_D)
+                               self.Q_D, self.Mxi_D).wait()
                            
-        cl.enqueue_barrier(self.queue)
        
         # now update the fluxes if we have diffuse walls present
         if self.has_diffuse:
@@ -719,42 +704,27 @@ class UGKSBlock(object):
                 if bc.type_of_BC == DIFFUSE:
                     face = wall%2
                     
-                    #print "face = ",wall                    
-                    
-#                    self.queue.finish()
-#                    flux_f_h = [self.flux_f_S_H, self.flux_f_W_H]
-#                    cl.enqueue_copy(self.queue,flux_f_h[face],flux_f[face])
-#                    temp_f = flux_f_h[face]
-#                    print temp_f[:,:,0,0]
+                    print "face = ",wall           
                     
                     cl.enqueue_barrier(self.queue)
-                    
+                    print "iFaceWall"
                     global_size = m_tuple(gsize_wall[face],self.work_size)
                     self.prg.iFaceWall(self.queue, global_size, self.work_size,
                                        self.f_D, flux_f[face], self.centre_D, 
                                        self.side_D, self.normal_D, 
-                                       self.length_D, np.int32(wall))
-                                       
-#                    self.queue.finish()
-#                    flux_f_h = [self.flux_f_S_H, self.flux_f_W_H]
-#                    cl.enqueue_copy(self.queue,flux_f_h[face],flux_f[face])
-#                    temp_f = flux_f_h[face]
-#                    print ""
-#                    print temp_f[:,:,0,0]
+                                       self.length_D, np.int32(wall)).wait()
                                        
                     cl.enqueue_barrier(self.queue)
                     
                     work_size = [1,1,1]
-                    work_size[face] = w_size
+                    work_size[face] = w_size**2
                     global_size, work_size = size_cl(gsize_wall[face], work_size)
                     
-                    #print global_size
-                    #print work_size
-                    
+                    print "diffuseWall"
                     self.prg.diffuseWall(self.queue, global_size, work_size,
                                          self.normal_D, self.length_D, 
                                          np.int32(wall), flux_f[face], 
-                                         flux_m[face], dt)
+                                         flux_m[face], dt).wait()
                                          
             
         return

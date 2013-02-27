@@ -39,7 +39,7 @@ def genHeader(data):
         mid_stencil = 2
     
     if gdata.platform == "AMD":
-        s += '#pragma OPENCL EXTENSION cl_amd_fp64 : enable \n'
+        #s += '#pragma OPENCL EXTENSION cl_amd_fp64 : enable \n'
         s += '#pragma OPENCL EXTENSION cl_amd_printf : enable\n\n'
     elif gdata.platform == "Intel":
         s += '#pragma OPENCL EXTENSION cl_khr_fp64 : enable \n'

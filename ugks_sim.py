@@ -204,7 +204,6 @@ class UGKSim(object):
 
         for b in self.blocks:
             b.UGKS_flux()
-            cl.enqueue_barrier(self.queue)
             b.UGKS_update(get_res)
             
         cl.enqueue_barrier(self.queue)

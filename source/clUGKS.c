@@ -207,7 +207,7 @@ double4 moment_au(double4 a, double Mu[MNUM], double Mv[MTUM], double Mxi[3], in
             0.5*a.s3*moment_uv(Mu,Mv,Mxi,alpha+0,beta+2,0)+
             0.5*a.s3*moment_uv(Mu,Mv,Mxi,alpha+0,beta+0,2);
 }
-#define CONS(i,j) conserved[(i-GHOST)*(nj+2) + (j-GHOST)]
+#define CONS(i,j) conserved[(i-GHOST+1)*(nj+2) + (j-GHOST+1)]
 #define PRIM(i,j) primary[(i-GHOST)*(nj+1) + (j-GHOST)]
 #define AL(i,j) aLeft[(i-GHOST)*(nj+1) + (j-GHOST)]
 #define AR(i,j) aRight[(i-GHOST)*(nj+1) + (j-GHOST)]
@@ -350,98 +350,7 @@ getALRQ(__global double2* iface_f,
 }
 
 __kernel void
-getFluxParam_1(__global double2* Fin,
-            __global double2* iface_f, 
-            __global double2* centre, 
-            __global double2* mid_side,
-            __global double2* normal,
-            int face,
-            __global double4* primary, 
-            __global double4* aLeft, 
-            __global double4* aRight, 
-            __global double2* gQ)
-{
-    // calculate some of the parameters required for calculation of all fluxes
-    
-    size_t gi, gj;
-    gi = get_global_id(0) + GHOST;
-    gj = get_global_id(1) + GHOST;
-    
-    if (face == SOUTH) {
-        if (((gi < IMIN) || (gi > IMAX)) || ((gj < JMIN) || (gj > JMAX+1))) {
-            return;
-        }
-    } else if (face == WEST) {
-        if (((gi < IMIN) || (gi > IMAX+1)) || ((gj < JMIN) || (gj > JMAX))) {
-            return;
-        }
-    }
-    
-    double2 face_normal = NORMAL(gi,gj,face);
-    double2 midside = MIDSIDE(gi,gj,face);
-
-    // ---< STEP 2 >---
-    // calculate the macroscopic variables in the local frame of reference at the interface
-    
-    double4 w = 0.0;
-    double4 wLR = 0.0;
-    double2 f, uv;
-    
-    // conserved variables
-    for (size_t v_id = 0; v_id < NV; ++v_id) {
-        uv = interfaceVelocity(v_id, face_normal);
-        
-        f = IFACEF(gi, gj, v_id);
-        w.s0 += f.x;
-        w.s12 += uv*f.x;
-        w.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
-        
-        f = F(gi-face, gj-(1-face), v_id);
-        wLR.s0 += f.x;
-        wLR.s12 += uv*f.x;
-        wLR.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
-    }
-
-    // ---< STEP 3 >---
-    // calculate a^L and a^R
-    double4 sw;
-    
-    // the slope of the primary variables on the left side of the interface
-    sw = (w - wLR)/length(midside - CENTRE(gi-face, gj-(1-face)));
-
-    double4 prim = getPrimary(w); // convert to primary variables
-    PRIM(gi,gj) = prim;
-
-    AL(gi,gj) = microSlope(prim, sw);
-    
-    double2 Q = 0.0;
-    wLR = 0.0;
-    for (size_t v_id = 0; v_id < NV; ++v_id) {
-        uv = interfaceVelocity(v_id, face_normal);
-        
-        f = F(gi, gj, v_id);
-        wLR.s0 += f.x;
-        wLR.s12 += uv*f.x;
-        wLR.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
-        
-        f = IFACEF(gi, gj, v_id);
-        Q.x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
-        Q.y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
-    }
-
-    // the slope of the primary variables on the right side of the interface
-    sw = (wLR - w)/length(midside - CENTRE(gi, gj)); // the difference
-    
-    AR(gi,gj) = microSlope(prim, sw);
-    
-    GQ(gi-GHOST,gj-GHOST) = Q;
-
-    
-    return;
-}
-
-__kernel void
-getFluxParam_2(int face,
+getATMX(int face,
             __global double4* primary, 
             __global double4* aLeft, 
             __global double4* aRight,
@@ -768,6 +677,7 @@ iFaceWall(__global double2* Fin,
     return;
 }
 
+
 __kernel void
 diffuseWall(__global double2* normal,
             __global double* side_length, int face, 
@@ -830,9 +740,6 @@ diffuseWall(__global double2* normal,
   double2 face_normal = NORMAL(gi,gj,face_id);
   double2 sums = 0.0;
   
-  // DO IN TWO STAGES
-  // THIS BIT VVVV
-  
   for (size_t gv = 0; gv < NV; ++gv) {
       
       double2 face_dist = FLUXF(gi,gj,gv);
@@ -849,8 +756,6 @@ diffuseWall(__global double2* normal,
   }
   
   double face_length = LENGTH(gi,gj,face_id);
-  
-  // AND THEN THE SUMMING ^^ AND THIS BIT VV
   
   // calculate the flux that would come back in if an equilibrium distribution resided in the wall
   double4 macro_flux = 0.0;
