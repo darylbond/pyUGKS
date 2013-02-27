@@ -233,7 +233,7 @@ class UGKSBlock(object):
         self.flux_macro_S_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
         self.flux_macro_W_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
         
-        self.cons_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
+        self.cons_H = np.zeros((self.ni+2,self.nj+2,4),dtype=np.float64)
         self.prim_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
         self.aL_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
         self.aR_H = np.zeros((self.ni+1,self.nj+1,4),dtype=np.float64)
@@ -640,7 +640,7 @@ class UGKSBlock(object):
         w_size = 8
         
         # first calculate the conserved variables over the domain
-        global_size, work_size = size_cl((self.ni+1, self.nj+1),(w_size,w_size))
+        global_size, work_size = size_cl((self.ni+2, self.nj+2),(w_size,w_size))
         self.prg.getDomainConserved(self.queue, global_size, work_size,
                                     self.f_D, self.cons_D)
         
@@ -658,10 +658,34 @@ class UGKSBlock(object):
             work_size = (w_size,w_size,1)
             global_size, work_size = size_cl(gsize[face], work_size)
             
-            self.prg.getFluxParam_1(self.queue, global_size, work_size,
-                                  self.f_D, flux_f[face], self.centre_D,
-                                  self.side_D, self.normal_D, face,
-                                  self.prim_D, self.aL_D, self.aR_D, self.Q_D)
+            self.prg.getIfaceConserved(self.queue, global_size, work_size,
+                                  flux_f[face], self.normal_D, face,
+                                  self.prim_D)
+                                  
+            cl.enqueue_barrier(self.queue)     
+                 
+            self.prg.getALRQ(self.queue, global_size, work_size,
+                             flux_f[face], self.centre_D, self.side_D, 
+                             self.normal_D, face, self.cons_D, 
+                             self.prim_D, self.aL_D, self.aR_D, self.Q_D)
+                             
+                             
+#            self.queue.finish()
+#            cl.enqueue_copy(self.queue,self.aL_H,self.aL_D)
+#            print "aL A"
+#            print self.aL_H[:,:,0]
+#            
+#                             
+#            cl.enqueue_barrier(self.queue)
+#            self.prg.getFluxParam_1(self.queue, global_size, work_size,
+#                                  self.f_D, flux_f[face], self.centre_D,
+#                                  self.side_D, self.normal_D, face,
+#                                  self.prim_D, self.aL_D, self.aR_D, self.Q_D)
+#                                  
+#            self.queue.finish()
+#            cl.enqueue_copy(self.queue,self.aL_H,self.aL_D)
+#            print "aL B"
+#            print self.aL_H[:,:,0]
                                   
             cl.enqueue_barrier(self.queue)
                                   
