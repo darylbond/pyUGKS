@@ -86,7 +86,7 @@ class UGKSBlock(object):
         self.Nv = gdata.Nv
         
         # work-group size
-        self.work_size = 8
+        self.work_size = 1
         
         # boundaries for flow domain, excluding ghost cells
         self.imin = self.ghost
@@ -613,44 +613,21 @@ class UGKSBlock(object):
         
         print "\nBLOCK : %d\n"%self.id
         
-
-#        global_size, work_size = m_tuple((self.Ni, self.Nj, 1), (1,1,gdata.CL_local_size))
-#        self.prg.zeroFluxF(self.queue, global_size, work_size, self.flux_f_S_D)
-#        self.prg.zeroFluxF(self.queue, global_size, work_size, self.flux_f_W_D)
-#        
-#        global_size, work_size = size_cl((self.Ni, self.Nj), (self.work_size,self.work_size))
-#        
-#        self.prg.zeroFluxM(self.queue, global_size, work_size, self.flux_macro_S_D)
-#        self.prg.zeroFluxM(self.queue, global_size, work_size, self.flux_macro_W_D)
-#        cl.enqueue_barrier(self.queue)
-#        
-#        print "zeroed"
+        south = np.int32(0)
+        west = np.int32(1)
         
         dt = np.float64(gdata.dt)
         
-        # do the south face first
-        south = np.int32(0)
+        #--------------------------------------------------------------------        
+        
+        # populate the face distributions
         
         global_size, work_size = m_tuple((self.ni, self.nj+1, 1), (1,1,gdata.CL_local_size))        
         self.prg.iFace(self.queue, global_size, work_size,
                    self.f_D, self.flux_f_S_D, self.sigma_D, self.centre_D,
                    self.side_D, self.normal_D, south)
                    
-        cl.enqueue_barrier(self.queue)
         
-        
-        global_size, work_size = size_cl((self.ni, self.nj+1), (self.work_size,self.work_size))
-        print global_size
-        print work_size
-        self.prg.UGKS_flux_2(self.queue, global_size, work_size, self.f_D,
-                           self.flux_f_S_D, self.sigma_D, self.flux_macro_S_D,
-                           self.centre_D, self.side_D,
-                           self.normal_D, self.length_D,
-                           south, dt)
-                           
-        #then the west face
-        west = np.int32(1)
-
         global_size, work_size = m_tuple((self.ni+1, self.nj, 1), (1,1,gdata.CL_local_size))        
         self.prg.iFace(self.queue, global_size, work_size,
                    self.f_D, self.flux_f_W_D, self.sigma_D, self.centre_D,
@@ -658,47 +635,71 @@ class UGKSBlock(object):
                    
         cl.enqueue_barrier(self.queue)
         
-        global_size, work_size = size_cl((self.ni+1, self.nj), (self.work_size,self.work_size))
-        print global_size
-        print work_size
-        self.prg.UGKS_flux_2(self.queue, global_size, work_size, self.f_D, 
+        #--------------------------------------------------------------------
+        # do the south interface internals
+        
+        offset = 0; shrink = 0
+        if self.bc_list[0].type_of_BC == DIFFUSE:
+            shrink += 1
+            north_wall = np.int32(0)
+            print "north wall"
+            self.prg.diffuseWall(self.queue, (self.ni, 1),(1,1),
+                               self.normal_D, self.length_D, 
+                               north_wall, self.flux_f_S_D, 
+                               self.flux_macro_S_D, dt).wait()
+            
+        if self.bc_list[2].type_of_BC == DIFFUSE:
+            shrink += 1
+            offset = 1
+            south_wall = np.int32(2)
+            print "south wall"
+            self.prg.diffuseWall(self.queue, (self.ni, 1),(1,1),
+                               self.normal_D, self.length_D, 
+                               south_wall, self.flux_f_S_D, 
+                               self.flux_macro_S_D, dt).wait()
+            
+        
+        global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (self.work_size,self.work_size))
+        self.prg.UGKS_flux(self.queue, global_size, work_size, self.f_D,
+                           self.flux_f_S_D, self.sigma_D, self.flux_macro_S_D,
+                           self.centre_D, self.side_D,
+                           self.normal_D, self.length_D,
+                           south, dt, np.int32(offset))
+                        
+                        
+        #--------------------------------------------------------------------                
+        # then the west interface  internals
+        
+        offset = 0; shrink = 0
+        if self.bc_list[1].type_of_BC == DIFFUSE:
+            shrink += 1
+            east_wall = np.int32(1)
+            print "east wall"
+            self.prg.diffuseWall(self.queue, (1, self.nj),(1,1),
+                               self.normal_D, self.length_D, 
+                               east_wall, self.flux_f_W_D, 
+                               self.flux_macro_W_D, dt).wait()
+        
+        if self.bc_list[3].type_of_BC == DIFFUSE:
+            shrink += 1
+            offset = 1
+            west_wall = np.int32(3)
+            print "west wall"
+            self.prg.diffuseWall(self.queue, (1, self.nj),(1,1),
+                               self.normal_D, self.length_D, 
+                               west_wall, self.flux_f_W_D, 
+                               self.flux_macro_W_D, dt).wait()
+        
+        global_size, work_size = size_cl((self.ni+1-shrink, self.nj), (self.work_size,self.work_size))
+        self.prg.UGKS_flux(self.queue, global_size, work_size, self.f_D, 
                            self.flux_f_W_D, self.sigma_D, self.flux_macro_W_D,
                            self.centre_D, self.side_D,
                            self.normal_D, self.length_D,
-                           west, dt)
+                           west, dt, np.int32(offset))
                            
-                           
-        # now update the fluxes if we have diffuse walls present
-        if self.has_diffuse:
-            cl.enqueue_barrier(self.queue)
-            
-            flux_f_list = [self.flux_f_S_D, self.flux_f_W_D, 
-                           self.flux_f_S_D, self.flux_f_W_D]
-                           
-            flux_m_list = [self.flux_macro_S_D, self.flux_macro_W_D, 
-                           self.flux_macro_S_D, self.flux_macro_W_D]
-                           
-            global_S = (self.ni, 1)
-            global_W = (1, self.nj)
-            global_list = [global_S, global_W, global_S, global_W]
-            
-#            self.queue.finish()
-#            print "BLOCK ",self.id
-#            cl.enqueue_copy(self.queue,self.flux_macro_S_H,self.flux_macro_S_D)
-#            print np.rot90(self.flux_macro_S_H[:,:,0])
-            
-            for face, bc in enumerate(self.bc_list):
-                if bc.type_of_BC == DIFFUSE:
-                    self.prg.diffuseWall(self.queue, global_list[face],(1,1),
-                                         self.f_D, self.centre_D, self.side_D,
-                                         self.normal_D, self.length_D, 
-                                         np.int32(face), flux_f_list[face], 
-                                         flux_m_list[face], dt)
+        #--------------------------------------------------------------------                   
+
                                          
-#            self.queue.finish()
-#            print ""
-#            cl.enqueue_copy(self.queue,self.flux_macro_S_H,self.flux_macro_S_D)
-#            print np.rot90(self.flux_macro_S_H[:,:,0])
             
         return
         

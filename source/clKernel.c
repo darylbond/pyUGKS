@@ -21,51 +21,6 @@
 
 #define TSTEP(i,j) time_step[(i)*nj + (j)]
 
-#define FLUXF(i,j,v) flux_f[NV*NJ*(i) + NV*(j) + (v)]
-#define FLUXM(i,j) flux_macro[(i)*NJ + (j)] 
-
-/////////////////////////////////////////
-// KERNEL: initialiseToZero
-/////////////////////////////////////////
-
-__kernel void
-zeroFluxF(__global double2* flux_f)
-{
-  // set all values to zero
-  
-  size_t gi = get_global_id(0);
-  size_t gj = get_global_id(1);
-  size_t thread_id = get_local_id(2);
-  
-  for (size_t loop_id = 0; loop_id < LOCAL_LOOP_LENGTH; ++loop_id) {
-
-    size_t gv = loop_id*LOCAL_SIZE + thread_id;
-
-    if (gv >= NV) {
-      continue;
-    }
-
-    FLUXF(gi,gj,gv) = 0.0;
-  }
-  
-  return;
-}
-
-__kernel void
-zeroFluxM(__global double4* flux_macro)
-{
-  // set all values to zero
-  
-  size_t gi = get_global_id(0);
-  size_t gj = get_global_id(1);
-  
-  if ((gi < NI) && (gj < NJ)) {
-    FLUXM(gi,gj) = 0.0;
-  }
-  
-  return;
-}
-
 /////////////////////////////////////////
 // KERNEL: cellResidual
 /////////////////////////////////////////
