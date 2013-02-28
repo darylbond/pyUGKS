@@ -21,6 +21,51 @@
 
 #define TSTEP(i,j) time_step[(i)*nj + (j)]
 
+#define FLUXF(i,j,v) flux_f[NV*NJ*(i) + NV*(j) + (v)]
+#define FLUXM(i,j) flux_macro[(i)*NJ + (j)] 
+
+/////////////////////////////////////////
+// KERNEL: initialiseToZero
+/////////////////////////////////////////
+
+__kernel void
+zeroFluxF(__global double2* flux_f)
+{
+  // set all values to zero
+  
+  size_t gi = get_global_id(0);
+  size_t gj = get_global_id(1);
+  size_t thread_id = get_local_id(2);
+  
+  for (size_t loop_id = 0; loop_id < LOCAL_LOOP_LENGTH; ++loop_id) {
+
+    size_t gv = loop_id*LOCAL_SIZE + thread_id;
+
+    if (gv >= NV) {
+      continue;
+    }
+
+    FLUXF(gi,gj,gv) = 0.0;
+  }
+  
+  return;
+}
+
+__kernel void
+zeroFluxM(__global double4* flux_macro)
+{
+  // set all values to zero
+  
+  size_t gi = get_global_id(0);
+  size_t gj = get_global_id(1);
+  
+  if ((gi < NI) && (gj < NJ)) {
+    FLUXM(gi,gj) = 0.0;
+  }
+  
+  return;
+}
+
 /////////////////////////////////////////
 // KERNEL: cellResidual
 /////////////////////////////////////////
@@ -318,40 +363,37 @@ calcMacro(__global double2* Fin,
   size_t mi = get_global_id(0);
   size_t mj = get_global_id(1);
   
-  int gi = mi + GHOST;
-  int gj = mj + GHOST;
+  if ((mi < ni) && (mj < nj)) {
   
-  if (((gi < IMIN) || (gi > IMAX)) || ((gj < JMIN) || (gj > JMAX))) {
-    return;
-  } else if (((gi < IMIN) || (gi > IMAX)) || ((gj < JMIN) || (gj > JMAX))) {
-    return;
-  }
-  
-  double4 prim = 0.0;
-  double2 f, uv;
-  for (size_t gv = 0; gv < NV; gv++) {
-    f = F(gi,gj,gv);
-    uv = QUAD[gv];
+    int gi = mi + GHOST;
+    int gj = mj + GHOST;
     
-    prim.s0 += f.x;
-    prim.s12 += uv*f.x;
-    prim.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
+    double4 prim = 0.0;
+    double2 f, uv;
+    for (size_t gv = 0; gv < NV; gv++) {
+      f = F(gi,gj,gv);
+      uv = QUAD[gv];
+      
+      prim.s0 += f.x;
+      prim.s12 += uv*f.x;
+      prim.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
+    }
+    
+    // convert to standard variables
+    prim.s3 = 0.5*prim.s0/(gam-1.0)/(prim.s3 - 0.5*dot(prim.s12,prim.s12)/prim.s0);
+    prim.s12 /= prim.s0;
+    
+    double2 Q = 0.0;
+    for (size_t gv = 0; gv < NV; gv++) {
+      f = F(gi,gj,gv);
+      uv = QUAD[gv];
+      Q.x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
+      Q.y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
+    }
+    
+    MACRO(mi, mj) = prim;
+    GQ(mi, mj) = Q;
   }
-  
-  // convert to standard variables
-  prim.s3 = 0.5*prim.s0/(gam-1.0)/(prim.s3 - 0.5*dot(prim.s12,prim.s12)/prim.s0);
-  prim.s12 /= prim.s0;
-  
-  double2 Q = 0.0;
-  for (size_t gv = 0; gv < NV; gv++) {
-    f = F(gi,gj,gv);
-    uv = QUAD[gv];
-    Q.x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
-    Q.y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
-  }
-  
-  MACRO(mi, mj) = prim;
-  GQ(mi, mj) = Q;
 
   return;
 }
@@ -367,12 +409,6 @@ calcQ(__global double2* Fin,
   
   int gi = mi + GHOST;
   int gj = mj + GHOST;
-  
-  if (((gi < IMIN) || (gi > IMAX)) || ((gj < JMIN) || (gj > JMAX))) {
-    return;
-  } else if (((gi < IMIN) || (gi > IMAX)) || ((gj < JMIN) || (gj > JMAX))) {
-    return;
-  }
   
   double4 prim = MACRO(mi,mj);
   double2 f, uv;

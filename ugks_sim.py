@@ -189,7 +189,7 @@ class UGKSim(object):
 
         return
 
-    def one_step(self, get_dt, get_res):
+    def one_step(self, get_dt, get_res, check_err=False):
         """
         run one step of the simulation
         """
@@ -204,6 +204,7 @@ class UGKSim(object):
 
         for b in self.blocks:
             b.UGKS_flux()
+            cl.enqueue_barrier(self.queue)
             b.UGKS_update(get_res)
             
         cl.enqueue_barrier(self.queue)
@@ -289,8 +290,14 @@ class UGKSim(object):
             else:
                 get_dt = False
                 
+            if (not self.step % gdata.check_err_count) & (gdata.check_err_count != -1):
+                print "error check"
+                check_err = True
+            else:
+                check_err = False
+                
             # one iteration of the method
-            step_finished = self.one_step(get_dt, get_res)
+            step_finished = self.one_step(get_dt, get_res, check_err)
             
             self.saved = False
 
@@ -435,7 +442,7 @@ class UGKSim(object):
 
         return
 
-    def plotResidualUpdate(self):
+    def plotResidualUpdate(self, fit=False):
         """
         update the residual plot
         """
@@ -646,7 +653,7 @@ class UGKSim(object):
         close the HDF5 file opened by init_HDF5()
         """
         
-        if ((not self.closed) & self.HDF_init):
+        if (not self.closed) & self.HDF_init:
             
             self.hdf.create_dataset("global_data/final_step",data=self.step)
             

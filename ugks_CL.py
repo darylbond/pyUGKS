@@ -39,7 +39,7 @@ def genHeader(data):
         mid_stencil = 2
     
     if gdata.platform == "AMD":
-        #s += '#pragma OPENCL EXTENSION cl_amd_fp64 : enable \n'
+        s += '#pragma OPENCL EXTENSION cl_amd_fp64 : enable \n'
         s += '#pragma OPENCL EXTENSION cl_amd_printf : enable\n\n'
     elif gdata.platform == "Intel":
         s += '#pragma OPENCL EXTENSION cl_khr_fp64 : enable \n'
@@ -64,9 +64,6 @@ def genHeader(data):
     s += '#define JMIN {}\n'.format(data['jmin'])
     s += '#define JMAX {}\n'.format(data['jmax'])
     s += '#define GHOST {}\n'.format(data['ghost'])
-    s += '#define WSI {}\n'.format(data['work_size'][0])
-    s += '#define WSJ {}\n'.format(data['work_size'][1])
-    s += '#define WSK {}\n'.format(data['work_size'][2])
     s += '#define SOUTH 0\n'
     s += '#define WEST 1\n'
     s += '#define GNORTH 0\n'
