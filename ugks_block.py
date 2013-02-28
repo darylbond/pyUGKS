@@ -667,7 +667,7 @@ class UGKSBlock(object):
                            self.flux_f_S_D, self.sigma_D, self.flux_macro_S_D,
                            self.centre_D, self.side_D,
                            self.normal_D, self.length_D,
-                           south, dt, np.int32(offset_bot), np.int32(offset_bot))
+                           south, dt, np.int32(offset_bot), np.int32(offset_top))
                          
          
         #--------------------------------------------------------------------                
