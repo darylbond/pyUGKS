@@ -491,105 +491,107 @@ diffuseWall(__global double2* normal,
             __global double2* flux_f, __global double4* flux_macro, 
             double dt)
 {
-  // given the flux information for each wall of each cell
-  // modify the fluxes at the defined wall to give a diffuse wall
-  
-  size_t gi = get_global_id(0);
-  size_t gj = get_global_id(1);
-  int rot;
-  int face_id;
-  
-  switch (face) {
-    case GNORTH:
-      gi += GHOST;
-      gj += NJ - GHOST;
-      rot = -1;
-      face_id = SOUTH;
-      break;
-    case GEAST:
-      gi += NI - GHOST;
-      gj += GHOST;
-      rot = -1;
-      face_id = WEST;
-      break;
-    case GSOUTH:
-      gi += GHOST;
-      gj += GHOST;
-      rot = 1;
-      face_id = SOUTH;
-      break;
-    case GWEST:
-      gi += GHOST;
-      gj += GHOST;
-      rot = 1;
-      face_id = WEST;
-      break;
-  }
-  
-  //printf("gi = %d, gj = %d\n",gi,gj);
-  
-  // get the interface distribution and the flux out due to this distribution
-  
-  double4 wall;
-  
-  wall.s0 = 1.0;
-  wall.s1 = 0.0;
-  wall.s2 = BC_cond[face].s1;
-  wall.s3 = 1.0/BC_cond[face].s0;
-  
-  double2 face_normal = NORMAL(gi,gj,face_id);
-  double2 uv, face_dist, wall_dist;
-  int delta;
-  
-  double sum_out = 0.0;
-  double sum_in = 0.0;
-  
-  for (size_t gv = 0; gv < NV; ++gv) {
-      
-        uv = interfaceVelocity(gv, face_normal);
-      
-        face_dist = FLUXF(gi,gj,gv);
-        
-        delta = (sign(uv.x)*rot + 1)/2;
-        
-        sum_out += uv.x*(1-delta)*face_dist.x;
-        
-        wall_dist = fM(wall, uv, gv);
-        
-        sum_in -= uv.x*delta*wall_dist.x;
+    // given the flux information for each wall of each cell
+    // modify the fluxes at the defined wall to give a diffuse wall
+
+    size_t gi = get_global_id(0);
+    size_t gj = get_global_id(1);
+    int rot;
+    int face_id;
+
+    switch (face) {
+        case GNORTH:
+            gi += GHOST;
+            gj += NJ - GHOST;
+            rot = -1;
+            face_id = SOUTH;
+            break;
+        case GEAST:
+            gi += NI - GHOST;
+            gj += GHOST;
+            rot = -1;
+            face_id = WEST;
+            break;
+        case GSOUTH:
+            gi += GHOST;
+            gj += GHOST;
+            rot = 1;
+            face_id = SOUTH;
+            break;
+        case GWEST:
+            gi += GHOST;
+            gj += GHOST;
+            rot = 1;
+            face_id = WEST;
+            break;
     }
-    
-    
-    double ratio = sum_out/sum_in;
-    
-    double face_length = LENGTH(gi,gj,face_id);
-    
-    // calculate the flux that would come back in if an equilibrium distribution resided in the wall
-    double4 macro_flux = 0.0;
-    for (size_t gv = 0; gv < NV; ++gv) {
-      uv = interfaceVelocity(gv, face_normal);
-      delta = (sign(uv.x)*rot + 1)/2;
-      face_dist = FLUXF(gi,gj,gv);
-      wall_dist = ratio*delta*fM(wall, uv, gv) + (1-delta)*face_dist;
-      
-      macro_flux.s0 += uv.x*wall_dist.x;
-      macro_flux.s1 += uv.x*uv.x*wall_dist.x;
-      macro_flux.s2 += uv.x*uv.y*wall_dist.x;
-      macro_flux.s3 += 0.5*uv.x*(dot(uv,uv)*wall_dist.x + wall_dist.y);
-      
-      FLUXF(gi,gj,gv) = uv.x*wall_dist*face_length*dt;
-      
+
+    if (((face_id == SOUTH) && (gi - GHOST < ni)) 
+    || ((face_id == WEST) && (gj - GHOST < nj))) {
+
+        // get the interface distribution and the flux out due to this distribution
+
+        double4 wall;
+
+        wall.s0 = 1.0;
+        wall.s1 = 0.0;
+        wall.s2 = BC_cond[face].s1;
+        wall.s3 = 1.0/BC_cond[face].s0;
+
+        double2 face_normal = NORMAL(gi,gj,face_id);
+        double2 uv, face_dist, wall_dist;
+        int delta;
+
+        double sum_out = 0.0;
+        double sum_in = 0.0;
+
+        for (size_t gv = 0; gv < NV; ++gv) {
+
+            uv = interfaceVelocity(gv, face_normal);
+
+            face_dist = FLUXF(gi,gj,gv);
+
+            delta = (sign(uv.x)*rot + 1)/2;
+
+            sum_out += uv.x*(1-delta)*face_dist.x;
+
+            wall_dist = fM(wall, uv, gv);
+
+            sum_in -= uv.x*delta*wall_dist.x;
+        }
+
+
+        double ratio = sum_out/sum_in;
+
+        double face_length = LENGTH(gi,gj,face_id);
+
+        // calculate the flux that would come back in if an equilibrium distribution resided in the wall
+        double4 macro_flux = 0.0;
+        for (size_t gv = 0; gv < NV; ++gv) {
+            uv = interfaceVelocity(gv, face_normal);
+            delta = (sign(uv.x)*rot + 1)/2;
+            face_dist = FLUXF(gi,gj,gv);
+            wall_dist = ratio*delta*fM(wall, uv, gv) + (1-delta)*face_dist;
+
+            macro_flux.s0 += uv.x*wall_dist.x;
+            macro_flux.s1 += uv.x*uv.x*wall_dist.x;
+            macro_flux.s2 += uv.x*uv.y*wall_dist.x;
+            macro_flux.s3 += 0.5*uv.x*(dot(uv,uv)*wall_dist.x + wall_dist.y);
+
+            FLUXF(gi,gj,gv) = uv.x*wall_dist*face_length*dt;
+
+        }
+
+        // convert macro to global frame
+        macro_flux.s12 = toGlobal(macro_flux.s12, face_normal);
+
+        macro_flux *= dt*face_length;
+
+        FLUXM(gi,gj) = macro_flux;
     }
-    
-    // convert macro to global frame
-    macro_flux.s12 = toGlobal(macro_flux.s12, face_normal);
-    
-    macro_flux *= dt*face_length;
-    
-    FLUXM(gi,gj) = macro_flux;
-    
-  return;
-  
+
+    return;
+
 }
 #endif
 

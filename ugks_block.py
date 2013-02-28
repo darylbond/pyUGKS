@@ -86,7 +86,7 @@ class UGKSBlock(object):
         self.Nv = gdata.Nv
         
         # work-group size
-        self.work_size = 1
+        self.work_size = 8
         
         # boundaries for flow domain, excluding ghost cells
         self.imin = self.ghost
@@ -611,7 +611,7 @@ class UGKSBlock(object):
         get the fluxes for a specified distribution
         """
         
-        print "\nBLOCK : %d\n"%self.id
+        #print "\nBLOCK : %d\n"%self.id
         
         south = np.int32(0)
         west = np.int32(1)
@@ -639,26 +639,24 @@ class UGKSBlock(object):
         # do the south interface internals
         
         offset = 0; shrink = 0
+        global_size, work_size = size_cl((self.ni, 1), (self.work_size**2,1))
         if self.bc_list[0].type_of_BC == DIFFUSE:
             shrink += 1
             north_wall = np.int32(0)
-            print "north wall"
-            self.prg.diffuseWall(self.queue, (self.ni, 1),(1,1),
+            self.prg.diffuseWall(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
                                north_wall, self.flux_f_S_D, 
-                               self.flux_macro_S_D, dt).wait()
+                               self.flux_macro_S_D, dt)
             
         if self.bc_list[2].type_of_BC == DIFFUSE:
             shrink += 1
             offset = 1
             south_wall = np.int32(2)
-            print "south wall"
-            self.prg.diffuseWall(self.queue, (self.ni, 1),(1,1),
+            self.prg.diffuseWall(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
                                south_wall, self.flux_f_S_D, 
-                               self.flux_macro_S_D, dt).wait()
+                               self.flux_macro_S_D, dt)
             
-        
         global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (self.work_size,self.work_size))
         self.prg.UGKS_flux(self.queue, global_size, work_size, self.f_D,
                            self.flux_f_S_D, self.sigma_D, self.flux_macro_S_D,
@@ -671,24 +669,23 @@ class UGKSBlock(object):
         # then the west interface  internals
         
         offset = 0; shrink = 0
+        global_size, work_size = size_cl((1, self.nj), (1,self.work_size**2))
         if self.bc_list[1].type_of_BC == DIFFUSE:
             shrink += 1
             east_wall = np.int32(1)
-            print "east wall"
-            self.prg.diffuseWall(self.queue, (1, self.nj),(1,1),
+            self.prg.diffuseWall(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
                                east_wall, self.flux_f_W_D, 
-                               self.flux_macro_W_D, dt).wait()
+                               self.flux_macro_W_D, dt)
         
         if self.bc_list[3].type_of_BC == DIFFUSE:
             shrink += 1
             offset = 1
             west_wall = np.int32(3)
-            print "west wall"
-            self.prg.diffuseWall(self.queue, (1, self.nj),(1,1),
+            self.prg.diffuseWall(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
                                west_wall, self.flux_f_W_D, 
-                               self.flux_macro_W_D, dt).wait()
+                               self.flux_macro_W_D, dt)
         
         global_size, work_size = size_cl((self.ni+1-shrink, self.nj), (self.work_size,self.work_size))
         self.prg.UGKS_flux(self.queue, global_size, work_size, self.f_D, 
