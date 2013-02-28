@@ -86,7 +86,7 @@ class UGKSBlock(object):
         self.Nv = gdata.Nv
         
         # work-group size
-        self.work_size = 16
+        self.work_size = 8
         
         # boundaries for flow domain, excluding ghost cells
         self.imin = self.ghost
@@ -638,7 +638,7 @@ class UGKSBlock(object):
         # follow 
         ##
         offset_top = 0; offset_bot = 0
-        global_size, work_size = size_cl((self.ni, 1), (self.work_size,1))
+        global_size, work_size = size_cl((self.ni, 1), (gdata.CL_local_size,1))
         if self.bc_list[0].type_of_BC == DIFFUSE:
             offset_top = 1
             north_wall = np.int32(0)
@@ -693,7 +693,7 @@ class UGKSBlock(object):
         # follow 
         ##
         offset_top = 0; offset_bot = 0
-        global_size, work_size = size_cl((1, self.nj), (1,self.work_size))
+        global_size, work_size = size_cl((1, self.nj), (1,gdata.CL_local_size))
         if self.bc_list[1].type_of_BC == DIFFUSE:
             offset_top = 1
             east_wall = np.int32(1)
@@ -737,13 +737,29 @@ class UGKSBlock(object):
         update the cell average values
         """
         
+        # get the current Q value
+        global_size, work_size = size_cl((self.ni, self.nj),(self.work_size, self.work_size))
+        
+        self.prg.calcQ(self.queue, global_size, work_size,
+                   self.f_D, self.macro_D, self.Q_D)
+                   
+        cl.enqueue_barrier(self.queue)
+        
+        # update the macro buffer
+        self.prg.updateMacro(self.queue, global_size, work_size,
+                             self.flux_macro_S_D, self.flux_macro_W_D, self.area_D,
+                             self.macro_D, self.residual_D)
+                             
+        cl.enqueue_barrier(self.queue)                    
+        
+        
         dt = np.float64(gdata.dt)
         
         global_size, work_size = m_tuple((self.ni, self.nj, 1),(1,1,gdata.CL_local_size))
         self.prg.UGKS_update(self.queue, global_size, work_size,
                              self.f_D, self.flux_f_S_D, self.flux_f_W_D,
-                             self.flux_macro_S_D, self.flux_macro_W_D,
-                             self.area_D, self.macro_D, self.residual_D, dt)
+                             self.area_D, self.macro_D, self.Q_D, 
+                             self.residual_D, dt)
                              
         
         
@@ -751,7 +767,15 @@ class UGKSBlock(object):
         self.macro_update = 0
         
         if get_residual:
+            
             cl.enqueue_barrier(self.queue)
+            
+            global_size, work_size = m_tuple((self.ni, self.nj), (self.work_size, self.work_size))        
+            self.prg.getResidual(self.queue, global_size, work_size,
+                             self.macro_D, self.residual)
+                             
+            cl.enqueue_barrier(self.queue)
+            
             cl.enqueue_copy(self.queue,self.residual_H,self.residual_D)
             self.updateHostMacro()
             
@@ -803,8 +827,8 @@ class UGKSBlock(object):
             self.updateHostMacro()
             
             # have to calculate the heat flux vector
-            global_size = (self.ni, self.nj)
-            self.prg.calcQ(self.queue, global_size, (1,1),
+            global_size, work_size = size_cl((self.ni, self.nj),(self.work_size, self.work_size))
+            self.prg.calcQ(self.queue, global_size, work_size,
                    self.f_D, self.macro_D, self.Q_D)
             cl.enqueue_barrier(self.queue)
             cl.enqueue_copy(self.queue,self.Q_H,self.Q_D)

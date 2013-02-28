@@ -609,11 +609,42 @@ diffuseWall(__global double2* normal,
 #define FLUXMW(i,j) flux_macro_W[(i)*NJ + (j)]
 
 __kernel void
+updateMacro(__global double4* flux_macro_S, 
+            __global double4* flux_macro_W,
+            __global double* area,
+            __global double4* macro,
+            __global double4* residual)
+{
+    // update the macro buffer
+    
+    size_t mi = get_global_id(0);
+    size_t mj = get_global_id(1);
+
+    if ((mi < ni) && (mj < nj)) {
+  
+        int gi = mi + GHOST;
+        int gj = mj + GHOST;
+        
+        double4 prim_old = MACRO(mi,mj);
+        double4 w_old = getConserved(prim_old);
+        
+        double A = AREA(gi,gj);
+        double4 w = w_old + (FLUXMS(gi, gj) - FLUXMS(gi, gj+1) + FLUXMW(gi,gj) - FLUXMW(gi+1,gj))/A;
+        
+        MACRO(mi,mj) = getPrimary(w);
+        
+        RES(mi,mj) = prim_old;  // use residual buffer to store the old data
+    }
+    
+    return;
+}
+
+__kernel void
 UGKS_update(__global double2* Fin,
 	   __global double2* flux_f_S, __global double2* flux_f_W,
-       __global double4* flux_macro_S, __global double4* flux_macro_W,
        __global double* area,
        __global double4* macro,
+       __global double2* gQ,
        __global double4* residual,
        double dt)
 {
@@ -629,24 +660,16 @@ UGKS_update(__global double2* Fin,
     gj = mj + GHOST;
     
     // old stuff at t_n
-    double4 prim_old = MACRO(mi,mj);
-    double4 w_old = getConserved(prim_old);
+    double4 prim_old = RES(mi,mj);
     double tau_old =  relaxTime(prim_old);
-    double2 Q = getHeatFlux_global(Fin, gi, gj, (double2)(1.0, 0.0), prim_old); // aligned with global coords
-    
-    // update the macro variables
-    double A = AREA(gi,gj);
-    double4 w = w_old + (FLUXMS(gi, gj) - FLUXMS(gi, gj+1) + FLUXMW(gi,gj) - FLUXMW(gi+1,gj))/A;
-    double4 prim = getPrimary(w);
-    
+    double2 Q = GQ(mi, mj);
     
     // new relaxation rate
+    double4 prim = MACRO(mi,mj);
     double tau = relaxTime(prim);
-        
-    if (thread_id == 0) {
-        MACRO(mi,mj) = prim;
-        RES(mi,mj) = (prim_old - prim)*(prim_old - prim);
-    }
+    
+    double A = AREA(gi, gj);
+    
     
     for (size_t loop_id = 0; loop_id < LOCAL_LOOP_LENGTH; ++loop_id) {
 
@@ -669,6 +692,26 @@ UGKS_update(__global double2* Fin,
         F(gi,gj,gv) = (f_old + (FLUXFS(gi,gj,gv) - FLUXFS(gi,gj+1,gv) + FLUXFW(gi,gj,gv) - FLUXFW(gi+1,gj,gv))/A
                       + 0.5*dt*(feq/tau+(feq_old-f_old)/tau_old))/(1.0+0.5*dt/tau);
         
+    }
+    
+    return;
+}
+
+__kernel void
+getResidual(__global double4* macro,
+            __global double4* residual)
+{
+    // update the macro buffer
+    
+    size_t mi = get_global_id(0);
+    size_t mj = get_global_id(1);
+
+    if ((mi < ni) && (mj < nj)) {
+        
+        double4 prim_new = MACRO(mi,mj);
+        double4 prim_old = RES(mi,mj);
+        
+        RES(mi,mj) = (prim_new - prim_old)*(prim_new - prim_old);
     }
     
     return;

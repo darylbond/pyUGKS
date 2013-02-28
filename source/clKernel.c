@@ -362,22 +362,25 @@ calcQ(__global double2* Fin,
   size_t mi = get_global_id(0);
   size_t mj = get_global_id(1);
   
-  int gi = mi + GHOST;
-  int gj = mj + GHOST;
+  if ((mi < ni) && (mj < nj)) {
   
-  double4 prim = MACRO(mi,mj);
-  double2 f, uv;
-  
-  double2 Q = 0.0;
-  for (size_t gv = 0; gv < NV; gv++) {
-    f = F(gi,gj,gv);
-    uv = QUAD[gv];
-    Q.x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
-    Q.y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
+    int gi = mi + GHOST;
+    int gj = mj + GHOST;
+    
+    double4 prim = MACRO(mi,mj);
+    double2 f, uv;
+    
+    double2 Q = 0.0;
+    for (size_t gv = 0; gv < NV; gv++) {
+      f = F(gi,gj,gv);
+      uv = QUAD[gv];
+      Q.x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
+      Q.y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
+    }
+    
+    MACRO(mi, mj) = prim;
+    GQ(mi, mj) = Q;
   }
-  
-  MACRO(mi, mj) = prim;
-  GQ(mi, mj) = Q;
 
   return;
 }
