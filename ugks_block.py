@@ -618,26 +618,25 @@ class UGKSBlock(object):
         
         dt = np.float64(gdata.dt)
         
-        #--------------------------------------------------------------------        
+        #--------------------------------------------------------------------
+        # do the south faces of each cell
+        #--------------------------------------------------------------------
         
-        # populate the face distributions
-        
+        ##
+        # calculate the interface distributions        
+        ##
         global_size, work_size = m_tuple((self.ni, self.nj+1, 1), (1,1,gdata.CL_local_size))        
         self.prg.iFace(self.queue, global_size, work_size,
                    self.f_D, self.flux_f_S_D, self.sigma_D, self.centre_D,
                    self.side_D, self.normal_D, south)
                    
-        
-        global_size, work_size = m_tuple((self.ni+1, self.nj, 1), (1,1,gdata.CL_local_size))        
-        self.prg.iFace(self.queue, global_size, work_size,
-                   self.f_D, self.flux_f_W_D, self.sigma_D, self.centre_D,
-                   self.side_D, self.normal_D, west)
-                   
         cl.enqueue_barrier(self.queue)
         
-        #--------------------------------------------------------------------
-        # do the south interface internals
-        
+        ##
+        # calculate the fluxes due to diffuse walls, also determine the
+        # domain that is to be used for the internal flux calculation to 
+        # follow 
+        ##
         offset = 0; shrink = 0
         global_size, work_size = size_cl((self.ni, 1), (self.work_size**2,1))
         if self.bc_list[0].type_of_BC == DIFFUSE:
@@ -656,18 +655,39 @@ class UGKSBlock(object):
                                self.normal_D, self.length_D, 
                                south_wall, self.flux_f_S_D, 
                                self.flux_macro_S_D, dt)
-            
+        
+        ##
+        # calculate the internal fluxes    
+        ##
         global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (self.work_size,self.work_size))
         self.prg.UGKS_flux(self.queue, global_size, work_size, self.f_D,
                            self.flux_f_S_D, self.sigma_D, self.flux_macro_S_D,
                            self.centre_D, self.side_D,
                            self.normal_D, self.length_D,
-                           south, dt, np.int32(offset))
-                        
-                        
+                           south, dt, np.int32(offset))   
+         
         #--------------------------------------------------------------------                
-        # then the west interface  internals
+        # do the west faces of each cell
+        #--------------------------------------------------------------------
         
+        ##
+        # calculate the interface distributions        
+        ##
+
+        cl.enqueue_barrier(self.queue) # ensure no overlap due to sigma_D        
+        
+        global_size, work_size = m_tuple((self.ni+1, self.nj, 1), (1,1,gdata.CL_local_size))        
+        self.prg.iFace(self.queue, global_size, work_size,
+                   self.f_D, self.flux_f_W_D, self.sigma_D, self.centre_D,
+                   self.side_D, self.normal_D, west)
+                   
+        cl.enqueue_barrier(self.queue)
+        
+        ##
+        # calculate the fluxes due to diffuse walls, also determine the
+        # domain that is to be used for the internal flux calculation to 
+        # follow 
+        ##
         offset = 0; shrink = 0
         global_size, work_size = size_cl((1, self.nj), (1,self.work_size**2))
         if self.bc_list[1].type_of_BC == DIFFUSE:
@@ -687,6 +707,9 @@ class UGKSBlock(object):
                                west_wall, self.flux_f_W_D, 
                                self.flux_macro_W_D, dt)
         
+        ##
+        # calculate the internal fluxes    
+        ##
         global_size, work_size = size_cl((self.ni+1-shrink, self.nj), (self.work_size,self.work_size))
         self.prg.UGKS_flux(self.queue, global_size, work_size, self.f_D, 
                            self.flux_f_W_D, self.sigma_D, self.flux_macro_W_D,
