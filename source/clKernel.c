@@ -265,9 +265,9 @@ getInternalTemp(__global double2* Fin, __global double4* Txyz)
   
   U = M1/D;	// mean velocity x
   V = M2/D;	// mean velocity y
-  Tx = M4/D - U*U;
-  Ty = M5/D - V*V;
-  Tz = H/D;
+  Tx = 2*(M4/D - U*U);
+  Ty = 2*(M5/D - V*V);
+  Tz = 2*(H/D);
   T = (Tx + Ty + Tz)/B;
   
   TXYZ(mi,mj) = (double4)(Tx, Ty, Tz, T);

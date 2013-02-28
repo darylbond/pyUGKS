@@ -86,7 +86,7 @@ class UGKSBlock(object):
         self.Nv = gdata.Nv
         
         # work-group size
-        self.work_size = 8
+        self.work_size = 16
         
         # boundaries for flow domain, excluding ghost cells
         self.imin = self.ghost
