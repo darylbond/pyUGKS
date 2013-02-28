@@ -637,20 +637,21 @@ class UGKSBlock(object):
         # domain that is to be used for the internal flux calculation to 
         # follow 
         ##
-        offset = 0; shrink = 0
-        global_size, work_size = size_cl((self.ni, 1), (self.work_size**2,1))
+        offset_top = 0; offset_bot = 0
+        global_size, work_size = size_cl((self.ni, 1), (self.work_size,1))
         if self.bc_list[0].type_of_BC == DIFFUSE:
-            shrink += 1
+            offset_top = 1
             north_wall = np.int32(0)
+            #print "north"
             self.prg.diffuseWall(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
                                north_wall, self.flux_f_S_D, 
                                self.flux_macro_S_D, dt)
             
         if self.bc_list[2].type_of_BC == DIFFUSE:
-            shrink += 1
-            offset = 1
+            offset_bot = 1
             south_wall = np.int32(2)
+            #print "south"
             self.prg.diffuseWall(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
                                south_wall, self.flux_f_S_D, 
@@ -659,12 +660,15 @@ class UGKSBlock(object):
         ##
         # calculate the internal fluxes    
         ##
+        
+        shrink = offset_top + offset_bot
         global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (self.work_size,self.work_size))
         self.prg.UGKS_flux(self.queue, global_size, work_size, self.f_D,
                            self.flux_f_S_D, self.sigma_D, self.flux_macro_S_D,
                            self.centre_D, self.side_D,
                            self.normal_D, self.length_D,
-                           south, dt, np.int32(offset))   
+                           south, dt, np.int32(offset_bot), np.int32(offset_bot))
+                         
          
         #--------------------------------------------------------------------                
         # do the west faces of each cell
@@ -688,34 +692,39 @@ class UGKSBlock(object):
         # domain that is to be used for the internal flux calculation to 
         # follow 
         ##
-        offset = 0; shrink = 0
-        global_size, work_size = size_cl((1, self.nj), (1,self.work_size**2))
+        offset_top = 0; offset_bot = 0
+        global_size, work_size = size_cl((1, self.nj), (1,self.work_size))
         if self.bc_list[1].type_of_BC == DIFFUSE:
-            shrink += 1
+            offset_top = 1
             east_wall = np.int32(1)
+            #print "east"
             self.prg.diffuseWall(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
                                east_wall, self.flux_f_W_D, 
                                self.flux_macro_W_D, dt)
-        
+            
+            
         if self.bc_list[3].type_of_BC == DIFFUSE:
-            shrink += 1
-            offset = 1
+            offset_bot = 1
             west_wall = np.int32(3)
+            #print "west"
             self.prg.diffuseWall(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
                                west_wall, self.flux_f_W_D, 
                                self.flux_macro_W_D, dt)
-        
+            
+            
         ##
         # calculate the internal fluxes    
         ##
+        
+        shrink = offset_top + offset_bot
         global_size, work_size = size_cl((self.ni+1-shrink, self.nj), (self.work_size,self.work_size))
         self.prg.UGKS_flux(self.queue, global_size, work_size, self.f_D, 
                            self.flux_f_W_D, self.sigma_D, self.flux_macro_W_D,
                            self.centre_D, self.side_D,
                            self.normal_D, self.length_D,
-                           west, dt, np.int32(offset))
+                           west, dt, np.int32(offset_bot), np.int32(offset_top))
                            
         #--------------------------------------------------------------------                   
 

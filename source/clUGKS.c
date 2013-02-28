@@ -343,17 +343,18 @@ UGKS_flux(__global double2* Fin,
 	   __global double2* mid_side,
 	   __global double2* normal,
 	   __global double* side_length,
-	   int face, double dt, int offset)
+	   int face, double dt, 
+       int offset_bottom, int offset_top)
 {
     // global index
     
     size_t mi, mj, gi, gj;
     
-    mi = get_global_id(0) + face*offset;
-    mj = get_global_id(1) + (1-face)*offset;
+    mi = get_global_id(0) + face*offset_bottom;
+    mj = get_global_id(1) + (1-face)*offset_bottom;
     
-    if ((((face == SOUTH) && (mi < ni)) && (mj < nj+1)) 
-    || (((face == WEST) && (mi < ni+1)) && (mj < nj))) {
+    if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
+    || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
     
         gi = mi + GHOST;
         gj = mj + GHOST;
@@ -525,9 +526,11 @@ diffuseWall(__global double2* normal,
             face_id = WEST;
             break;
     }
+    
+    
 
-    if (((face_id == SOUTH) && (gi - GHOST < ni)) 
-    || ((face_id == WEST) && (gj - GHOST < nj))) {
+    if (((face_id == SOUTH) && ((gi - GHOST) < ni)) 
+    || ((face_id == WEST) && ((gj - GHOST) < nj))) {
 
         // get the interface distribution and the flux out due to this distribution
 
