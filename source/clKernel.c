@@ -310,6 +310,129 @@ __global double4* macro, __global double2* gQ)
 }
 
 __kernel void
+calcMacro2(__global double2* Fin, 
+  __global double4* macro) 
+{
+  // calculate the macroscopic properties
+
+  size_t mi = get_global_id(0);
+  size_t mj = get_global_id(1);
+  size_t thread_id = get_local_id(2);
+  
+  if ((mi < ni) && (mj < nj)) {
+  
+    int gi = mi + GHOST;
+    int gj = mj + GHOST;
+    
+    __local double4 prim[LOCAL_SIZE];
+    
+    // initialise
+    prim[thread_id] = 0.0;
+    
+    double2 f, uv;
+    
+    for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+      size_t gv = li*LOCAL_SIZE+thread_id;
+      if (gv < NV) {
+        f = F(gi,gj,gv);
+        uv = QUAD[gv];
+        prim[thread_id].s0 += f.x;
+        prim[thread_id].s12 += uv*f.x;
+        prim[thread_id].s3 += 0.5*(dot(uv,uv)*f.x + f.y);
+      }
+    }
+    // synchronise
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
+    // have populated the local array
+    // now we sum up the elements, migrating the sum to the top of the stack
+    int step = 1;
+    int grab_id = 2;
+    while (step < LOCAL_SIZE) {
+      if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
+        // reduce
+        prim[thread_id] += prim[thread_id+step];
+        prim[thread_id+step] = 0.0;
+      }
+      step *= 2;
+      grab_id *= 2;
+      barrier(CLK_LOCAL_MEM_FENCE);
+    }
+    
+    // the sum of all the moments should be at the top of the stack
+    
+    if (thread_id == 0) {
+      // convert to standard variables
+      double4 out = prim[thread_id];
+      out.s3 = 0.5*out.s0/(gam-1.0)/(out.s3 - 0.5*dot(out.s12,out.s12)/out.s0);
+      out.s12 /= out.s0;
+      
+      MACRO(mi, mj) = out;
+    }
+  }
+  return;
+}
+
+__kernel void
+calcQ2(__global double2* Fin, 
+  __global double4* macro, __global double2* gQ) 
+{
+  // calculate the macroscopic properties
+
+  size_t mi = get_global_id(0);
+  size_t mj = get_global_id(1);
+  size_t thread_id = get_local_id(2);
+  
+  if ((mi < ni) && (mj < nj)) {
+  
+    int gi = mi + GHOST;
+    int gj = mj + GHOST;
+    
+    __local double2 Q[LOCAL_SIZE];
+    
+    // initialise
+    Q[thread_id] = 0.0;
+    
+    double4 prim = MACRO(mi,mj);
+    double2 f, uv;
+    
+    for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+      size_t gv = li*LOCAL_SIZE+thread_id;
+      if (gv < NV) {
+        f = F(gi,gj,gv);
+        uv = QUAD[gv];
+        Q[thread_id].x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
+        Q[thread_id].y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
+      }
+    } 
+    // synchronise
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
+    // have populated the local array
+    // now we sum up the elements, migrating the sum to the top of the stack
+    int step = 1;
+    int grab_id = 2;
+    while (step < LOCAL_SIZE) {
+      if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
+        // reduce
+        Q[thread_id] += Q[thread_id+step];
+        Q[thread_id+step] = 0.0;
+      }
+      step *= 2;
+      grab_id *= 2;
+      barrier(CLK_LOCAL_MEM_FENCE);
+    }
+  
+    // the sum of all the moments should be at the top of the stack
+    
+    if (thread_id == 0) {
+      GQ(mi, mj) = Q[0];
+    }
+  }
+  return;
+}
+
+__kernel void
 calcMacro(__global double2* Fin, 
   __global double4* macro, __global double2* gQ) 
 {

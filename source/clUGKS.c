@@ -337,6 +337,7 @@ iFace(__global double2* Fin,
 #define PRIM(i,j) primary[(i)*NJ + (j)]
 #define AL(i,j) gaL[(i)*NJ + (j)]
 #define AR(i,j) gaR[(i)*NJ + (j)]
+#define AT(i,j) gaT[(i)*NJ + (j)]
 
 __kernel void
 getFacePrim(__global double2* iface_f,
@@ -487,12 +488,16 @@ getPLR(__global double2* centre,
   return;
 }
 
+#define MXI(i,j,k) gMxi[3*NJ*(i) + 3*(j) + (k)]
+
 __kernel void
 initMacroFlux(__global double4* flux_macro,
 	   int face, double dt,
        __global double4* primary,
        __global double4* gaL,
        __global double4* gaR,
+       __global double4* gaT,
+       __global double* gMxi,
        int offset_bottom, int offset_top)
 {
     // global index
@@ -518,6 +523,10 @@ initMacroFlux(__global double4* flux_macro,
         
         momentU(prim, Mu, Mv, Mxi, Mu_L, Mu_R);
         
+        MXI(gi,gj,0) = Mxi[0];
+        MXI(gi,gj,1) = Mxi[1];
+        MXI(gi,gj,2) = Mxi[2];
+        
         double4 Mau_L, Mau_R, aT, sw;
         
         Mau_L = moment_au(aL,Mu_L,Mv,Mxi,1,0); //<aL*u*\psi>_{>0}
@@ -525,6 +534,8 @@ initMacroFlux(__global double4* flux_macro,
 
         sw = -prim.s0*(Mau_L+Mau_R); //time slope of W
         aT = microSlope(prim,sw); //calculate A
+        
+        AT(gi, gj) = aT;
         
         // ---< STEP 5 >---
         // calculate collision time and some time integration terms
@@ -589,6 +600,71 @@ calcFaceQ(__global double2* iface_f,
     
     FACEQ(gi, gj) = Q;
     }
+    return;
+}
+
+__kernel void
+calcFaceQ2(__global double2* iface_f, 
+            __global double4* primary, 
+            __global double2* normal,
+            __global double2* faceQ, int face,
+            int offset_bottom, int offset_top) 
+{
+  // calculate the macroscopic properties
+
+    size_t mi = get_global_id(0) + face*offset_bottom;
+    size_t mj = get_global_id(1) + (1-face)*offset_bottom;
+    size_t thread_id = get_local_id(2);
+    
+    __local double2 Q[LOCAL_SIZE];
+  
+    if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
+        || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
+  
+        int gi = mi + GHOST;
+        int gj = mj + GHOST;
+        
+        // initialise
+        Q[thread_id] = 0.0;
+        
+        double2 face_normal = NORMAL(gi,gj,face);
+        double4 prim = PRIM(gi,gj);
+        double2 f, uv;
+        
+        for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+            size_t gv = li*LOCAL_SIZE+thread_id;
+            if (gv < NV) {
+                f = IFACEF(gi,gj,gv);
+                uv = interfaceVelocity(gv, face_normal);
+                Q[thread_id].x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
+                Q[thread_id].y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
+            }
+        }
+      
+        // synchronise
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        // have populated the local array
+        // now we sum up the elements, migrating the sum to the top of the stack
+        int step = 1;
+        int grab_id = 2;
+        while (step < LOCAL_SIZE) {
+            if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
+                // reduce
+                Q[thread_id] += Q[thread_id+step];
+            }
+            step *= 2;
+            grab_id *= 2;
+            barrier(CLK_LOCAL_MEM_FENCE);
+        }
+
+        // the sum of all the moments should be at the top of the stack
+
+        if (thread_id == 0) {
+            FACEQ(gi, gj) = Q[0];
+        }
+    }
+    
     return;
 }
 
@@ -669,6 +745,8 @@ distFlux(__global double2* flux_f,
        __global double4* primary,
        __global double4* gaL,
        __global double4* gaR,
+       __global double4* gaT,
+       __global double* gMxi,
        __global double2* faceQ,
        int offset_bottom, int offset_top)
 {
@@ -689,20 +767,12 @@ distFlux(__global double2* flux_f,
         double4 prim = PRIM(gi,gj);
         double4 aL = AL(gi,gj);
         double4 aR = AR(gi,gj);
+        double4 aT = AT(gi,gj);
         
-        // ---< STEP 4 >---
-        // calculate the time slope of W and A
-        double Mu[MNUM], Mv[MTUM], Mxi[3], Mu_L[MNUM], Mu_R[MNUM];
-        
-        momentU(prim, Mu, Mv, Mxi, Mu_L, Mu_R);
-        
-        double4 Mau_L, Mau_R, aT, sw;
-        
-        Mau_L = moment_au(aL,Mu_L,Mv,Mxi,1,0); //<aL*u*\psi>_{>0}
-        Mau_R = moment_au(aR,Mu_R,Mv,Mxi,1,0); //<aR*u*\psi>_{<0}
-
-        sw = -prim.s0*(Mau_L+Mau_R); //time slope of W
-        aT = microSlope(prim,sw); //calculate A
+        double Mxi[3];
+        Mxi[0] = MXI(gi,gj,0);
+        Mxi[1] = MXI(gi,gj,1);
+        Mxi[2] = MXI(gi,gj,2);
         
         double tau = relaxTime(prim);
         

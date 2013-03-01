@@ -173,7 +173,7 @@ class UGKSData(object):
         src_loader = sl.SourceLoader()
         self.source = src_loader.src
         
-        self.CL_local_size = 128 # the local work size for openCL
+        self.CL_local_size = 64 # the local work size for openCL
         
         # saving options
         self.save_options = SaveOptions()

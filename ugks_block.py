@@ -236,7 +236,9 @@ class UGKSBlock(object):
         self.prim_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
         self.aL_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
         self.aR_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
+        self.aT_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
         self.faceQ_H = np.zeros((self.Ni,self.Nj,2),dtype=np.float64)
+        self.Mxi_H = np.zeros((self.Ni,self.Nj,3),dtype=np.float64)
 
         # macro variables, without ghost cells
         #.s0 -> density
@@ -302,7 +304,9 @@ class UGKSBlock(object):
         self.prim_D = self.set_buffer(self.prim_H)
         self.aL_D = self.set_buffer(self.aL_H)
         self.aR_D = self.set_buffer(self.aR_H)
+        self.aT_D = self.set_buffer(self.aT_H)
         self.faceQ_D = self.set_buffer(self.faceQ_H)
+        self.Mxi_D = self.set_buffer(self.Mxi_H)
         
         self.sigma_D = self.set_buffer(self.sigma_H)
         
@@ -332,15 +336,16 @@ class UGKSBlock(object):
             global_size, work_size = m_tuple((self.ni, self.nj, 1),(1,1,gdata.CL_local_size))
             self.prg.initFunctions(self.queue, global_size, work_size,
                                    self.f_D, self.macro_D, self.Q_D)
+            
             cl.enqueue_barrier(self.queue)
             
-            global_size, work_size = size_cl((self.ni, self.nj),(self.work_size, self.work_size))
-            self.prg.calcMacro(self.queue, global_size, work_size,
-                   self.f_D, self.macro_D, self.Q_D)
-            cl.enqueue_barrier(self.queue)
+            self.prg.calcMacro2(self.queue, global_size, work_size,
+                   self.f_D, self.macro_D)
             
-            #cl.enqueue_copy(self.queue, self.f_H, self.f_D)
-            #print np.sum(self.f_H[:,:,:,0],axis=2)
+#            global_size, work_size = size_cl((self.ni, self.nj),(self.work_size, self.work_size))
+#            self.prg.calcMacro(self.queue, global_size, work_size,
+#                   self.f_D, self.macro_D, self.Q_D)
+                   
         
         
         print("global buffers initialised") 
@@ -700,37 +705,56 @@ class UGKSBlock(object):
         
         self.prg.initMacroFlux(self.queue, global_size, work_size,
                                self.flux_macro_S_D, south, dt, self.prim_D,
-                               self.aL_D, self.aR_D, offset_bot, offset_top)
+                               self.aL_D, self.aR_D, self.aT_D, self.Mxi_D,
+                               offset_bot, offset_top)
                                
         cl.enqueue_barrier(self.queue)
        
-        self.prg.calcFaceQ(self.queue, global_size, work_size,
+#        self.prg.calcFaceQ(self.queue, global_size, work_size,
+#                           self.flux_f_S_D, self.prim_D, self.normal_D,
+#                           self.faceQ_D, south, offset_bot, offset_top).wait()
+#
+#
+#        cl.enqueue_copy(self.queue,self.faceQ_H,self.faceQ_D)
+#        print "old"
+#        print self.faceQ_H[:,:,0]
+                
+        
+        global_size, work_size = m_tuple((self.ni, self.nj+1-shrink, 1), (1,1,gdata.CL_local_size))                    
+        self.prg.calcFaceQ2(self.queue, global_size, work_size,
                            self.flux_f_S_D, self.prim_D, self.normal_D,
-                           self.faceQ_D, south, offset_bot, offset_top)
+                           self.faceQ_D, south, offset_bot, offset_top).wait()
+                           
+#        cl.enqueue_copy(self.queue,self.faceQ_H,self.faceQ_D)
+#        print "new"
+#        print self.faceQ_H[:,:,0]
                            
         cl.enqueue_barrier(self.queue)
         
+        global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (self.work_size,self.work_size))
         self.prg.macroFlux(self.queue, global_size, work_size,
                            self.flux_f_S_D, self.sigma_D, self.flux_macro_S_D,
                            self.normal_D, self.length_D, south, dt, 
                            self.prim_D, self.faceQ_D, offset_bot, offset_top)
         
         
-#        global_size, work_size = m_tuple((self.ni, self.nj+1-shrink, 1), (1,1,gdata.CL_local_size))
-#        
-#        self.prg.distFlux(self.queue, global_size, work_size,
-#                          self.flux_f_S_D, self.sigma_D, self.normal_D, 
-#                          self.length_D, south, dt, self.prim_D, self.aL_D,
-#                          self.aR_D, self.faceQ_D, offset_bot, offset_top)        
+        global_size, work_size = m_tuple((self.ni, self.nj+1-shrink, 1), (1,1,gdata.CL_local_size))
+        
+        self.prg.distFlux(self.queue, global_size, work_size,
+                          self.flux_f_S_D, self.sigma_D, self.normal_D, 
+                          self.length_D, south, dt, self.prim_D, self.aL_D,
+                          self.aR_D, self.aT_D, self.Mxi_D, self.faceQ_D, 
+                          offset_bot, offset_top)        
         
         cl.enqueue_barrier(self.queue)
         
-        self.prg.UGKS_flux(self.queue, global_size, work_size, self.f_D,
-                           self.flux_f_S_D, self.sigma_D, self.flux_macro_S_D,
-                           self.centre_D, self.side_D,
-                           self.normal_D, self.length_D,
-                           south, dt, self.prim_D, self.aL_D, 
-                           self.aR_D, offset_bot, offset_top).wait()
+#        global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (self.work_size,self.work_size))
+#        self.prg.UGKS_flux(self.queue, global_size, work_size, self.f_D,
+#                           self.flux_f_S_D, self.sigma_D, self.flux_macro_S_D,
+#                           self.centre_D, self.side_D,
+#                           self.normal_D, self.length_D,
+#                           south, dt, self.prim_D, self.aL_D, 
+#                           self.aR_D, offset_bot, offset_top).wait()
                          
          
         #--------------------------------------------------------------------                
@@ -809,7 +833,8 @@ class UGKSBlock(object):
         
         self.prg.initMacroFlux(self.queue, global_size, work_size,
                                self.flux_macro_W_D, west, dt, self.prim_D,
-                               self.aL_D, self.aR_D, offset_bot, offset_top)
+                               self.aL_D, self.aR_D, self.aT_D, self.Mxi_D,
+                               offset_bot, offset_top)
                                
         cl.enqueue_barrier(self.queue)
        
@@ -830,10 +855,11 @@ class UGKSBlock(object):
         self.prg.distFlux(self.queue, global_size, work_size,
                           self.flux_f_W_D, self.sigma_D, self.normal_D, 
                           self.length_D, west, dt, self.prim_D, self.aL_D,
-                          self.aR_D, self.faceQ_D, offset_bot, offset_top)
+                          self.aR_D, self.aT_D, self.Mxi_D, self.faceQ_D, 
+                          offset_bot, offset_top)
                            
 #        cl.enqueue_barrier(self.queue)
-#        
+#        global_size, work_size = size_cl((self.ni+1-shrink, self.nj), (self.work_size,self.work_size))
 #        self.prg.UGKS_flux(self.queue, global_size, work_size, self.f_D,
 #                           self.flux_f_W_D, self.sigma_D, self.flux_macro_W_D,
 #                           self.centre_D, self.side_D,
@@ -928,23 +954,6 @@ class UGKSBlock(object):
             cl.enqueue_copy(self.queue,self.macro_H,self.macro_D)
             self.macro_update = 1
             
-        return
-        
-    def calcHeatFlux(self):
-        """
-        calculate the heat flux on the device
-        """
-        
-        global_size, work_size = m_tuple((self.ni, self.nj, 1),(1,1,gdata.CL_local_size))
-        
-        self.prg.calcQ_step1(self.queue, global_size, work_size,
-                             self.f_D, self.macro_D, self.scratch_D)
-                             
-        cl.enqueue_barrier(self.queue)
-        
-        self.prg.calcQ_step2(self.queue, global_size, work_size,
-                             self.scratch_D, self.Q_D)
-        
         return
     
     def updateHost(self, getF = False):
