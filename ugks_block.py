@@ -739,14 +739,10 @@ class UGKSBlock(object):
                            
         cl.enqueue_barrier(self.queue)
         
-        global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (self.work_size,self.work_size))
         self.prg.macroFlux(self.queue, global_size, work_size,
                            self.flux_f_S_D, self.sigma_D, self.flux_macro_S_D,
                            self.normal_D, self.length_D, south, dt, 
                            self.prim_D, self.faceQ_D, offset_bot, offset_top)
-        
-        
-        global_size, work_size = m_tuple((self.ni, self.nj+1-shrink, 1), (1,1,gdata.CL_local_size))
         
         self.prg.distFlux(self.queue, global_size, work_size,
                           self.flux_f_S_D, self.sigma_D, self.normal_D, 
@@ -755,14 +751,6 @@ class UGKSBlock(object):
                           offset_bot, offset_top)        
         
         cl.enqueue_barrier(self.queue)
-        
-#        global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (self.work_size,self.work_size))
-#        self.prg.UGKS_flux(self.queue, global_size, work_size, self.f_D,
-#                           self.flux_f_S_D, self.sigma_D, self.flux_macro_S_D,
-#                           self.centre_D, self.side_D,
-#                           self.normal_D, self.length_D,
-#                           south, dt, self.prim_D, self.aL_D, 
-#                           self.aR_D, offset_bot, offset_top).wait()
                          
          
         #--------------------------------------------------------------------                
@@ -852,29 +840,18 @@ class UGKSBlock(object):
                            self.faceQ_D, west, offset_bot, offset_top)
                            
         cl.enqueue_barrier(self.queue)
-        global_size, work_size = size_cl((self.ni+1-shrink, self.nj), (self.work_size,self.work_size))
+
         self.prg.macroFlux(self.queue, global_size, work_size,
                            self.flux_f_W_D, self.sigma_D, self.flux_macro_W_D,
                            self.normal_D, self.length_D, west, dt, 
                            self.prim_D, self.faceQ_D, offset_bot, offset_top)
-        
-        
-        global_size, work_size = m_tuple((self.ni+1-shrink, self.nj, 1), (1,1,gdata.CL_local_size))
         
         self.prg.distFlux(self.queue, global_size, work_size,
                           self.flux_f_W_D, self.sigma_D, self.normal_D, 
                           self.length_D, west, dt, self.prim_D, self.aL_D,
                           self.aR_D, self.aT_D, self.Mxi_D, self.faceQ_D, 
                           offset_bot, offset_top)
-                           
-#        cl.enqueue_barrier(self.queue)
-#        global_size, work_size = size_cl((self.ni+1-shrink, self.nj), (self.work_size,self.work_size))
-#        self.prg.UGKS_flux(self.queue, global_size, work_size, self.f_D,
-#                           self.flux_f_W_D, self.sigma_D, self.flux_macro_W_D,
-#                           self.centre_D, self.side_D,
-#                           self.normal_D, self.length_D,
-#                           west, dt, self.prim_D, self.aL_D, 
-#                           self.aR_D, offset_bot, offset_top)
+                          
                            
         #--------------------------------------------------------------------                   
 

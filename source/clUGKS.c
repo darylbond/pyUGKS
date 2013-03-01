@@ -631,7 +631,6 @@ calcFaceQ(__global double2* iface_f,
     return;
 }
 
-
 __kernel void
 macroFlux(__global double2* flux_f,
        __global double2* fsigma,
@@ -645,10 +644,13 @@ macroFlux(__global double2* flux_f,
 {
     // global index
     
-    size_t mi, mj, gi, gj;
+    size_t mi, mj, gi, gj, thread_id;
     
     mi = get_global_id(0) + face*offset_bottom;
     mj = get_global_id(1) + (1-face)*offset_bottom;
+    thread_id = get_local_id(2);
+    
+    __local double4 face_macro_flux[LOCAL_SIZE];
     
     if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
     || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
@@ -670,30 +672,56 @@ macroFlux(__global double2* flux_f,
         Mt[1] = -tau*Mt[0]+Mt[4]; 
         Mt[2] = (dt*dt)/2.0-tau*Mt[0];
         
-        double4 face_macro_flux = FLUXM(gi,gj);
+        face_macro_flux[thread_id] = 0.0;
         
         double2 Q = FACEQ(gi,gj);
         
-        double2 F0, uv;
+        double2 F0, uv, face_dist, face_slope;
         
-        // macro flux related to g+ and f0
-        for (size_t v_id = 0; v_id < NV; ++v_id) {
-            uv = interfaceVelocity(v_id, face_normal);
-            F0 = fS(prim, Q, uv, fM(prim, uv, v_id));
-            double2 face_dist = FLUXF(gi,gj,v_id);
-            double2 face_slope = FSIGMA(gi,gj,v_id);
-            face_macro_flux.s0 += Mt[0]*uv.x*F0.x + Mt[3]*uv.x*face_dist.x - Mt[4]*uv.x*uv.x*face_slope.x;
-            face_macro_flux.s1 += Mt[0]*uv.x*uv.x*F0.x + Mt[3]*uv.x*uv.x*face_dist.x - Mt[4]*uv.x*uv.x*uv.x*face_slope.x;
-            face_macro_flux.s2 += Mt[0]*uv.y*uv.x*F0.x + Mt[3]*uv.y*uv.x*face_dist.x - Mt[4]*uv.y*uv.x*uv.x*face_slope.x;
-            face_macro_flux.s3 += Mt[0]*0.5*(uv.x*dot(uv,uv)*F0.x + uv.x*F0.y) + 
-                                  Mt[3]*0.5*(uv.x*dot(uv,uv)*face_dist.x + uv.x*face_dist.y) - 
-                                  Mt[4]*0.5*(uv.x*uv.x*dot(uv,uv)*face_slope.x + uv.x*uv.x*face_slope.y);
+        for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+            size_t v_id = li*LOCAL_SIZE+thread_id;
+            if (v_id < NV) {
+                uv = interfaceVelocity(v_id, face_normal);
+                F0 = fS(prim, Q, uv, fM(prim, uv, v_id));
+                face_dist = FLUXF(gi,gj,v_id);
+                face_slope = FSIGMA(gi,gj,v_id);
+                
+                face_macro_flux[thread_id].s0 += Mt[0]*uv.x*F0.x + Mt[3]*uv.x*face_dist.x - Mt[4]*uv.x*uv.x*face_slope.x;
+                face_macro_flux[thread_id].s1 += Mt[0]*uv.x*uv.x*F0.x + Mt[3]*uv.x*uv.x*face_dist.x - Mt[4]*uv.x*uv.x*uv.x*face_slope.x;
+                face_macro_flux[thread_id].s2 += Mt[0]*uv.y*uv.x*F0.x + Mt[3]*uv.y*uv.x*face_dist.x - Mt[4]*uv.y*uv.x*uv.x*face_slope.x;
+                face_macro_flux[thread_id].s3 += Mt[0]*0.5*(uv.x*dot(uv,uv)*F0.x + uv.x*F0.y) + 
+                                                 Mt[3]*0.5*(uv.x*dot(uv,uv)*face_dist.x + uv.x*face_dist.y) - 
+                                                 Mt[4]*0.5*(uv.x*uv.x*dot(uv,uv)*face_slope.x + uv.x*uv.x*face_slope.y);
+            }
+        }
+      
+        // synchronise
+        barrier(CLK_LOCAL_MEM_FENCE);
+        
+        // have populated the local array
+        // now we sum up the elements, migrating the sum to the top of the stack
+        int step = 1;
+        int grab_id = 2;
+        while (step < LOCAL_SIZE) {
+            if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
+                // reduce
+                face_macro_flux[thread_id] += face_macro_flux[thread_id+step];
+            }
+            step *= 2;
+            grab_id *= 2;
+            barrier(CLK_LOCAL_MEM_FENCE);
         }
         
-        // convert macro to global frame
-        face_macro_flux.s12 = toGlobal(face_macro_flux.s12, face_normal);
-        
-        FLUXM(gi,gj) = LENGTH(gi,gj,face)*face_macro_flux;
+        if (thread_id == 0) {
+            // convert macro to global frame
+            double4 out = face_macro_flux[0];
+            
+            out += FLUXM(gi,gj);
+            
+            out.s12 = toGlobal(out.s12, face_normal);
+            
+            FLUXM(gi,gj) = LENGTH(gi,gj,face)*out;
+        }
     }
 
   return;
