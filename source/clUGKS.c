@@ -334,16 +334,274 @@ iFace(__global double2* Fin,
 #define FLUXF(i,j,v) flux_f[NV*NJ*(i) + NV*(j) + (v)]
 #define FLUXM(i,j) flux_macro[(i)*NJ + (j)] 
 
+#define PRIM(i,j) primary[(i)*NJ + (j)]
+#define AL(i,j) gaL[(i)*NJ + (j)]
+#define AR(i,j) gaR[(i)*NJ + (j)]
+
 __kernel void
-UGKS_flux(__global double2* Fin,
-	   __global double2* flux_f,
+getFacePrim(__global double2* iface_f,
+	         __global double2* normal,
+             int face,
+             __global double4* primary,
+             int offset_bottom, int offset_top)
+{
+  size_t mi, mj, gi, gj;
+    
+    mi = get_global_id(0) + face*offset_bottom;
+    mj = get_global_id(1) + (1-face)*offset_bottom;
+    
+    if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
+    || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
+    
+        gi = mi + GHOST;
+        gj = mj + GHOST;
+        
+        double4 wf = 0.0;
+        double2 f, uv;
+        // conserved variables
+        for (size_t v_id = 0; v_id < NV; ++v_id) {
+            uv = interfaceVelocity(v_id, NORMAL(gi,gj,face));
+            
+            f = IFACEF(gi, gj, v_id);
+            wf.s0 += f.x;
+            wf.s12 += uv*f.x;
+            wf.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
+        }
+        
+        PRIM(gi,gj) = wf;
+    }
+
+  return;
+}
+
+__kernel void
+getAL(__global double2* Fin,
+	         __global double2* normal,
+             int face,
+             __global double4* gaL,
+             int offset_bottom, int offset_top)
+{
+  size_t mi, mj, gi, gj;
+    
+    mi = get_global_id(0) + face*offset_bottom;
+    mj = get_global_id(1) + (1-face)*offset_bottom;
+    
+    if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
+    || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
+    
+        gi = mi + GHOST;
+        gj = mj + GHOST;
+        
+        double4 wL = 0.0;
+        double2 f, uv;
+        // conserved variables
+        for (size_t v_id = 0; v_id < NV; ++v_id) {
+            uv = interfaceVelocity(v_id, NORMAL(gi,gj,face));
+            
+            f = F(gi-face, gj-(1-face), v_id);
+            wL.s0 += f.x;
+            wL.s12 += uv*f.x;
+            wL.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
+        }
+        AL(gi,gj) = wL;
+    }
+
+  return;
+}
+
+__kernel void
+getAR(__global double2* Fin,
+	         __global double2* normal,
+             int face,
+             __global double4* gaR,
+             int offset_bottom, int offset_top)
+{
+  size_t mi, mj, gi, gj;
+    
+    mi = get_global_id(0) + face*offset_bottom;
+    mj = get_global_id(1) + (1-face)*offset_bottom;
+    
+    if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
+    || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
+    
+        gi = mi + GHOST;
+        gj = mj + GHOST;
+        
+        double4 wR = 0.0;
+        double2 f, uv;
+        // conserved variables
+        for (size_t v_id = 0; v_id < NV; ++v_id) {
+            uv = interfaceVelocity(v_id, NORMAL(gi,gj,face));
+            
+            f = F(gi, gj, v_id);
+            wR.s0 += f.x;
+            wR.s12 += uv*f.x;
+            wR.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
+        }
+        AR(gi,gj) = wR;
+    }
+
+  return;
+}
+
+__kernel void
+getPLR(__global double2* centre,
+        __global double2* mid_side,
+        int face,
+        __global double4* primary,
+        __global double4* gaL,
+        __global double4* gaR,
+        int offset_bottom, int offset_top)
+{
+  size_t mi, mj, gi, gj;
+    
+    mi = get_global_id(0) + face*offset_bottom;
+    mj = get_global_id(1) + (1-face)*offset_bottom;
+    
+    if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
+    || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
+    
+        gi = mi + GHOST;
+        gj = mj + GHOST;
+        
+        double4 w = PRIM(gi,gj);        
+        double4 prim = getPrimary(w); // convert to primary variables
+        
+        double4 sw;
+        double2 midside = MIDSIDE(gi,gj,face);
+        
+        // LEFT
+        sw = (w - AL(gi,gj))/length(midside - CENTRE(gi-face, gj-(1-face)));
+        
+        AL(gi,gj) = microSlope(prim, sw);
+        
+        // RIGHT
+        
+        sw = (AR(gi,gj) - w)/length(midside - CENTRE(gi,gj));
+        
+        AR(gi,gj) = microSlope(prim, sw);
+        
+        PRIM(gi,gj) = prim;
+    }
+
+  return;
+}
+
+__kernel void
+initMacroFlux(__global double4* flux_macro,
+	   int face, double dt,
+       __global double4* primary,
+       __global double4* gaL,
+       __global double4* gaR,
+       int offset_bottom, int offset_top)
+{
+    // global index
+    
+    size_t mi, mj, gi, gj;
+    
+    mi = get_global_id(0) + face*offset_bottom;
+    mj = get_global_id(1) + (1-face)*offset_bottom;
+    
+    if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
+    || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
+    
+        gi = mi + GHOST;
+        gj = mj + GHOST;
+        
+        double4 prim = PRIM(gi,gj);
+        double4 aL = AL(gi,gj);
+        double4 aR = AR(gi,gj);
+        
+        // ---< STEP 4 >---
+        // calculate the time slope of W and A
+        double Mu[MNUM], Mv[MTUM], Mxi[3], Mu_L[MNUM], Mu_R[MNUM];
+        
+        momentU(prim, Mu, Mv, Mxi, Mu_L, Mu_R);
+        
+        double4 Mau_L, Mau_R, aT, sw;
+        
+        Mau_L = moment_au(aL,Mu_L,Mv,Mxi,1,0); //<aL*u*\psi>_{>0}
+        Mau_R = moment_au(aR,Mu_R,Mv,Mxi,1,0); //<aR*u*\psi>_{<0}
+
+        sw = -prim.s0*(Mau_L+Mau_R); //time slope of W
+        aT = microSlope(prim,sw); //calculate A
+        
+        // ---< STEP 5 >---
+        // calculate collision time and some time integration terms
+        double tau = relaxTime(prim);
+        
+        double Mt[5];
+        
+        Mt[3] = tau*(1.0-exp(-dt/tau));
+        Mt[4] = -tau*dt*exp(-dt/tau)+tau*Mt[3];
+        Mt[0] = dt-Mt[3];
+        Mt[1] = -tau*Mt[0]+Mt[4]; 
+        Mt[2] = (dt*dt)/2.0-tau*Mt[0];
+        
+        // ---< STEP 6 >---
+        // calculate the flux of conservative variables related to g0
+        double4 Mau_0, Mau_T;
+        
+        Mau_0 = moment_uv(Mu,Mv,Mxi,1,0,0); //<u*\psi>
+        Mau_L = moment_au(aL,Mu_L,Mv,Mxi,2,0); //<aL*u^2*\psi>_{>0}
+        Mau_R = moment_au(aR,Mu_R,Mv,Mxi,2,0); //<aR*u^2*\psi>_{<0}
+        Mau_T = moment_au(aT,Mu,Mv,Mxi,1,0); //<A*u*\psi>
+        
+        FLUXM(gi,gj) = prim.s0*(Mt[0]*Mau_0 + Mt[1]*(Mau_L+Mau_R) + Mt[2]*Mau_T);
+    }
+
+  return;
+}
+
+#define FACEQ(i,j) faceQ[(i)*NJ + (j)]
+
+__kernel void
+calcFaceQ(__global double2* iface_f,
+  __global double4* primary,
+  __global double2* normal,
+  __global double2* faceQ, int face,
+  int offset_bottom, int offset_top) 
+{
+  // calculate the heat flux vector properties
+
+  size_t mi, mj, gi, gj;
+    
+    mi = get_global_id(0) + face*offset_bottom;
+    mj = get_global_id(1) + (1-face)*offset_bottom;
+    
+    if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
+    || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
+    
+        gi = mi + GHOST;
+        gj = mj + GHOST;
+    
+        double2 face_normal = NORMAL(gi,gj,face);
+        double4 prim = PRIM(gi,gj);
+        double2 f, uv;
+        
+        double2 Q = 0.0;
+        for (size_t gv = 0; gv < NV; gv++) {
+            f = IFACEF(gi,gj,gv);
+            uv = interfaceVelocity(gv, face_normal);
+            Q.x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
+            Q.y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
+        }
+    
+    FACEQ(gi, gj) = Q;
+    }
+    return;
+}
+
+
+__kernel void
+macroFlux(__global double2* flux_f,
        __global double2* fsigma,
        __global double4* flux_macro,
-	   __global double2* centre,
-	   __global double2* mid_side,
 	   __global double2* normal,
 	   __global double* side_length,
-	   int face, double dt, 
+	   int face, double dt,
+       __global double4* primary,
+       __global double2* faceQ,
        int offset_bottom, int offset_top)
 {
     // global index
@@ -361,26 +619,76 @@ UGKS_flux(__global double2* Fin,
         
         double2 face_normal = NORMAL(gi,gj,face);
         
-        // calculate the macroscopic variables in the local frame of reference at the interface
+        double4 prim = PRIM(gi,gj);
         
-        double4 w = getConserved_global(flux_f, gi, gj, face_normal);
-        double4 prim = getPrimary(w); // convert to primary variables
+        double tau = relaxTime(prim);
         
-        // ---< STEP 3 >---
-        // calculate a^L and a^R
-        double4 sw, aL, aR;
+        double Mt[5];
         
-        // the slope of the primary variables on the left side of the interface
-        sw = w - getConserved_global(Fin, gi-face, gj-(1-face), face_normal); // the difference
-        sw /= length(MIDSIDE(gi,gj,face) - CENTRE(gi-face, gj-(1-face))); // the length from cell centre to interface
+        Mt[3] = tau*(1.0-exp(-dt/tau));
+        Mt[4] = -tau*dt*exp(-dt/tau)+tau*Mt[3];
+        Mt[0] = dt-Mt[3];
+        Mt[1] = -tau*Mt[0]+Mt[4]; 
+        Mt[2] = (dt*dt)/2.0-tau*Mt[0];
         
-        aL = microSlope(prim, sw);
+        double4 face_macro_flux = FLUXM(gi,gj);
         
-        // the slope of the primary variables on the right side of the interface
-        sw = getConserved_global(Fin, gi, gj, face_normal) - w; // the difference
-        sw /= length(MIDSIDE(gi,gj,face) - CENTRE(gi, gj)); // the length from cell centre to interface
+        double2 Q = FACEQ(gi,gj);
         
-        aR = microSlope(prim, sw);
+        double2 F0, uv;
+        
+        // macro flux related to g+ and f0
+        for (size_t v_id = 0; v_id < NV; ++v_id) {
+            uv = interfaceVelocity(v_id, face_normal);
+            F0 = fS(prim, Q, uv, fM(prim, uv, v_id));
+            double2 face_dist = FLUXF(gi,gj,v_id);
+            double2 face_slope = FSIGMA(gi,gj,v_id);
+            face_macro_flux.s0 += Mt[0]*uv.x*F0.x + Mt[3]*uv.x*face_dist.x - Mt[4]*uv.x*uv.x*face_slope.x;
+            face_macro_flux.s1 += Mt[0]*uv.x*uv.x*F0.x + Mt[3]*uv.x*uv.x*face_dist.x - Mt[4]*uv.x*uv.x*uv.x*face_slope.x;
+            face_macro_flux.s2 += Mt[0]*uv.y*uv.x*F0.x + Mt[3]*uv.y*uv.x*face_dist.x - Mt[4]*uv.y*uv.x*uv.x*face_slope.x;
+            face_macro_flux.s3 += Mt[0]*0.5*(uv.x*dot(uv,uv)*F0.x + uv.x*F0.y) + 
+                                  Mt[3]*0.5*(uv.x*dot(uv,uv)*face_dist.x + uv.x*face_dist.y) - 
+                                  Mt[4]*0.5*(uv.x*uv.x*dot(uv,uv)*face_slope.x + uv.x*uv.x*face_slope.y);
+        }
+        
+        // convert macro to global frame
+        face_macro_flux.s12 = toGlobal(face_macro_flux.s12, face_normal);
+        
+        FLUXM(gi,gj) = LENGTH(gi,gj,face)*face_macro_flux;
+    }
+
+  return;
+}
+
+__kernel void
+distFlux(__global double2* flux_f,
+       __global double2* fsigma,
+	   __global double2* normal,
+	   __global double* side_length,
+	   int face, double dt,
+       __global double4* primary,
+       __global double4* gaL,
+       __global double4* gaR,
+       __global double2* faceQ,
+       int offset_bottom, int offset_top)
+{
+    // global index
+    
+    size_t mi, mj, gi, gj, thread_id;
+    
+    mi = get_global_id(0) + face*offset_bottom;
+    mj = get_global_id(1) + (1-face)*offset_bottom;
+    thread_id = get_local_id(2);
+    
+    if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
+    || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
+    
+        gi = mi + GHOST;
+        gj = mj + GHOST;
+        
+        double4 prim = PRIM(gi,gj);
+        double4 aL = AL(gi,gj);
+        double4 aR = AR(gi,gj);
         
         // ---< STEP 4 >---
         // calculate the time slope of W and A
@@ -388,7 +696,109 @@ UGKS_flux(__global double2* Fin,
         
         momentU(prim, Mu, Mv, Mxi, Mu_L, Mu_R);
         
-        double4 Mau_L, Mau_R, aT;
+        double4 Mau_L, Mau_R, aT, sw;
+        
+        Mau_L = moment_au(aL,Mu_L,Mv,Mxi,1,0); //<aL*u*\psi>_{>0}
+        Mau_R = moment_au(aR,Mu_R,Mv,Mxi,1,0); //<aR*u*\psi>_{<0}
+
+        sw = -prim.s0*(Mau_L+Mau_R); //time slope of W
+        aT = microSlope(prim,sw); //calculate A
+        
+        double tau = relaxTime(prim);
+        
+        double Mt[5];
+        
+        Mt[3] = tau*(1.0-exp(-dt/tau));
+        Mt[4] = -tau*dt*exp(-dt/tau)+tau*Mt[3];
+        Mt[0] = dt-Mt[3];
+        Mt[1] = -tau*Mt[0]+Mt[4]; 
+        Mt[2] = (dt*dt)/2.0-tau*Mt[0];
+        
+        double2 face_normal = NORMAL(gi,gj,face);
+        
+        double2 Q = FACEQ(gi,gj);
+        
+        double2 face_flux, uv, f0, F0;
+        
+        for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+            size_t gv = li*LOCAL_SIZE+thread_id;
+            if (gv < NV) {
+            
+                uv = interfaceVelocity(gv, face_normal);
+                
+                int delta = (sign(uv.x)+1)/2;
+                
+                f0 = fM(prim, uv, gv);
+                F0 = fS(prim, Q, uv, f0);
+                
+                double2 face_dist = FLUXF(gi,gj,gv);
+                double2 face_slope = FSIGMA(gi,gj,gv);
+                
+                face_flux.x = Mt[0]*uv.x*(f0.x+F0.x)+
+                                  Mt[1]*(uv.x*uv.x)*(aL.s0*f0.x+aL.s1*uv.x*f0.x+aL.s2*uv.y*f0.x+0.5*aL.s3*(dot(uv,uv)*f0.x+f0.y))*delta+
+                                  Mt[1]*(uv.x*uv.x)*(aR.s0*f0.x+aR.s1*uv.x*f0.x+aR.s2*uv.y*f0.x+0.5*aR.s3*(dot(uv,uv)*f0.x+f0.y))*(1-delta)+
+                                  Mt[2]*uv.x*(aT.s0*f0.x+aT.s1*uv.x*f0.x+aT.s2*uv.y*f0.x+0.5*aT.s3*(dot(uv,uv)*f0.x+f0.y))+
+                                  Mt[3]*uv.x*face_dist.x-
+                                  Mt[4]*(uv.x*uv.x)*face_slope.x;
+                
+                face_flux.y = Mt[0]*uv.x*(f0.y+F0.y)+
+                                  Mt[1]*(uv.x*uv.x)*(aL.s0*f0.y+aL.s1*uv.x*f0.y+aL.s2*uv.y*f0.y+0.5*aL.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))*delta+
+                                  Mt[1]*(uv.x*uv.x)*(aR.s0*f0.y+aR.s1*uv.x*f0.y+aR.s2*uv.y*f0.y+0.5*aR.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))*(1-delta)+
+                                  Mt[2]*uv.x*(aT.s0*f0.y+aT.s1*uv.x*f0.y+aT.s2*uv.y*f0.y+0.5*aT.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))+
+                                  Mt[3]*uv.x*face_dist.y-
+                                  Mt[4]*(uv.x*uv.x)*face_slope.y;
+                
+                // update FLUX
+                FLUXF(gi,gj,gv) = LENGTH(gi,gj,face)*face_flux;
+            }
+        }
+    }
+
+  return;
+}
+
+__kernel void
+UGKS_flux(__global double2* Fin,
+	   __global double2* flux_f,
+       __global double2* fsigma,
+       __global double4* flux_macro,
+	   __global double2* centre,
+	   __global double2* mid_side,
+	   __global double2* normal,
+	   __global double* side_length,
+	   int face, double dt,
+       __global double4* primary,
+       __global double4* gaL,
+       __global double4* gaR,
+       int offset_bottom, int offset_top)
+{
+    // global index
+    
+    size_t mi, mj, gi, gj;
+    
+    mi = get_global_id(0) + face*offset_bottom;
+    mj = get_global_id(1) + (1-face)*offset_bottom;
+    
+    if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
+    || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
+    
+        gi = mi + GHOST;
+        gj = mj + GHOST;
+        
+        double2 face_normal = NORMAL(gi,gj,face);
+        
+        
+        double4 prim = PRIM(gi,gj);
+        double4 aL = AL(gi,gj);
+        double4 aR = AR(gi,gj);
+        
+        // ---< STEP 4 >---
+        // calculate the time slope of W and A
+        double Mu[MNUM], Mv[MTUM], Mxi[3], Mu_L[MNUM], Mu_R[MNUM];
+        
+        momentU(prim, Mu, Mv, Mxi, Mu_L, Mu_R);
+        
+        double4 Mau_L, Mau_R, aT, sw;
         
         Mau_L = moment_au(aL,Mu_L,Mv,Mxi,1,0); //<aL*u*\psi>_{>0}
         Mau_R = moment_au(aR,Mu_R,Mv,Mxi,1,0); //<aR*u*\psi>_{<0}

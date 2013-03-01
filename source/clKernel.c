@@ -378,9 +378,9 @@ calcQ(__global double2* Fin,
       Q.y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
     }
     
-    MACRO(mi, mj) = prim;
     GQ(mi, mj) = Q;
   }
 
   return;
 }
+
