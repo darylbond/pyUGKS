@@ -567,44 +567,7 @@ initMacroFlux(__global double4* flux_macro,
 #define FACEQ(i,j) faceQ[(i)*NJ + (j)]
 
 __kernel void
-calcFaceQ(__global double2* iface_f,
-  __global double4* primary,
-  __global double2* normal,
-  __global double2* faceQ, int face,
-  int offset_bottom, int offset_top) 
-{
-  // calculate the heat flux vector properties
-
-  size_t mi, mj, gi, gj;
-    
-    mi = get_global_id(0) + face*offset_bottom;
-    mj = get_global_id(1) + (1-face)*offset_bottom;
-    
-    if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
-    || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
-    
-        gi = mi + GHOST;
-        gj = mj + GHOST;
-    
-        double2 face_normal = NORMAL(gi,gj,face);
-        double4 prim = PRIM(gi,gj);
-        double2 f, uv;
-        
-        double2 Q = 0.0;
-        for (size_t gv = 0; gv < NV; gv++) {
-            f = IFACEF(gi,gj,gv);
-            uv = interfaceVelocity(gv, face_normal);
-            Q.x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
-            Q.y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
-        }
-    
-    FACEQ(gi, gj) = Q;
-    }
-    return;
-}
-
-__kernel void
-calcFaceQ2(__global double2* iface_f, 
+calcFaceQ(__global double2* iface_f, 
             __global double4* primary, 
             __global double2* normal,
             __global double2* faceQ, int face,
