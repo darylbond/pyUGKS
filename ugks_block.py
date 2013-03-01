@@ -700,13 +700,12 @@ class UGKSBlock(object):
         offset_bot = np.int32(offset_bot)
         offset_top = np.int32(offset_top)
         
-        global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (self.work_size,self.work_size))
+        global_size, work_size = m_tuple((self.ni, self.nj+1-shrink, 1), (1,1,gdata.CL_local_size))  
         
-        
-        self.prg.getFacePrim(self.queue, global_size, work_size,
+        self.prg.getFaceCons(self.queue, global_size, work_size,
                            self.flux_f_S_D, self.normal_D, south, 
                            self.prim_D, offset_bot, offset_top)
-                           
+    
         self.prg.getAL(self.queue, global_size, work_size,
                            self.f_D, self.normal_D, south, self.aL_D, 
                            offset_bot, offset_top)
@@ -716,6 +715,8 @@ class UGKSBlock(object):
                            self.aR_D, offset_bot, offset_top)
         
         cl.enqueue_barrier(self.queue)
+        
+        global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (self.work_size,self.work_size))
         
         self.prg.getPLR(self.queue, global_size, work_size,
                         self.centre_D, self.side_D, south, self.prim_D, 
@@ -805,9 +806,9 @@ class UGKSBlock(object):
         offset_bot = np.int32(offset_bot)
         offset_top = np.int32(offset_top)
         
-        global_size, work_size = size_cl((self.ni+1-shrink, self.nj), (self.work_size,self.work_size))
+        global_size, work_size = m_tuple((self.ni+1-shrink, self.nj, 1), (1,1,gdata.CL_local_size))
         
-        self.prg.getFacePrim(self.queue, global_size, work_size,
+        self.prg.getFaceCons(self.queue, global_size, work_size,
                            self.flux_f_W_D, self.normal_D, west, 
                            self.prim_D, offset_bot, offset_top)
                            
@@ -820,6 +821,8 @@ class UGKSBlock(object):
                            self.aR_D, offset_bot, offset_top)
         
         cl.enqueue_barrier(self.queue)
+        
+        global_size, work_size = size_cl((self.ni+1-shrink, self.nj), (self.work_size,self.work_size))
         
         self.prg.getPLR(self.queue, global_size, work_size,
                         self.centre_D, self.side_D, west, self.prim_D, 
@@ -835,6 +838,7 @@ class UGKSBlock(object):
         cl.enqueue_barrier(self.queue)
        
         global_size, work_size = m_tuple((self.ni+1-shrink, self.nj, 1), (1,1,gdata.CL_local_size))
+        
         self.prg.calcFaceQ(self.queue, global_size, work_size,
                            self.flux_f_W_D, self.prim_D, self.normal_D,
                            self.faceQ_D, west, offset_bot, offset_top)

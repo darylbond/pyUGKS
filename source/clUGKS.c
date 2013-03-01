@@ -340,16 +340,19 @@ iFace(__global double2* Fin,
 #define AT(i,j) gaT[(i)*NJ + (j)]
 
 __kernel void
-getFacePrim(__global double2* iface_f,
+getFaceCons(__global double2* iface_f,
 	         __global double2* normal,
              int face,
              __global double4* primary,
              int offset_bottom, int offset_top)
 {
-  size_t mi, mj, gi, gj;
+  size_t mi, mj, gi, gj, thread_id;
     
     mi = get_global_id(0) + face*offset_bottom;
     mj = get_global_id(1) + (1-face)*offset_bottom;
+    thread_id = get_local_id(2);
+    
+    __local double4 P[LOCAL_SIZE];
     
     if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
     || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
@@ -357,22 +360,47 @@ getFacePrim(__global double2* iface_f,
         gi = mi + GHOST;
         gj = mj + GHOST;
         
-        double4 wf = 0.0;
-        double2 f, uv;
-        // conserved variables
-        for (size_t v_id = 0; v_id < NV; ++v_id) {
-            uv = interfaceVelocity(v_id, NORMAL(gi,gj,face));
-            
-            f = IFACEF(gi, gj, v_id);
-            wf.s0 += f.x;
-            wf.s12 += uv*f.x;
-            wf.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
-        }
+        // initialise
+        P[thread_id] = 0.0;
         
-        PRIM(gi,gj) = wf;
-    }
+        double2 f, uv;
+        
+        for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+            size_t gv = li*LOCAL_SIZE+thread_id;
+            if (gv < NV) {
+                f = IFACEF(gi,gj,gv);
+                uv = interfaceVelocity(gv, NORMAL(gi,gj,face));
+                P[thread_id].s0 += f.x;
+                P[thread_id].s12 += uv*f.x;
+                P[thread_id].s3 += 0.5*(dot(uv,uv)*f.x + f.y);
+            }
+        }
+      
+        // synchronise
+        barrier(CLK_LOCAL_MEM_FENCE);
 
-  return;
+        // have populated the local array
+        // now we sum up the elements, migrating the sum to the top of the stack
+        int step = 1;
+        int grab_id = 2;
+        while (step < LOCAL_SIZE) {
+            if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
+                // reduce
+                P[thread_id] += P[thread_id+step];
+            }
+            step *= 2;
+            grab_id *= 2;
+            barrier(CLK_LOCAL_MEM_FENCE);
+        }
+
+        // the sum of all the moments should be at the top of the stack
+
+        if (thread_id == 0) {            
+            PRIM(gi,gj) = P[0];
+        }
+    }
+    
+    return;
 }
 
 __kernel void
@@ -382,10 +410,13 @@ getAL(__global double2* Fin,
              __global double4* gaL,
              int offset_bottom, int offset_top)
 {
-  size_t mi, mj, gi, gj;
+  size_t mi, mj, gi, gj, thread_id;
     
     mi = get_global_id(0) + face*offset_bottom;
     mj = get_global_id(1) + (1-face)*offset_bottom;
+    thread_id = get_local_id(2);
+    
+    __local double4 P[LOCAL_SIZE];
     
     if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
     || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
@@ -393,21 +424,47 @@ getAL(__global double2* Fin,
         gi = mi + GHOST;
         gj = mj + GHOST;
         
-        double4 wL = 0.0;
+        // initialise
+        P[thread_id] = 0.0;
+        
         double2 f, uv;
-        // conserved variables
-        for (size_t v_id = 0; v_id < NV; ++v_id) {
-            uv = interfaceVelocity(v_id, NORMAL(gi,gj,face));
-            
-            f = F(gi-face, gj-(1-face), v_id);
-            wL.s0 += f.x;
-            wL.s12 += uv*f.x;
-            wL.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
+        
+        for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+            size_t gv = li*LOCAL_SIZE+thread_id;
+            if (gv < NV) {
+                f = F(gi-face, gj-(1-face), gv);
+                uv = interfaceVelocity(gv, NORMAL(gi,gj,face));
+                P[thread_id].s0 += f.x;
+                P[thread_id].s12 += uv*f.x;
+                P[thread_id].s3 += 0.5*(dot(uv,uv)*f.x + f.y);
+            }
         }
-        AL(gi,gj) = wL;
-    }
+      
+        // synchronise
+        barrier(CLK_LOCAL_MEM_FENCE);
 
-  return;
+        // have populated the local array
+        // now we sum up the elements, migrating the sum to the top of the stack
+        int step = 1;
+        int grab_id = 2;
+        while (step < LOCAL_SIZE) {
+            if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
+                // reduce
+                P[thread_id] += P[thread_id+step];
+            }
+            step *= 2;
+            grab_id *= 2;
+            barrier(CLK_LOCAL_MEM_FENCE);
+        }
+
+        // the sum of all the moments should be at the top of the stack
+
+        if (thread_id == 0) {            
+            AL(gi,gj) = P[0];
+        }
+    }
+    
+    return;
 }
 
 __kernel void
@@ -417,10 +474,13 @@ getAR(__global double2* Fin,
              __global double4* gaR,
              int offset_bottom, int offset_top)
 {
-  size_t mi, mj, gi, gj;
+  size_t mi, mj, gi, gj, thread_id;
     
     mi = get_global_id(0) + face*offset_bottom;
     mj = get_global_id(1) + (1-face)*offset_bottom;
+    thread_id = get_local_id(2);
+    
+    __local double4 P[LOCAL_SIZE];
     
     if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
     || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
@@ -428,21 +488,47 @@ getAR(__global double2* Fin,
         gi = mi + GHOST;
         gj = mj + GHOST;
         
-        double4 wR = 0.0;
+        // initialise
+        P[thread_id] = 0.0;
+        
         double2 f, uv;
-        // conserved variables
-        for (size_t v_id = 0; v_id < NV; ++v_id) {
-            uv = interfaceVelocity(v_id, NORMAL(gi,gj,face));
-            
-            f = F(gi, gj, v_id);
-            wR.s0 += f.x;
-            wR.s12 += uv*f.x;
-            wR.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
+        
+        for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+            size_t gv = li*LOCAL_SIZE+thread_id;
+            if (gv < NV) {
+                f = F(gi, gj, gv);
+                uv = interfaceVelocity(gv, NORMAL(gi,gj,face));
+                P[thread_id].s0 += f.x;
+                P[thread_id].s12 += uv*f.x;
+                P[thread_id].s3 += 0.5*(dot(uv,uv)*f.x + f.y);
+            }
         }
-        AR(gi,gj) = wR;
-    }
+      
+        // synchronise
+        barrier(CLK_LOCAL_MEM_FENCE);
 
-  return;
+        // have populated the local array
+        // now we sum up the elements, migrating the sum to the top of the stack
+        int step = 1;
+        int grab_id = 2;
+        while (step < LOCAL_SIZE) {
+            if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
+                // reduce
+                P[thread_id] += P[thread_id+step];
+            }
+            step *= 2;
+            grab_id *= 2;
+            barrier(CLK_LOCAL_MEM_FENCE);
+        }
+
+        // the sum of all the moments should be at the top of the stack
+
+        if (thread_id == 0) {            
+            AR(gi,gj) = P[0];
+        }
+    }
+    
+    return;
 }
 
 __kernel void
@@ -1146,22 +1232,21 @@ UGKS_update(__global double2* Fin,
 
         gv = loop_id*LOCAL_SIZE + thread_id;
 
-        if (gv >= NV) {
-            continue;
+        if (gv < NV) {
+        
+            // old equilibrium
+            double2 feq_old = fEQ(prim_old, Q, QUAD[gv], gv);
+            
+            // new stuff at t^n+1
+            double2 feq = fEQ(prim, Q, QUAD[gv], gv);
+            
+            // update the distribution function
+            
+            double2 f_old = F(gi,gj,gv);
+            
+            F(gi,gj,gv) = (f_old + (FLUXFS(gi,gj,gv) - FLUXFS(gi,gj+1,gv) + FLUXFW(gi,gj,gv) - FLUXFW(gi+1,gj,gv))/A
+                          + 0.5*dt*(feq/tau+(feq_old-f_old)/tau_old))/(1.0+0.5*dt/tau);
         }
-        
-        // old equilibrium
-        double2 feq_old = fEQ(prim_old, Q, QUAD[gv], gv);
-        
-        // new stuff at t^n+1
-        double2 feq = fEQ(prim, Q, QUAD[gv], gv);
-        
-        // update the distribution function
-        
-        double2 f_old = F(gi,gj,gv);
-        
-        F(gi,gj,gv) = (f_old + (FLUXFS(gi,gj,gv) - FLUXFS(gi,gj+1,gv) + FLUXFW(gi,gj,gv) - FLUXFW(gi+1,gj,gv))/A
-                      + 0.5*dt*(feq/tau+(feq_old-f_old)/tau_old))/(1.0+0.5*dt/tau);
         
     }
     
