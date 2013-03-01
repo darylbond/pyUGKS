@@ -347,24 +347,6 @@ class UGKSBlock(object):
             self.prg.calcQ(self.queue, global_size, work_size,
                             self.f_D, self.macro_D, self.Q_D)
                             
-#            cl.enqueue_copy(self.queue, self.macro_H, self.macro_D)
-#            cl.enqueue_copy(self.queue, self.Q_H, self.Q_D)
-#            
-#            print "new"
-#            print self.macro_H[:,:,3]
-#            #print self.Q_H[:,:,0]
-#            
-#            cl.enqueue_barrier(self.queue)
-#            global_size, work_size = size_cl((self.ni, self.nj),(self.work_size, self.work_size))
-#            self.prg.calcMacro(self.queue, global_size, work_size,
-#                   self.f_D, self.macro_D, self.Q_D).wait()
-#            
-#            cl.enqueue_copy(self.queue, self.macro_H, self.macro_D)
-#            cl.enqueue_copy(self.queue, self.Q_H, self.Q_D)
-#            
-#            print "old"
-#            print self.macro_H[:,:,3]
-#            #print self.Q_H[:,:,0]
                    
         
         
@@ -673,7 +655,7 @@ class UGKSBlock(object):
         # follow 
         ##
         offset_top = 0; offset_bot = 0
-        global_size, work_size = size_cl((self.ni, 1), (gdata.CL_local_size,1))
+        global_size, work_size = size_cl((self.ni, 1, 1), (1, 1, gdata.CL_local_size))
         if self.bc_list[0].type_of_BC == DIFFUSE:
             offset_top = 1
             north_wall = np.int32(0)
@@ -777,7 +759,7 @@ class UGKSBlock(object):
         # follow 
         ##
         offset_top = 0; offset_bot = 0
-        global_size, work_size = size_cl((1, self.nj), (1,gdata.CL_local_size))
+        global_size, work_size = size_cl((1, self.nj, 1), (1,1,gdata.CL_local_size))
         if self.bc_list[1].type_of_BC == DIFFUSE:
             offset_top = 1
             east_wall = np.int32(1)
@@ -929,7 +911,8 @@ class UGKSBlock(object):
         global_size = (self.ni, self.nj)
         
         if gdata.save_options.internal_data:
-            self.prg.getInternalTemp(self.queue, global_size, None,
+            global_size, work_size = m_tuple((self.ni, self.nj),(self.work_size,self.work_size))
+            self.prg.getInternalTemp(self.queue, global_size, work_size,
                                  self.f_D, self.Txyz_D)
             cl.enqueue_barrier(self.queue)
                                  

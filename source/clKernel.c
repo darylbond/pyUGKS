@@ -232,45 +232,48 @@ getInternalTemp(__global double2* Fin, __global double4* Txyz)
   int mi = get_global_id(0);
   int mj = get_global_id(1);
   
-  int gi = mi + GHOST;
-  int gj = mj + GHOST;
+  if ((mi < ni) && (mj < nj)) {
+  
+    int gi = mi + GHOST;
+    int gj = mj + GHOST;
 
-  double2 f;
-  double2 uv;
-  
-  double D = 0.0;
-  double M1 = 0.0;  
-  double M2 = 0.0;  
-  double M4 = 0.0; 
-  double M5 = 0.0;
-  double H = 0.0;
-  
-  for (int i=0; i < NV; i++) {
-    // velocities
-    uv = QUAD[i];
+    double2 f;
+    double2 uv;
     
-    // distribution
-    f = F(gi,gj,i);
+    double D = 0.0;
+    double M1 = 0.0;  
+    double M2 = 0.0;  
+    double M4 = 0.0; 
+    double M5 = 0.0;
+    double H = 0.0;
     
-    // moments
-    D += f.x;
-    M1 += uv.x*f.x;
-    M2 += uv.y*f.x;
-    M4 += uv.x*uv.x*f.x;
-    M5 += uv.y*uv.y*f.x;
-    H += f.y;
+    for (int i=0; i < NV; i++) {
+      // velocities
+      uv = QUAD[i];
+      
+      // distribution
+      f = F(gi,gj,i);
+      
+      // moments
+      D += f.x;
+      M1 += uv.x*f.x;
+      M2 += uv.y*f.x;
+      M4 += uv.x*uv.x*f.x;
+      M5 += uv.y*uv.y*f.x;
+      H += f.y;
+    }
+      
+    double U, V, Tx, Ty, Tz, T;
+    
+    U = M1/D;	// mean velocity x
+    V = M2/D;	// mean velocity y
+    Tx = 2*(M4/D - U*U);
+    Ty = 2*(M5/D - V*V);
+    Tz = 2*(H/D);
+    T = (Tx + Ty + Tz)/B;
+    
+    TXYZ(mi,mj) = (double4)(Tx, Ty, Tz, T);
   }
-    
-  double U, V, Tx, Ty, Tz, T;
-  
-  U = M1/D;	// mean velocity x
-  V = M2/D;	// mean velocity y
-  Tx = 2*(M4/D - U*U);
-  Ty = 2*(M5/D - V*V);
-  Tz = 2*(H/D);
-  T = (Tx + Ty + Tz)/B;
-  
-  TXYZ(mi,mj) = (double4)(Tx, Ty, Tz, T);
 
   return;
 }
@@ -290,19 +293,22 @@ __global double4* macro, __global double2* gQ)
   size_t mi = get_global_id(0);
   size_t mj = get_global_id(1);
   size_t ti = get_local_id(2);
-
-  // macroscopic properties global index
-    
-    size_t gi = mi + GHOST;
-    size_t gj = mj + GHOST;
-
-  // compute equilibrium functions
   
-  for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
-    size_t gv = li*LOCAL_SIZE+ti;
-    if (gv < NV) {
-      double2 uv = QUAD[gv];
-      F(gi,gj,gv) = fEQ(MACRO(mi,mj), GQ(mi,mj), uv, gv);
+  if ((mi < ni) && (mj < nj)) {
+
+    // macroscopic properties global index
+      
+      size_t gi = mi + GHOST;
+      size_t gj = mj + GHOST;
+
+    // compute equilibrium functions
+    
+    for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+      size_t gv = li*LOCAL_SIZE+ti;
+      if (gv < NV) {
+        double2 uv = QUAD[gv];
+        F(gi,gj,gv) = fEQ(MACRO(mi,mj), GQ(mi,mj), uv, gv);
+      }
     }
   }
   
