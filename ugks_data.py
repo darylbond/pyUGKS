@@ -111,7 +111,9 @@ class UGKSData(object):
                 'plot_options','save_options','residual_options',\
                 'sketch','source','check_err_count',\
                 'exit','config_string',\
-                'runtime_conf', 'restart'
+                'runtime_conf', 'restart',\
+                'u_min', 'v_min', 'u_mid', 'v_mid', 'u_max','v_max',\
+                'u_num','v_num','quad_type'
     
     def __init__(self):
         """
@@ -169,6 +171,17 @@ class UGKSData(object):
         self.D_ref = 0.0        # density, kg/m^3
         self.T_ref = 273.0       # temperature, K
         
+        self.Nv = 0
+        self.quad_type = None
+        self.u_num = 0
+        self.v_num = 0
+        self.u_min = 0.0
+        self.v_min = 0.0
+        self.u_mid = 0.0
+        self.v_mid = 0.0
+        self.u_max = 0.0
+        self.v_max = 0.0
+        
         # EXTERNAL SOURCE        
         src_loader = sl.SourceLoader()
         self.source = src_loader.src
@@ -194,50 +207,65 @@ class UGKSData(object):
         quadrature rule
         """
         
-        # for now we will just use a given velocity set
-        n = 28
-        self.Nv = n**2
-        
-        # offset the quadrature array
-        u_mid = 0.0
-        v_mid = 0.0
-        
-        vcoords = [ -0.5392407922630E+01, -0.4628038787602E+01, -0.3997895360339E+01, -0.3438309154336E+01,
-                    -0.2926155234545E+01, -0.2450765117455E+01, -0.2007226518418E+01, -0.1594180474269E+01,
-                    -0.1213086106429E+01, -0.8681075880846E+00, -0.5662379126244E+00, -0.3172834649517E+00,
-                    -0.1331473976273E+00, -0.2574593750171E-01, +0.2574593750171E-01, +0.1331473976273E+00,
-                    +0.3172834649517E+00, +0.5662379126244E+00, +0.8681075880846E+00, +0.1213086106429E+01,
-                    +0.1594180474269E+01, +0.2007226518418E+01, +0.2450765117455E+01, +0.2926155234545E+01,
-                    +0.3438309154336E+01, +0.3997895360339E+01, +0.4628038787602E+01, +0.5392407922630E+01 ]
-
-        weights = [ +0.2070921821819E-12, +0.3391774320172E-09, +0.6744233894962E-07, +0.3916031412192E-05,
-                    +0.9416408715712E-04, +0.1130613659204E-02, +0.7620883072174E-02, +0.3130804321888E-01,
-                    +0.8355201801999E-01, +0.1528864568113E+00, +0.2012086859914E+00, +0.1976903952423E+00,
-                    +0.1450007948865E+00, +0.6573088665062E-01, +0.6573088665062E-01, +0.1450007948865E+00,
-                    +0.1976903952423E+00, +0.2012086859914E+00, +0.1528864568113E+00, +0.8355201801999E-01,
-                    +0.3130804321888E-01, +0.7620883072174E-02, +0.1130613659204E-02, +0.9416408715712E-04,
-                    +0.3916031412192E-05, +0.6744233894962E-07, +0.3391774320172E-09, +0.2070921821819E-12 ]
-        
-        self.quad = np.zeros((self.Nv,2))
-        self.weight = np.zeros((self.Nv))
-        
-        index_array = np.zeros((n,n), dtype=np.int)
-        count = 0
-        for i in range(n):
-            for j in range(n):
-                index_array[i,j] = count
-                u = vcoords[i] + u_mid
-                v = vcoords[j] + v_mid
-                self.quad[count,0] = u
-                self.quad[count,1] = v
-                self.weight[count] = weights[i]*np.exp(u**2)*weights[j]*np.exp(v**2)
-                count += 1
-
-        self.umax = abs(np.max(vcoords))
-        self.vmax = abs(np.max(vcoords))
+        if self.quad_type == "Gauss":
+            # have been given a 1D list to turn into a 2D array
+            
+            self.quad = np.array(self.quad)
+            self.weight = np.array(self.weight)
+            
+            n = self.quad.size
+            self.Nv = n**2
+            
+            local_quad = np.copy(self.quad)
+            local_weight = np.copy(self.weight)
+            
+            self.quad = np.zeros((self.Nv,2))
+            self.weight = np.zeros((self.Nv))
+            
+            index_array = np.zeros((n,n), dtype=np.int)
+            count = 0
+            for i in range(n):
+                for j in range(n):
+                    index_array[i,j] = count
+                    u = local_quad[i] + self.u_mid
+                    v = local_quad[j] + self.v_mid
+                    self.quad[count,0] = u
+                    self.quad[count,1] = v
+                    self.weight[count] = local_weight[i]*np.exp(u**2)*local_weight[j]*np.exp(v**2)
+                    count += 1
+            
+        elif self.quad_type == "Newton":
+            self.u_num = int(self.u_num/4)*4 + 1
+            self.v_num = int(self.v_num/4)*4 + 1
+            
+            self.Nv = self.u_num*self.v_num
+            
+            self.quad = np.zeros((self.Nv,2))
+            self.weight = np.zeros((self.Nv))
+            
+            du = (self.u_max - self.u_min)/(self.u_num - 1)
+            dv = (self.v_max - self.v_min)/(self.v_num - 1)
+            
+            index_array = np.zeros((self.u_num, self.v_num), dtype=np.int)
+            count = 0
+            for i in range(self.u_num):
+                for j in range(self.v_num):
+                    index_array[i,j] = count
+                    u = self.u_min + i*du
+                    v = self.v_min + j*dv
+                    self.quad[count,0] = u
+                    self.quad[count,1] = v
+                    self.weight[count] = (newton_coeff(i+1,self.u_num)*du)*(newton_coeff(j+1,self.v_num)*dv)
+                    count += 1
+                    
+                    
+        self.umax = abs(np.max(self.quad[:,0]))
+        self.vmax = abs(np.max(self.quad[:,1]))
         
         self.mirror_NS = np.ravel(np.fliplr(index_array))
         self.mirror_EW = np.ravel(np.flipud(index_array))
+        
+        return
         
         
         return
@@ -293,6 +321,21 @@ gdata = UGKSData()
 #===============================================================================
 # FUNCTIONS
 #===============================================================================
+
+def newton_coeff(i, n):
+    """
+    Newton-Cotes coefficient given the index number and number of sample sites
+    note: 1 based indexing
+    """
+    
+    if (i == 1) | (i == n):
+        return 14.0/15.0
+    elif (i-5)%4 == 0:
+        return 28.0/45.0
+    elif (i-3)%4 == 0:
+        return 24.0/45.0
+    else:
+        return 64.0/45.0
 
 def non_dimensionalise_all():
     """
