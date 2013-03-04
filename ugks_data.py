@@ -113,7 +113,8 @@ class UGKSData(object):
                 'exit','config_string',\
                 'runtime_conf', 'restart',\
                 'u_min', 'v_min', 'u_mid', 'v_mid', 'u_max','v_max',\
-                'u_num','v_num','quad_type'
+                'u_num','v_num','quad_type',\
+                'work_size_i','work_size_j'
     
     def __init__(self):
         """
@@ -186,7 +187,9 @@ class UGKSData(object):
         src_loader = sl.SourceLoader()
         self.source = src_loader.src
         
-        self.CL_local_size = 64 # the local work size for openCL
+        self.CL_local_size = 1 # the local work size for openCL
+        self.work_size_i = 1
+        self.work_size_j = 1
         
         # saving options
         self.save_options = SaveOptions()

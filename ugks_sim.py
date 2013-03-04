@@ -419,6 +419,8 @@ class UGKSim(object):
         self.line_residual_2, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'b', label="V")
         self.line_residual_3, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'k', label="1/T")
         
+        plt.legend(loc=3)        
+        
         if not self.time_history_residual:
             max_res = 1
         else:
@@ -461,16 +463,24 @@ class UGKSim(object):
         plt.ylim(gdata.residual_options.min_residual,np.max(self.time_history_residual))
         
         self.line_residual_0.set_xdata(self.time_history_residual_N)
-        self.line_residual_0.set_ydata(self.time_history_residual[-1][0])
+        data = self.line_residual_0.get_ydata()
+        data = np.append(data,self.time_history_residual[-1][0])
+        self.line_residual_0.set_ydata(data)
         
         self.line_residual_1.set_xdata(self.time_history_residual_N)
-        self.line_residual_1.set_ydata(self.time_history_residual[-1][0])
+        data = self.line_residual_1.get_ydata()
+        data = np.append(data,self.time_history_residual[-1][1])
+        self.line_residual_1.set_ydata(data)
         
         self.line_residual_2.set_xdata(self.time_history_residual_N)
-        self.line_residual_2.set_ydata(self.time_history_residual[-1][0])
+        data = self.line_residual_2.get_ydata()
+        data = np.append(data,self.time_history_residual[-1][2])
+        self.line_residual_2.set_ydata(data)
         
         self.line_residual_3.set_xdata(self.time_history_residual_N)
-        self.line_residual_3.set_ydata(self.time_history_residual[-1][0])
+        data = self.line_residual_3.get_ydata()
+        data = np.append(data,self.time_history_residual[-1][3])
+        self.line_residual_3.set_ydata(data)
         
         plt.draw()
         

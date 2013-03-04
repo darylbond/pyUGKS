@@ -410,8 +410,8 @@ calcQ(__global double2* Fin,
             if (gv < NV) {
                 f = F(gi,gj,gv);
                 uv = QUAD[gv];
-                Q[thread_id].x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
-                Q[thread_id].y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
+                Q[thread_id].x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*(f.y/K));
+                Q[thread_id].y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*(f.y/K));
             }
         }
       

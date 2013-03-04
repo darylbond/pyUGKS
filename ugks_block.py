@@ -86,7 +86,8 @@ class UGKSBlock(object):
         self.Nv = gdata.Nv
         
         # work-group size
-        self.work_size = 8
+        self.work_size_i = gdata.work_size_i
+        self.work_size_j = gdata.work_size_j
         
         # boundaries for flow domain, excluding ghost cells
         self.imin = self.ghost
@@ -698,7 +699,7 @@ class UGKSBlock(object):
         
         cl.enqueue_barrier(self.queue)
         
-        global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (self.work_size,self.work_size))
+        global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (self.work_size_i,self.work_size_j))
         
         self.prg.getPLR(self.queue, global_size, work_size,
                         self.centre_D, self.side_D, south, self.prim_D, 
@@ -805,7 +806,7 @@ class UGKSBlock(object):
         
         cl.enqueue_barrier(self.queue)
         
-        global_size, work_size = size_cl((self.ni+1-shrink, self.nj), (self.work_size,self.work_size))
+        global_size, work_size = size_cl((self.ni+1-shrink, self.nj), (self.work_size_i,self.work_size_j))
         
         self.prg.getPLR(self.queue, global_size, work_size,
                         self.centre_D, self.side_D, west, self.prim_D, 
@@ -861,7 +862,7 @@ class UGKSBlock(object):
         cl.enqueue_barrier(self.queue)
         
         # update the macro buffer
-        global_size, work_size = size_cl((self.ni, self.nj),(self.work_size, self.work_size))
+        global_size, work_size = size_cl((self.ni, self.nj),(self.work_size_i, self.work_size_j))
         self.prg.updateMacro(self.queue, global_size, work_size,
                              self.flux_macro_S_D, self.flux_macro_W_D, self.area_D,
                              self.macro_D, self.residual_D)
@@ -886,9 +887,9 @@ class UGKSBlock(object):
             
             cl.enqueue_barrier(self.queue)
             
-            global_size, work_size = m_tuple((self.ni, self.nj), (self.work_size, self.work_size))        
+            global_size, work_size = m_tuple((self.ni, self.nj), (self.work_size_i, self.work_size_j))        
             self.prg.getResidual(self.queue, global_size, work_size,
-                             self.macro_D, self.residual)
+                             self.macro_D, self.residual_D)
                              
             cl.enqueue_barrier(self.queue)
             
@@ -912,7 +913,7 @@ class UGKSBlock(object):
         global_size = (self.ni, self.nj)
         
         if gdata.save_options.internal_data:
-            global_size, work_size = m_tuple((self.ni, self.nj),(self.work_size,self.work_size))
+            global_size, work_size = m_tuple((self.ni, self.nj),(self.work_size_i,self.work_size_j))
             self.prg.getInternalTemp(self.queue, global_size, work_size,
                                  self.f_D, self.Txyz_D)
             cl.enqueue_barrier(self.queue)

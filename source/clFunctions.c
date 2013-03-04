@@ -8,12 +8,12 @@
 double relaxTime(double4 prim)
 {
   // calculate the non-dimensional relaxation time
-  double alpha_ref = 1.0;
-  double omega_ref = 0.5;
-  double mu_ref = 5*(alpha_ref+1)*(alpha_ref+2)*sqrt(PI)/(4*alpha_ref*(5-2*omega_ref)*(7-2*omega_ref))*Kn;
-  double tau = mu_ref*2*pow(prim.s3,1-chi)/prim.s0;
+  //double alpha_ref = 1.0;
+  //double omega_ref = 0.5;
+  //double mu_ref = 5*(alpha_ref+1)*(alpha_ref+2)*sqrt(PI)/(4*alpha_ref*(5-2*omega_ref)*(7-2*omega_ref))*Kn;
+  //double tau = mu_ref*2*pow(prim.s3,1-chi)/prim.s0;
   
-  //double tau = (Kn/prim.s0)*sqrt(2.0/PI)*pow(prim.s3,1.0 - chi);
+  double tau = (Kn/prim.s0)*sqrt(2.0/PI)*pow(prim.s3,1.0 - chi);
   
   //double tau = (Kn/rho)*sqrt(2.0/PI)*pow(T,chi - 1.0);
   //double tau = (5./8.)*(Kn/rho)*sqrt(2.0/PI)*pow(T,chi - 1.0);
