@@ -279,10 +279,8 @@ iFace(__global double2* Fin,
                 //  flow direction : -->
                 //  +--+-|-+ : van Leer
                 //  +--+--+-|-+--+ : WENO5
-
-                int2 direction = sign(uv.x);
-                direction.x = abs((direction.x + 1)/2); // -> 0 when u < 0
-                direction.y = abs((direction.y - 1)/2); // -> 0 when u > 0
+                
+                int delta = (sign(uv.x)+1)/2;
 
                 double2 c_stencil[STENCIL_LENGTH];
                 double2 f_stencil[STENCIL_LENGTH];
@@ -293,11 +291,11 @@ iFace(__global double2* Fin,
                 for (int si = 0; si < STENCIL_LENGTH; si++) {
                     if (face == SOUTH) {
                         sij.x = gi;
-                        sij.y = (direction.x)*(gj - MID_STENCIL - 1 + offset);  // into cell
-                        sij.y += (direction.y)*(gj + MID_STENCIL - offset); // out of cell
+                        sij.y = delta*(gj - MID_STENCIL - 1 + offset);  // into cell
+                        sij.y += (1-delta)*(gj + MID_STENCIL - offset); // out of cell
                     } else if (face == WEST) {
-                        sij.x = (direction.x)*(gi - MID_STENCIL - 1 + offset);  // into cell
-                        sij.x += (direction.y)*(gi + MID_STENCIL - offset); // out of cell
+                        sij.x = delta*(gi - MID_STENCIL - 1 + offset);  // into cell
+                        sij.x += (1-delta)*(gi + MID_STENCIL - offset); // out of cell
                         sij.y = gj;
                     }
                     offset += 1;
@@ -1051,6 +1049,7 @@ diffuseWall(__global double2* normal,
 {
     // given the flux information for each wall of each cell
     // modify the fluxes at the defined wall to give a diffuse wall
+    
 
     size_t gi = get_global_id(0);
     size_t gj = get_global_id(1);
@@ -1143,6 +1142,8 @@ diffuseWall(__global double2* normal,
 
 
         double ratio = data[0].x/data[0].y;
+        
+        barrier(CLK_LOCAL_MEM_FENCE);
 
         double face_length = LENGTH(gi,gj,face_id);
 
@@ -1168,7 +1169,6 @@ diffuseWall(__global double2* normal,
         }
         
         barrier(CLK_LOCAL_MEM_FENCE);
-        
         
         // perform reduction, again...
         

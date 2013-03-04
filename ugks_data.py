@@ -283,9 +283,6 @@ class UGKSData(object):
         self.b = 2.0/(self.gamma - 1.0)     # number of dimensions present
         self.K = self.b - self.dimensions   # number of dimensions added to simulation
         
-        if self.device == "CPU":
-            self.CL_local_size = 1
-        
         # Gauss-Hermite
         self.init_quad()
     

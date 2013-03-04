@@ -768,6 +768,7 @@ class UGKSBlock(object):
                                self.normal_D, self.length_D, 
                                east_wall, self.flux_f_W_D, 
                                self.flux_macro_W_D, dt)
+
             
             
         if self.bc_list[3].type_of_BC == DIFFUSE:
