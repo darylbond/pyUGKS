@@ -248,7 +248,7 @@ class UGKSim(object):
         res = gdata.residual_options
         
         # plotting
-        if res.plot_residual:
+        if res.get_residual & res.plot_residual:
             self.plotResidualInit()
             
         mag = 1
@@ -380,7 +380,7 @@ class UGKSim(object):
         
         
 
-        if res.plot_residual:
+        if res.plot_residual & res.get_residual:
             plt.ioff()
             print "close residual plot to end run"
             plt.show()
@@ -511,7 +511,7 @@ class UGKSim(object):
             gdata.step = self.restart_hdf['global_data/final_step'][()]
             gdata.time = self.restart_hdf['step_%d/block_0/time'%gdata.step][()]
             
-            if gdata.residual_options.plot_residual:
+            if gdata.residual_options.plot_residual & gdata.residual_options.get_residual:
                 self.time_history_residual_N = self.restart_hdf['global_data/residual_xy'][0,:].tolist()
                 self.time_history_residual = self.restart_hdf['global_data/residual_xy'][1,:].tolist()
                 

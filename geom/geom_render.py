@@ -647,9 +647,6 @@ class SketchEnvironment(object):
         This SVG image is useful for documentation as well as debugging.
         It may be later edited with a suitable program, such as inkscape.
         """
-        if g.dimensions != 2:
-            print "Will not render a 2D SVG image when dimensions=", g.dimensions
-            return
         svgName = self.root_file_name+".svg"
         print "Begin write SVG file:", svgName
         svg = SvgEnvironment(0.20, 0.20, unitLength="m",

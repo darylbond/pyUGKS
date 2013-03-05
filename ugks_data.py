@@ -96,7 +96,7 @@ class UGKSData(object):
     
     # We want to prevent the user's script from introducing new attributes
     # via typographical errors.
-    __slots__ = 'dimensions', 'title',\
+    __slots__ = 'title',\
                 't0', 'dt', 'CFL', 'time',\
                 'print_count', 'max_time', 'max_step', 'dt_plot', \
                 'chi', 'R', 'gamma', 'Pr', 'Kn', \
@@ -136,7 +136,6 @@ class UGKSData(object):
             
         """
         
-        self.dimensions = 2
         self.exit = False
         self.device = "CPU"
         self.platform = "AMD"
@@ -284,7 +283,7 @@ class UGKSData(object):
         
         # internal degrees of freedom
         self.b = 2.0/(self.gamma - 1.0)     # number of dimensions present
-        self.K = self.b - self.dimensions   # number of dimensions added to simulation
+        self.K = self.b - 2   # number of dimensions added to simulation
         
         # Gauss-Hermite
         self.init_quad()
@@ -309,9 +308,6 @@ class UGKSData(object):
         """
         run a check over things that may need updating, update if necessary
         """
-            
-        if gdata.residual_options.plot_residual:
-            gdata.residual_options.get_residual = True
             
         return
         

@@ -86,6 +86,7 @@ class BoundaryCondition(object):
         str_rep += ", Dwall=%g" % self.Dwall
         str_rep += ", Twall=%g" % self.Twall
         str_rep += ", Uwall=%g" % self.Uwall
+        str_rep += ", Vwall=%g" % self.Vwall
         str_rep += ", other_block=%d" % self.other_block
         str_rep += ", other_face=%d" % self.other_face
         str_rep += ", orientation=%d" % self.orientation
@@ -96,6 +97,7 @@ class BoundaryCondition(object):
                                  Dwall=self.Dwall,
                                  Twall=self.Twall,
                                  Uwall=self.Uwall,
+                                 Vwall=self.Vwall,
                                  other_block=self.other_block,
                                  other_face=self.other_face,
                                  orientation=self.orientation,
@@ -192,13 +194,15 @@ class DiffuseBC(BoundaryCondition):
     define the values used to define the equilibrium distribution for the wall
     Uwall = velocity of wall, parallel to wall, positive in direction of cell wall tangent vector
     """
-    def __init__(self, Twall = 300.0, Uwall = 0.0, label="DIFFUSE"):
+    def __init__(self, Twall = 300.0, Uwall = 0.0, Vwall = 0.0, label="DIFFUSE"):
         BoundaryCondition.__init__(self, type_of_BC=DIFFUSE, Twall = Twall, 
-                                   Uwall = Uwall, label=label)
+                                   Uwall = Uwall, Vwall=Vwall, label=label)
         return
     def __str__(self):
         return "DiffuseBC(Twall=%d, Uwall=%d, label=\"%s\")" % \
-            (self.Twall, self.Uwall, self.label)
+            (self.Twall, self.Uwall, self.Vwall, self.label)
     def __copy__(self):
         return DiffuseBC(Twall = self.Twall,
-                          Uwall = self.Uwall, label=self.label)
+                          Uwall = self.Uwall, 
+                          Vwall = self.Vwall, 
+                          label=self.label)

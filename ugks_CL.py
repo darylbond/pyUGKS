@@ -82,9 +82,9 @@ def genHeader(data):
     s += '#define MID_STENCIL {}\n'.format(mid_stencil)
     s += '\n'
     
-    s += '#define PI {0:0.15}\n'.format(pi)
-    s += '#define SPI {0:0.15}\n'.format(sqrt(pi));
-    s += '#define S2P {0:0.15}\n\n'.format(sqrt(2.0*pi));
+    s += '#define PI %0.15e\n'%pi
+    s += '#define SPI %0.15e\n'%sqrt(pi)
+    s += '#define S2P %0.15e\n\n'%sqrt(2.0*pi)
     
     s += '#define Pr {}\n'.format(gdata.Pr)
     s += '#define Cs {}\n'.format(sqrt(gdata.gamma))
@@ -96,7 +96,7 @@ def genHeader(data):
     s += '#define K {} // total number of extra degrees of freedom accounted for\n'.format(gdata.K)
     s += '#define chi {}\n\n'.format(gdata.chi)
     
-    s += '#define CFL {0:0.15}\n\n'.format(gdata.CFL)
+    s += '#define CFL %0.15e\n\n'%gdata.CFL
     
     s += '__constant double2 QUAD[{}] = {{'.format(gdata.Nv)
     
@@ -105,13 +105,13 @@ def genHeader(data):
             s += '                              '
         if i < gdata.Nv-1:
             s += '(double2)('
-            s += '{0:0.15}, '.format(quad[i,0])
-            s += '{0:0.15} '.format(quad[i,1])
+            s += '%0.15e, '%quad[i,0]
+            s += '%0.15e '%quad[i,1]
             s += '),\n'
         else:
             s += '(double2)('
-            s += '{0:0.15},'.format(quad[i,0])
-            s += '{0:0.15}'.format(quad[i,1])
+            s += '%0.15e,'%quad[i,0]
+            s += '%0.15e'%quad[i,1]
             s += ')'
     s += '};\n\n'
     
@@ -120,9 +120,9 @@ def genHeader(data):
     for i in range(gdata.Nv):
         count += 1
         if i < gdata.Nv-1:
-            s += '{0:0.15}, '.format(weight[i])
+            s += '%0.15e, '%weight[i]
         else:
-            s += '{0:0.15}'.format(weight[i])
+            s += '%0.15e'%weight[i]
         if count == 4:
             s+= '\n                              '
             count = 0
@@ -178,20 +178,20 @@ def genHeader(data):
     s += '#define DIFFUSE_WEST {}\n'.format(diffuse_list[3])
     s += '#define HAS_DIFFUSE_WALL {}\n'.format(has_diffuse)
     
-    s += '__constant double2 BC_cond[4] = {'
+    s += '__constant double4 BC_cond[4] = {'
     count = 0
     for bc in bc_list:
         if count > 0:
             s += '                                 '
         if bc.type_of_BC == DIFFUSE:
-            s += '(double2)('
-            s += '{}, {}),\n'.format(bc.Twall,bc.Uwall)
+            s += '(double4)('
+            s += '1.0, %g, %g, %g),\n'%(bc.Uwall, bc.Vwall, 1.0/bc.Twall)
         else:
-            s += '(double2)('
-            s += '0.0, 0.0),\n'.format(bc.Twall,bc.Uwall)
+            s += '(double4)('
+            s += '0.0, 0.0, 0.0, 0.0),\n'
         count += 1
     s = s.rstrip(',\n')
-    s += '}; // if flagged for diffuse BC, use these values for wall temp and velocity\n'
+    s += '}; // if flagged for diffuse BC, use these values for (D, U, V, 1/T)\n'
     
     return s
 

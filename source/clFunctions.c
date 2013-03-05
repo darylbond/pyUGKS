@@ -54,10 +54,14 @@ double2 fM(double4 prim, double2 uv, size_t gv)
 double2 fS(double4 prim, double2 Q, double2 uv, double2 M)
 {
   // Shakhov extension
-    
   double2 S;
-  S.x = 0.8*(1-Pr)*(prim.s3*prim.s3)/prim.s0*((uv.x-prim.s1)*Q.x+(uv.y-prim.s2)*Q.y)*(2*prim.s3*(((uv.x-prim.s1)*(uv.x-prim.s1))+((uv.y-prim.s2)*(uv.y-prim.s2)))+K-5);
-  S.y = 0.8*(1-Pr)*(prim.s3*prim.s3)/prim.s0*((uv.x-prim.s1)*Q.x+(uv.y-prim.s2)*Q.y)*(2*prim.s3*(((uv.x-prim.s1)*(uv.x-prim.s1))+((uv.y-prim.s2)*(uv.y-prim.s2)))+K-3);
+  
+  S = 0.8*(1-Pr)*(prim.s3*prim.s3)/prim.s0*((uv.x-prim.s1)*Q.x+(uv.y-prim.s2)*Q.y);
+  
+  double part = 2*prim.s3*(dot(uv-prim.s12,uv-prim.s12))+K;
+  
+  S.x *= part-5;
+  S.y *= part-3;
   
   return S*M;
 }
@@ -112,6 +116,26 @@ double2 toGlobal(double2 in, double2 n)
   double2 out;
   out.x = dot(n*in.x,(double2)(1.0,0.0)) + dot(t*in.y,(double2)(1.0,0.0));
   out.y = dot(n*in.x,(double2)(0.0,1.0)) + dot(t*in.y,(double2)(0.0,1.0));
+  
+  return out;
+}
+
+/////////////////////////////////////////
+// toLocal
+/////////////////////////////////////////
+
+double2 toLocal(double2 in, double2 n)
+{
+  // find velocities aligned with the nominated face
+  
+  // tangent to edge
+  double2 t;
+  t.x = -n.y;
+  t.y = n.x;
+  
+  double2 out;
+  out.x = dot(in,n);
+  out.y = dot(in,t);
   
   return out;
 }

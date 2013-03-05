@@ -629,8 +629,6 @@ class UGKSBlock(object):
         get the fluxes for a specified distribution
         """
         
-        #print "\nBLOCK : %d\n"%self.id
-        
         south = np.int32(0)
         west = np.int32(1)
         
@@ -718,7 +716,7 @@ class UGKSBlock(object):
         global_size, work_size = m_tuple((self.ni, self.nj+1-shrink, 1), (1,1,gdata.CL_local_size))                    
         self.prg.calcFaceQ(self.queue, global_size, work_size,
                            self.flux_f_S_D, self.prim_D, self.normal_D,
-                           self.faceQ_D, south, offset_bot, offset_top).wait()
+                           self.faceQ_D, south, offset_bot, offset_top)
                            
                            
         cl.enqueue_barrier(self.queue)

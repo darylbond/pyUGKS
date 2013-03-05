@@ -13,90 +13,6 @@
  #define MNUM 7
  #define MTUM 5
 
-
-void getInterfaceDist(__global double2* Fin, __global double2* centre, __global double2* mid_side, size_t gi, size_t gj, int face, double2 face_normal, 
-    __local double2 face_dist[NV], __local double2 face_slope[NV]) {
-    // calculate the interface distribution using a choice of limiter
-
-    for (size_t gv = 0; gv < NV; ++gv) {
-
-        // the normal and tangential velocity components relative to the edge
-        double2 uv = interfaceVelocity(gv, face_normal);
-
-        // now make a stencil for the incoming flow into this cell
-        // the stencil will be upwinding
-        //  flow direction : -->
-        //  +--+-|-+ : van Leer
-        //  +--+--+-|-+--+ : WENO5
-
-        int2 direction = sign(uv.x);
-        direction.x = abs((direction.x + 1)/2); // -> 0 when u < 0
-        direction.y = abs((direction.y - 1)/2); // -> 0 when u > 0
-
-        double2 c_stencil[STENCIL_LENGTH];
-        double2 f_stencil[STENCIL_LENGTH];
-
-        int2 sij;
-        int offset = 0;
-        //#pragma unroll
-        for (int si = 0; si < STENCIL_LENGTH; si++) {
-            if (face == SOUTH) {
-                sij.x = gi;
-                sij.y = (direction.x)*(gj - MID_STENCIL - 1 + offset);  // into cell
-                sij.y += (direction.y)*(gj + MID_STENCIL - offset); // out of cell
-            } else if (face == WEST) {
-                sij.x = (direction.x)*(gi - MID_STENCIL - 1 + offset);  // into cell
-                sij.x += (direction.y)*(gi + MID_STENCIL - offset); // out of cell
-                sij.y = gj;
-            }
-            offset += 1;
-
-            // the stencils
-            f_stencil[si] = F(sij.x, sij.y, gv);
-            c_stencil[si] = CENTRE(sij.x,sij.y);
-        }
-
-        // made the stencil, now reconstruct the interface distribution
-
-        // distance from the middle of the interface to the centre of the upwind cell
-        double interface_distance = length(MIDSIDE(gi,gj,face) - c_stencil[MID_STENCIL]);
-
-        #if FLUX_METHOD == 0 // van Leer
-        double2 s1 = (f_stencil[MID_STENCIL] - f_stencil[MID_STENCIL-1])/length(c_stencil[MID_STENCIL] - c_stencil[MID_STENCIL-1]);
-        double2 s2 = (f_stencil[MID_STENCIL+1] - f_stencil[MID_STENCIL])/length(c_stencil[MID_STENCIL-1] - c_stencil[MID_STENCIL]);
-        double2 sigma = vanLeer(s1,s2);
-        #endif
-        #if FLUX_METHOD == 1 // WENO5
-        // left side of interface
-        double2 sigma = WENO5(f_stencil, interface_distance);
-        #endif
-
-        // the interface value of f
-        face_dist[gv] = f_stencil[MID_STENCIL] + sigma*interface_distance;
-        face_slope[gv] = sigma;
-    }
-    
-    return;
-}
- 
-double4 getConserved_local(__local double2 f[NV], double2 normal) {
-    // calculate the primary variables given a __local list for the 
-    // distribution value
-    // RELATIVE TO INTERFACE
-    
-    double4 w = 0.0;
-     
-    // conserved variables
-    for (size_t v_id = 0; v_id < NV; ++v_id) {
-        double2 uv = interfaceVelocity(v_id, normal);
-        w.s0 += f[v_id].x;
-        w.s12 += uv*f[v_id].x;
-        w.s3 += 0.5*(dot(uv,uv)*f[v_id].x + f[v_id].y);
-    }
-    
-    return w;
- }
- 
 double4 getPrimary(double4 w) {
     // convert to primary variables
     w.s3 = 0.5*w.s0/(gam-1.0)/(w.s3 - 0.5*dot(w.s12,w.s12)/w.s0);
@@ -110,57 +26,6 @@ double4 getConserved(double4 prim) {
     prim.s12 *= prim.s0;
     return prim;
 }
- 
-double2 getHeatFlux_local(__local double2 f[NV], double2 normal, double4 w) {
-    // calculate the heat flux given a __local list for the 
-    // distribution value
-    // RELATIVE TO INTERFACE
-    
-    double2 Q = 0.0;
-    for (size_t v_id = 0; v_id < NV; ++v_id) {
-        double2 uv = interfaceVelocity(v_id, normal);
-        Q.x += 0.5*((uv.x-w.s1)*dot(uv-w.s12, uv-w.s12)*f[v_id].x + (uv.x-w.s1)*f[v_id].y);
-        Q.y += 0.5*((uv.y-w.s2)*dot(uv-w.s12, uv-w.s12)*f[v_id].x + (uv.y-w.s2)*f[v_id].y);
-    }
-    
-    return Q;
- }
- 
-double4 getConserved_global(__global double2* Fin, int gi, int gj, double2 normal) {
-    // calculate the primary variables given a __global list for the 
-    // distribution value
-    // RELATIVE TO INTERFACE
-
-    double4 w = 0.0;
-    double2 f, uv;
-    // conserved variables
-    for (size_t v_id = 0; v_id < NV; ++v_id) {
-        uv = interfaceVelocity(v_id, normal);
-        f = F(gi, gj, v_id);
-        w.s0 += f.x;
-        w.s12 += uv*f.x;
-        w.s3 += 0.5*(dot(uv,uv)*f.x + f.y);
-    }
-    
-    return w;
- }
- 
- double2 getHeatFlux_global(__global double2* Fin, int gi, int gj, double2 normal,  double4 w) {
-    // calculate the primary variables given a __local list for the 
-    // distribution value
-    
-    double2 f, uv;
-    double2 Q = 0.0;
-    
-    for (size_t v_id = 0; v_id < NV; ++v_id) {
-        uv = interfaceVelocity(v_id, normal);
-        f = F(gi, gj, v_id);
-        Q.x += 0.5*((uv.x-w.s1)*dot(uv-w.s12, uv-w.s12)*f.x + (uv.x-w.s1)*f.y);
-        Q.y += 0.5*((uv.y-w.s2)*dot(uv-w.s12, uv-w.s12)*f.x + (uv.y-w.s2)*f.y);
-    }
-
-    return Q;
- }
 
 double4 microSlope(double4 prim, double4 sw) {
     // calculate the micro slop of the Maxwellian
@@ -902,144 +767,6 @@ distFlux(__global double2* flux_f,
   return;
 }
 
-__kernel void
-UGKS_flux(__global double2* Fin,
-	   __global double2* flux_f,
-       __global double2* fsigma,
-       __global double4* flux_macro,
-	   __global double2* centre,
-	   __global double2* mid_side,
-	   __global double2* normal,
-	   __global double* side_length,
-	   int face, double dt,
-       __global double4* primary,
-       __global double4* gaL,
-       __global double4* gaR,
-       int offset_bottom, int offset_top)
-{
-    // global index
-    
-    size_t mi, mj, gi, gj;
-    
-    mi = get_global_id(0) + face*offset_bottom;
-    mj = get_global_id(1) + (1-face)*offset_bottom;
-    
-    if ((((face == SOUTH) && (mi < ni)) && (mj < (nj+1-offset_top))) 
-    || (((face == WEST) && (mi < (ni+1-offset_top))) && (mj < nj))) {
-    
-        gi = mi + GHOST;
-        gj = mj + GHOST;
-        
-        double2 face_normal = NORMAL(gi,gj,face);
-        
-        
-        double4 prim = PRIM(gi,gj);
-        double4 aL = AL(gi,gj);
-        double4 aR = AR(gi,gj);
-        
-        // ---< STEP 4 >---
-        // calculate the time slope of W and A
-        double Mu[MNUM], Mv[MTUM], Mxi[3], Mu_L[MNUM], Mu_R[MNUM];
-        
-        momentU(prim, Mu, Mv, Mxi, Mu_L, Mu_R);
-        
-        double4 Mau_L, Mau_R, aT, sw;
-        
-        Mau_L = moment_au(aL,Mu_L,Mv,Mxi,1,0); //<aL*u*\psi>_{>0}
-        Mau_R = moment_au(aR,Mu_R,Mv,Mxi,1,0); //<aR*u*\psi>_{<0}
-
-        sw = -prim.s0*(Mau_L+Mau_R); //time slope of W
-        aT = microSlope(prim,sw); //calculate A
-        
-        // ---< STEP 5 >---
-        // calculate collision time and some time integration terms
-        double tau = relaxTime(prim);
-        
-        double Mt[5];
-        
-        Mt[3] = tau*(1.0-exp(-dt/tau));
-        Mt[4] = -tau*dt*exp(-dt/tau)+tau*Mt[3];
-        Mt[0] = dt-Mt[3];
-        Mt[1] = -tau*Mt[0]+Mt[4]; 
-        Mt[2] = (dt*dt)/2.0-tau*Mt[0];
-        
-        // ---< STEP 6 >---
-        // calculate the flux of conservative variables related to g0
-        double4 Mau_0, Mau_T;
-        
-        Mau_0 = moment_uv(Mu,Mv,Mxi,1,0,0); //<u*\psi>
-        Mau_L = moment_au(aL,Mu_L,Mv,Mxi,2,0); //<aL*u^2*\psi>_{>0}
-        Mau_R = moment_au(aR,Mu_R,Mv,Mxi,2,0); //<aR*u^2*\psi>_{<0}
-        Mau_T = moment_au(aT,Mu,Mv,Mxi,1,0); //<A*u*\psi>
-        
-        double4 face_macro_flux = prim.s0*(Mt[0]*Mau_0 + Mt[1]*(Mau_L+Mau_R) + Mt[2]*Mau_T);
-        
-        // ---< STEP 7 >---
-        // calculate the flux of conservative variables related to g+ and f0
-        
-        double2 Q = getHeatFlux_global(flux_f, gi, gj, face_normal, prim);
-        
-        double2 F0, f0, uv;
-        
-        // macro flux related to g+ and f0
-        for (size_t v_id = 0; v_id < NV; ++v_id) {
-            uv = interfaceVelocity(v_id, face_normal);
-            F0 = fS(prim, Q, uv, fM(prim, uv, v_id));
-            double2 face_dist = FLUXF(gi,gj,v_id);
-            double2 face_slope = FSIGMA(gi,gj,v_id);
-            face_macro_flux.s0 += Mt[0]*uv.x*F0.x + Mt[3]*uv.x*face_dist.x - Mt[4]*uv.x*uv.x*face_slope.x;
-            face_macro_flux.s1 += Mt[0]*uv.x*uv.x*F0.x + Mt[3]*uv.x*uv.x*face_dist.x - Mt[4]*uv.x*uv.x*uv.x*face_slope.x;
-            face_macro_flux.s2 += Mt[0]*uv.y*uv.x*F0.x + Mt[3]*uv.y*uv.x*face_dist.x - Mt[4]*uv.y*uv.x*uv.x*face_slope.x;
-            face_macro_flux.s3 += Mt[0]*0.5*(uv.x*dot(uv,uv)*F0.x + uv.x*F0.y) + 
-                                  Mt[3]*0.5*(uv.x*dot(uv,uv)*face_dist.x + uv.x*face_dist.y) - 
-                                  Mt[4]*0.5*(uv.x*uv.x*dot(uv,uv)*face_slope.x + uv.x*uv.x*face_slope.y);
-        }
-        
-        // convert macro to global frame
-        face_macro_flux.s12 = toGlobal(face_macro_flux.s12, face_normal);
-        
-        double interface_length = LENGTH(gi,gj,face);
-        
-        FLUXM(gi,gj) = interface_length*face_macro_flux;
-        
-        // ---< STEP 8 >---
-        // calculate flux of distribution function
-        double2 face_flux;
-        for (size_t gv = 0; gv < NV; ++gv) {
-            
-            uv = interfaceVelocity(gv, face_normal);
-            
-            int delta = (sign(uv.x)+1)/2;
-            
-            f0 = fM(prim, uv, gv);
-            F0 = fS(prim, Q, uv, f0);
-            
-            double2 face_dist = FLUXF(gi,gj,gv);
-            double2 face_slope = FSIGMA(gi,gj,gv);
-            
-            face_flux.x = Mt[0]*uv.x*(f0.x+F0.x)+
-                              Mt[1]*(uv.x*uv.x)*(aL.s0*f0.x+aL.s1*uv.x*f0.x+aL.s2*uv.y*f0.x+0.5*aL.s3*(dot(uv,uv)*f0.x+f0.y))*delta+
-                              Mt[1]*(uv.x*uv.x)*(aR.s0*f0.x+aR.s1*uv.x*f0.x+aR.s2*uv.y*f0.x+0.5*aR.s3*(dot(uv,uv)*f0.x+f0.y))*(1-delta)+
-                              Mt[2]*uv.x*(aT.s0*f0.x+aT.s1*uv.x*f0.x+aT.s2*uv.y*f0.x+0.5*aT.s3*(dot(uv,uv)*f0.x+f0.y))+
-                              Mt[3]*uv.x*face_dist.x-
-                              Mt[4]*(uv.x*uv.x)*face_slope.x;
-            
-            face_flux.y = Mt[0]*uv.x*(f0.y+F0.y)+
-                              Mt[1]*(uv.x*uv.x)*(aL.s0*f0.y+aL.s1*uv.x*f0.y+aL.s2*uv.y*f0.y+0.5*aL.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))*delta+
-                              Mt[1]*(uv.x*uv.x)*(aR.s0*f0.y+aR.s1*uv.x*f0.y+aR.s2*uv.y*f0.y+0.5*aR.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))*(1-delta)+
-                              Mt[2]*uv.x*(aT.s0*f0.y+aT.s1*uv.x*f0.y+aT.s2*uv.y*f0.y+0.5*aT.s3*(dot(uv,uv)*f0.y+Mxi[2]*f0.x))+
-                              Mt[3]*uv.x*face_dist.y-
-                              Mt[4]*(uv.x*uv.x)*face_slope.y;
-            
-            // update FLUX
-            FLUXF(gi,gj,gv) = interface_length*face_flux;
-        }
-    }
-
-  return;
-}
-
-
 #if HAS_DIFFUSE_WALL == 1
 __kernel void
 diffuseWall(__global double2* normal,
@@ -1092,14 +819,12 @@ diffuseWall(__global double2* normal,
 
         // get the interface distribution and the flux out due to this distribution
 
-        double4 wall;
-
-        wall.s0 = 1.0;
-        wall.s1 = 0.0;
-        wall.s2 = BC_cond[face].s1;
-        wall.s3 = 1.0/BC_cond[face].s0;
-
         double2 face_normal = NORMAL(gi,gj,face_id);
+        
+        double4 wall = BC_cond[face];
+        wall.s12 = toLocal(wall.s12, face_normal);
+        
+        
         double2 uv, face_dist, wall_dist;
         int delta;
         

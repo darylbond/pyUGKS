@@ -35,7 +35,7 @@ class UGKS(object):
 
         self.sim = UGKSim()
         
-        if svg and gdata.dimensions == 2:
+        if svg:
             gdata.sketch.write_svg_file(gdata, FlowCondition.flowList,
             Block.blockList, faceList2D)
             
