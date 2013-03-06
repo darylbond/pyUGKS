@@ -80,6 +80,7 @@ class ResidualOptions:
     min_residual = 1e-50
     min_slope = 1e-3
     slope_start = 10
+    residual_start = 1
     slope_sample = 3
     non_linear_output = False
     non_linear_output_limit = 1e5
@@ -352,7 +353,6 @@ def non_dimensionalise_all():
         # user defined functions
         if f.UDF_U:
             f.UDF_U = "("+f.UDF_U +")/(" + str(gdata.C_ref) + ")"
-            print f.UDF_U
         if f.UDF_V:
             f.UDF_V = "("+f.UDF_V +")/(" + str(gdata.C_ref) + ")"
         if f.UDF_T:

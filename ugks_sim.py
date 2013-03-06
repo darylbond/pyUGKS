@@ -329,7 +329,7 @@ class UGKSim(object):
                 self.time_history_residual_N.append(self.step)
                 if res.plot_residual:
                     self.plotResidualUpdate(self.step)
-                if np.any(res.global_residual <= res.min_residual):
+                if np.any(res.global_residual <= res.min_residual) & (self.step >= res.residual_start):
                     print "simulation exit -> minimum residual reached"
                     print "step ",self.step," t = ",gdata.get_time()
                     break
