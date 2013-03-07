@@ -34,7 +34,7 @@ double4 microSlope(double4 prim, double4 sw) {
     
     micro_slope.s3 = 4.0*(prim.s3*prim.s3)/(K+2)/prim.s0*(2.0*sw.s3-2.0
                         *prim.s1*sw.s1-2.0*prim.s2*sw.s2+sw.s0
-                        *((prim.s1*prim.s1)+(prim.s2*prim.s2)-0.5*(K+2)/prim.s3));
+                        *(dot(prim.s12,prim.s12)-0.5*(K+2)/prim.s3));
     micro_slope.s2 = 2.0*prim.s3/prim.s0*(sw.s2-prim.s2*sw.s0)-prim.s2*micro_slope.s3;
     micro_slope.s1 = 2.0*prim.s3/prim.s0*(sw.s1-prim.s1*sw.s0)-prim.s1*micro_slope.s3;
     micro_slope.s0 = sw.s0/prim.s0-prim.s1*micro_slope.s1-prim.s2
@@ -548,8 +548,8 @@ calcFaceQ(__global double2* iface_f,
             if (gv < NV) {
                 f = IFACEF(gi,gj,gv);
                 uv = interfaceVelocity(gv, face_normal);
-                Q[thread_id].x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
-                Q[thread_id].y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
+                Q[thread_id].x += 0.5*((uv.x-prim.s1)*(dot(uv-prim.s12, uv-prim.s12)*f.x + (f.y/K)));
+                Q[thread_id].y += 0.5*((uv.y-prim.s2)*(dot(uv-prim.s12, uv-prim.s12)*f.x + (f.y/K)));
             }
         }
       

@@ -951,6 +951,9 @@ class UGKSBlock(object):
             
             cl.enqueue_copy(self.queue,self.Q_H,self.Q_D)
             
+            # adjust the heat flux from internal to external
+            self.Q_H *= (4 + gdata.K)/5.0
+            
             self.host_update = 1
         
             # get internal data, if specified

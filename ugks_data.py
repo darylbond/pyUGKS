@@ -85,6 +85,7 @@ class ResidualOptions:
     non_linear_output = False
     non_linear_output_limit = 1e5
     non_linear_save = False
+    non_linear_dt = False
     plot_residual = False
 
 #----------------------------------------------------------------------

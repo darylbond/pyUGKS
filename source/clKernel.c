@@ -384,9 +384,14 @@ calcMacro(__global double2* Fin,
 __kernel void
 calcQ(__global double2* Fin, 
             __global double4* macro, 
-            __global double2* gQ) 
+            __global double2* gQ,
+            int internal) 
 {
   // calculate the macroscopic properties
+  // NOTE: the heat flux must be multiplied by a factor of (4+K)/5 to 
+  // convert to a 'true' value for use outside this simulation. The 
+  // form used here is to match the analytical solution to the Couette
+  // flow problem.
 
     size_t mi = get_global_id(0);
     size_t mj = get_global_id(1);
@@ -410,8 +415,8 @@ calcQ(__global double2* Fin,
             if (gv < NV) {
                 f = F(gi,gj,gv);
                 uv = QUAD[gv];
-                Q[thread_id].x += 0.5*((uv.x-prim.s1)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.x-prim.s1)*f.y);
-                Q[thread_id].y += 0.5*((uv.y-prim.s2)*dot(uv-prim.s12, uv-prim.s12)*f.x + (uv.y-prim.s2)*f.y);
+                Q[thread_id].x += 0.5*((uv.x-prim.s1)*(dot(uv-prim.s12, uv-prim.s12)*f.x + (f.y/K)));
+                Q[thread_id].y += 0.5*((uv.y-prim.s2)*(dot(uv-prim.s12, uv-prim.s12)*f.x + (f.y/K)));
             }
         }
       

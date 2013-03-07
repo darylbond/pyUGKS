@@ -56,12 +56,12 @@ double2 fS(double4 prim, double2 Q, double2 uv, double2 M)
   // Shakhov extension
   double2 S;
   
-  S = 0.8*(1-Pr)*(prim.s3*prim.s3)/prim.s0*((uv.x-prim.s1)*Q.x+(uv.y-prim.s2)*Q.y);
+  S = 0.8*(1-Pr)*(prim.s3*prim.s3)/prim.s0*dot(uv-prim.s12,Q);
   
-  double part = 2*prim.s3*(dot(uv-prim.s12,uv-prim.s12))+K;
+  double part = 2*prim.s3*(dot(uv-prim.s12,uv-prim.s12));
   
-  S.x *= part-5;
-  S.y *= part-3;
+  S.x *= part-4;
+  S.y *= part-2;
   
   return S*M;
 }

@@ -274,6 +274,8 @@ class UGKSim(object):
                     res.residual_count = mag
                     if res.non_linear_save:
                         save.save_count = mag
+                    if res.non_linear_dt:
+                        gdata.dt_update_count = mag
             
             if res.get_residual & (self.step%res.residual_count == 0):
                 get_res = True
