@@ -767,9 +767,10 @@ distFlux(__global double2* flux_f,
   return;
 }
 
-#if HAS_DIFFUSE_WALL == 1
+#if HAS_ACCOMMODATING_WALL == 1
 __kernel void
-diffuseWall(__global double2* normal,
+accommodatingWall(__global double4* macro,
+            __global double2* normal,
             __global double* side_length, int face, 
             __global double2* flux_f, __global double4* flux_macro, 
             double dt)
@@ -784,6 +785,7 @@ diffuseWall(__global double2* normal,
     
     int rot;
     int face_id;
+    double4 prim;
 
     switch (face) {
         case GNORTH:
@@ -791,24 +793,28 @@ diffuseWall(__global double2* normal,
             gj += NJ - GHOST;
             rot = -1;
             face_id = SOUTH;
+            prim = MACRO(gi - GHOST, gj - GHOST - 1);
             break;
         case GEAST:
             gi += NI - GHOST;
             gj += GHOST;
             rot = -1;
             face_id = WEST;
+            prim = MACRO(gi - GHOST - 1, gj - GHOST);
             break;
         case GSOUTH:
             gi += GHOST;
             gj += GHOST;
             rot = 1;
             face_id = SOUTH;
+            prim = MACRO(gi - GHOST, gj - GHOST);
             break;
         case GWEST:
             gi += GHOST;
             gj += GHOST;
             rot = 1;
             face_id = WEST;
+            prim = MACRO(gi - GHOST, gj - GHOST);
             break;
     }
     
@@ -821,9 +827,10 @@ diffuseWall(__global double2* normal,
 
         double2 face_normal = NORMAL(gi,gj,face_id);
         
-        double4 wall = BC_cond[face];
+        double4 wall =  wall_primary[face];
+        double2 alpha = wall_alpha[face];
         wall.s12 = toLocal(wall.s12, face_normal);
-        
+        prim.s12 = toLocal(prim.s12, face_normal);
         
         double2 uv, face_dist, wall_dist;
         int delta;
@@ -842,7 +849,9 @@ diffuseWall(__global double2* normal,
                 delta = (sign(uv.x)*rot + 1)/2;
 
                 data[thread_id].x += uv.x*(1-delta)*face_dist.x;
-
+                
+                
+                //wall_dist = CeLa(prim, wall, alpha, uv, gv);
                 wall_dist = fM(wall, uv, gv);
 
                 data[thread_id].y -= uv.x*delta*wall_dist.x;
@@ -881,6 +890,8 @@ diffuseWall(__global double2* normal,
                 uv = interfaceVelocity(gv, face_normal);
                 delta = (sign(uv.x)*rot + 1)/2;
                 face_dist = FLUXF(gi,gj,gv);
+                
+                //wall_dist = ratio*delta*CeLa(prim, wall, alpha, uv, gv) + (1-delta)*face_dist;
                 wall_dist = ratio*delta*fM(wall, uv, gv) + (1-delta)*face_dist;
 
                 data[thread_id].s0 += uv.x*wall_dist.x;

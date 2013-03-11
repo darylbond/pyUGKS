@@ -26,7 +26,7 @@ COMMON          = 0
 EXTRAPOLATE_OUT = 1
 CONSTANT        = 2
 REFLECT         = 3
-DIFFUSE         = 4
+ACCOMMODATING   = 4
 PERIODIC        = 5
 
 bcIndexFromName = {
@@ -34,7 +34,7 @@ bcIndexFromName = {
      1: EXTRAPOLATE_OUT, "1":  EXTRAPOLATE_OUT, "EXTRAPOLATE_OUT": EXTRAPOLATE_OUT,
      2: CONSTANT, "2": CONSTANT,
      3: REFLECT, "3": REFLECT,
-     4: DIFFUSE, "4": DIFFUSE,
+     4: ACCOMMODATING, "4": ACCOMMODATING,
      5: PERIODIC, "5":PERIODIC,
 }
 
@@ -43,7 +43,7 @@ bcName = {
     EXTRAPOLATE_OUT: "EXTRAPOLATE_OUT",
     CONSTANT: "CONSTANT",
     REFLECT: "REFLECT",
-    DIFFUSE: "DIFFUSE",
+    ACCOMMODATING: "ACCOMMODATING",
     PERIODIC: "PERIODIC",
     }
 
@@ -56,7 +56,7 @@ class BoundaryCondition(object):
         the boundary conditions needs such a value.
     """
     __slots__ = 'type_of_BC', 'Dwall', 'Twall', "Uwall", "Vwall", 'other_block',\
-            'other_face', 'orientation', 'label'
+            'other_face', 'orientation', 'label', 'alpha_n', 'alpha_t'
             
     def __init__(self,
                  type_of_BC = REFLECT,
@@ -64,6 +64,8 @@ class BoundaryCondition(object):
                  Twall = 300.0,
                  Uwall = 0.0,
                  Vwall = 0.0,
+                 alpha_n = 1.0,
+                 alpha_t = 1.0,
                  other_block=-1,
                  other_face=-1,
                  orientation=0,
@@ -74,6 +76,8 @@ class BoundaryCondition(object):
         self.Twall = Twall
         self.Uwall = Uwall
         self.Vwall = Vwall
+        self.alpha_n = alpha_n
+        self.alpha_t = alpha_t
         self.other_block = other_block
         self.other_face = other_face
         self.orientation = orientation
@@ -87,6 +91,8 @@ class BoundaryCondition(object):
         str_rep += ", Twall=%g" % self.Twall
         str_rep += ", Uwall=%g" % self.Uwall
         str_rep += ", Vwall=%g" % self.Vwall
+        str_rep += ", alpha_n=%g" % self.alpha_n
+        str_rep += ", alpha_t=%g" % self.alpha_t
         str_rep += ", other_block=%d" % self.other_block
         str_rep += ", other_face=%d" % self.other_face
         str_rep += ", orientation=%d" % self.orientation
@@ -98,6 +104,8 @@ class BoundaryCondition(object):
                                  Twall=self.Twall,
                                  Uwall=self.Uwall,
                                  Vwall=self.Vwall,
+                                 alpha_n = self.alpha_n,
+                                 alpha_t = self.alpha_t,
                                  other_block=self.other_block,
                                  other_face=self.other_face,
                                  orientation=self.orientation,
@@ -189,20 +197,25 @@ class ReflectBC(BoundaryCondition):
     def __copy__(self):
         return ReflectBC(label=self.label)
 
-class DiffuseBC(BoundaryCondition):
+class AccommodatingBC(BoundaryCondition):
     """
     define the values used to define the equilibrium distribution for the wall
     Uwall = velocity of wall, parallel to wall, positive in direction of cell wall tangent vector
     """
-    def __init__(self, Twall = 300.0, Uwall = 0.0, Vwall = 0.0, label="DIFFUSE"):
-        BoundaryCondition.__init__(self, type_of_BC=DIFFUSE, Twall = Twall, 
-                                   Uwall = Uwall, Vwall=Vwall, label=label)
+    def __init__(self, Twall = 300.0, Uwall = 0.0, Vwall = 0.0, 
+                 alpha_n = 1.0, alpha_t = 1.0, label="ACCOMMODATING"):
+        BoundaryCondition.__init__(self, type_of_BC=ACCOMMODATING, Twall = Twall, 
+                                   Uwall = Uwall, Vwall=Vwall, 
+                                   alpha_n = alpha_n, alpha_t = alpha_t,
+                                   label=label)
         return
     def __str__(self):
-        return "DiffuseBC(Twall=%d, Uwall=%d, label=\"%s\")" % \
-            (self.Twall, self.Uwall, self.Vwall, self.label)
+        return "AccommodatingBC(Twall=%g, Uwall=%g, Vwall=%g, alpha,n=%g, alpha,t=%g, label=\"%s\")" % \
+            (self.Twall, self.Uwall, self.Vwall, self.alpha_n, self.alpha_t, self.label)
     def __copy__(self):
-        return DiffuseBC(Twall = self.Twall,
+        return AccommodatingBC(Twall = self.Twall,
                           Uwall = self.Uwall, 
-                          Vwall = self.Vwall, 
+                          Vwall = self.Vwall,
+                          alpha_n = self.alpha_n,
+                          alpha_t = self.alpha_t,
                           label=self.label)

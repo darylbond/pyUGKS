@@ -384,8 +384,7 @@ calcMacro(__global double2* Fin,
 __kernel void
 calcQ(__global double2* Fin, 
             __global double4* macro, 
-            __global double2* gQ,
-            int internal) 
+            __global double2* gQ) 
 {
   // calculate the macroscopic properties
   // NOTE: the heat flux must be multiplied by a factor of (4+K)/5 to 

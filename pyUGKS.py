@@ -38,9 +38,6 @@ class UGKS(object):
         if svg:
             gdata.sketch.write_svg_file(gdata, FlowCondition.flowList,
             Block.blockList, faceList2D)
-            
-        if vtk:
-            self.sim.saveVTK()
 
         return
 

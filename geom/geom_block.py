@@ -90,7 +90,8 @@ class Block(object):
     nmin = 2
 
     def set_BC(self, face_name, type_of_BC, Dwall = 0.0, Uwall = 0.0, 
-               Vwall = 0.0, Twall=0.0, label="", flowCondition = None, other_block = None,
+               Vwall = 0.0, Twall=0.0, alpha_n=1.0, alpha_t=1.0,
+               label="", flowCondition = None, other_block = None,
                other_face = None):
         """
         Sets a boundary condition on a particular face of the block.
@@ -105,7 +106,7 @@ class Block(object):
                 1 or OUTFLOW: zeroth order extrapolation
                 2 or CONST: defined conditions that do not change for the duration
                 3 or REFLECT: inviscid reflecting wall
-                4 or DIFFUSE: diffuse reflection
+                4 or ACCOMMODATING: accommodating wall
         Dwall: density of wall
         Uwall: velocity of wall, (x direction if for CONSTANT, else parallel to boundary)
         VWall: velocity of wall in y
@@ -141,13 +142,18 @@ class Block(object):
                                    Vwall = Vwall, label=label)
         if type_of_BC == REFLECT:
             newbc = ReflectBC(label=label)
-        if type_of_BC == DIFFUSE:
+        if type_of_BC == ACCOMMODATING:
             if flowCondition:
-                newbc = DiffuseBC(Twall = flowCondition.T,
+                newbc = AccommodatingBC(Twall = flowCondition.T,
                                   Uwall = flowCondition.U,
+                                  Vwall = flowCondition.V,
+                                  alpha_n = alpha_n,
+                                  alpha_t = alpha_t,
                                   label = flowCondition.label)
             else:
-                newbc = DiffuseBC(Twall=Twall, Uwall=Uwall, label=label)
+                newbc = AccommodatingBC(Twall=Twall, Uwall=Uwall, Vwall=Vwall,
+                                        alpha_n=alpha_n, alpha_t=alpha_t,
+                                        label=label)
         if type_of_BC == PERIODIC:
             newbc = PeriodicBC(other_block.blkId, other_face, label = label)
             other_block.bc_list[other_face] = PeriodicBC(self.blkId, iface, label = label)

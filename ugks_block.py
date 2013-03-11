@@ -46,7 +46,7 @@ class UGKSBlock(object):
     
     host_update = 0 # flag to indicate if the host is up to date
     macro_update = 0
-    has_diffuse = False  #flag to indicate if we have any diffuse walls
+    has_accommodating = False  #flag to indicate if we have any accommodating walls
     
     def __init__(self, block_id, cl_ctx, cl_queue):
         """
@@ -500,10 +500,10 @@ class UGKSBlock(object):
                 is aligned with the grid"""
                 self.ghostMirror(this_face)
             
-            elif bc.type_of_BC == DIFFUSE:
+            elif bc.type_of_BC == ACCOMMODATING:
                 # extrapolate the cell data to give CONSTANT gradient
                 self.edgeConstGrad(this_face)
-                self.has_diffuse = True
+                self.has_accommodating = True
             
             #print "block {}, face {}: b.c. updated".format(self.id, this_face)            
     
@@ -649,27 +649,27 @@ class UGKSBlock(object):
         cl.enqueue_barrier(self.queue)
         
         ##
-        # calculate the fluxes due to diffuse walls, also determine the
+        # calculate the fluxes due to accommodating walls, also determine the
         # domain that is to be used for the internal flux calculation to 
         # follow 
         ##
         offset_top = 0; offset_bot = 0
         global_size, work_size = size_cl((self.ni, 1, 1), (1, 1, gdata.CL_local_size))
-        if self.bc_list[0].type_of_BC == DIFFUSE:
+        if self.bc_list[0].type_of_BC == ACCOMMODATING:
             offset_top = 1
             north_wall = np.int32(0)
             #print "north"
-            self.prg.diffuseWall(self.queue, global_size, work_size,
-                               self.normal_D, self.length_D, 
-                               north_wall, self.flux_f_S_D, 
-                               self.flux_macro_S_D, dt)
+            self.prg.accommodatingWall(self.queue, global_size, work_size,
+                                 self.macro_D, self.normal_D, self.length_D, 
+                                 north_wall, self.flux_f_S_D, 
+                                 self.flux_macro_S_D, dt)
             
-        if self.bc_list[2].type_of_BC == DIFFUSE:
+        if self.bc_list[2].type_of_BC == ACCOMMODATING:
             offset_bot = 1
             south_wall = np.int32(2)
             #print "south"
-            self.prg.diffuseWall(self.queue, global_size, work_size,
-                               self.normal_D, self.length_D, 
+            self.prg.accommodatingWall(self.queue, global_size, work_size,
+                               self.macro_D, self.normal_D, self.length_D, 
                                south_wall, self.flux_f_S_D, 
                                self.flux_macro_S_D, dt)
         
@@ -753,29 +753,29 @@ class UGKSBlock(object):
         cl.enqueue_barrier(self.queue)
         
         ##
-        # calculate the fluxes due to diffuse walls, also determine the
+        # calculate the fluxes due to accommodating walls, also determine the
         # domain that is to be used for the internal flux calculation to 
         # follow 
         ##
         offset_top = 0; offset_bot = 0
         global_size, work_size = size_cl((1, self.nj, 1), (1,1,gdata.CL_local_size))
-        if self.bc_list[1].type_of_BC == DIFFUSE:
+        if self.bc_list[1].type_of_BC == ACCOMMODATING:
             offset_top = 1
             east_wall = np.int32(1)
             #print "east"
-            self.prg.diffuseWall(self.queue, global_size, work_size,
-                               self.normal_D, self.length_D, 
+            self.prg.accommodatingWall(self.queue, global_size, work_size,
+                               self.macro_D, self.normal_D, self.length_D, 
                                east_wall, self.flux_f_W_D, 
                                self.flux_macro_W_D, dt)
 
             
             
-        if self.bc_list[3].type_of_BC == DIFFUSE:
+        if self.bc_list[3].type_of_BC == ACCOMMODATING:
             offset_bot = 1
             west_wall = np.int32(3)
             #print "west"
-            self.prg.diffuseWall(self.queue, global_size, work_size,
-                               self.normal_D, self.length_D, 
+            self.prg.accommodatingWall(self.queue, global_size, work_size,
+                               self.macro_D, self.normal_D, self.length_D, 
                                west_wall, self.flux_f_W_D, 
                                self.flux_macro_W_D, dt)
             
@@ -1051,7 +1051,7 @@ class UGKSBlock(object):
         xdmf += '</DataItem>\n'
         xdmf += '</Attribute>\n'
         xdmf += '<Attribute Name="P" AttributeType="Scalar" Center="Cell">\n'
-        xdmf += '<DataItem Dimensions="%d %d" Function="$0*$1" ItemType="Function">\n'%(self.ni, self.nj)
+        xdmf += '<DataItem Dimensions="%d %d" Function="$0*$1/2.0" ItemType="Function">\n'%(self.ni, self.nj)
         xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
         xdmf += '%s:/step_%d/block_%d/rho\n'%(h5Name, step, self.id)
         xdmf += '</DataItem>\n'

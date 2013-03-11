@@ -70,12 +70,6 @@ def genHeader(data):
     s += '#define GEAST 1\n'
     s += '#define GSOUTH 2\n'
     s += '#define GWEST 3\n'
-    s += '#define LEFT 0\n'
-    s += '#define RIGHT 1\n'
-    s += '#define FLUX_IN_N 1.0\n'
-    s += '#define FLUX_IN_E 1.0\n'
-    s += '#define FLUX_IN_S -1.0\n'
-    s += '#define FLUX_IN_W -1.0\n'
     s += '#define BLOCK {}\n'.format(data['block_id'])
     s += '#define FLUX_METHOD {}\n'.format(flux_method)
     s += '#define STENCIL_LENGTH {}\n'.format(stencil_length)
@@ -83,11 +77,8 @@ def genHeader(data):
     s += '\n'
     
     s += '#define PI %0.15e\n'%pi
-    s += '#define SPI %0.15e\n'%sqrt(pi)
-    s += '#define S2P %0.15e\n\n'%sqrt(2.0*pi)
     
     s += '#define Pr {}\n'.format(gdata.Pr)
-    s += '#define Cs {}\n'.format(sqrt(gdata.gamma))
     s += '#define umax {}\n'.format(gdata.umax)
     s += '#define vmax {}\n'.format(gdata.vmax)
     s += '#define Kn {}\n'.format(gdata.Kn)
@@ -157,33 +148,29 @@ def genHeader(data):
     # boundary codition
     s += '__constant uint BC_flag[4] = {'
     count = 0
-    has_diffuse = 0
-    diffuse_list = []
+    has_accommodating = 0
+    accommodating_list = []
     for bc in bc_list:
-        if bc.type_of_BC == DIFFUSE:
+        if bc.type_of_BC == ACCOMMODATING:
             val = 1
-            has_diffuse = 1
+            has_accommodating = 1
         else:
             val = 0
         s += str(val)
-        diffuse_list.append(val)
+        accommodating_list.append(val)
         count += 1
         if count < 4:
             s += ', '
-    s += '}; // flag for diffuse boundary condition\n'
+    s += '}; // flag for accommodating boundary condition\n'
     
-    s += '#define DIFFUSE_NORTH {}\n'.format(diffuse_list[0])
-    s += '#define DIFFUSE_EAST {}\n'.format(diffuse_list[1])
-    s += '#define DIFFUSE_SOUTH {}\n'.format(diffuse_list[2])
-    s += '#define DIFFUSE_WEST {}\n'.format(diffuse_list[3])
-    s += '#define HAS_DIFFUSE_WALL {}\n'.format(has_diffuse)
+    s += '#define HAS_ACCOMMODATING_WALL {}\n'.format(has_accommodating)
     
-    s += '__constant double4 BC_cond[4] = {'
+    s += '__constant double4 wall_primary[4] = {'
     count = 0
     for bc in bc_list:
         if count > 0:
             s += '                                 '
-        if bc.type_of_BC == DIFFUSE:
+        if bc.type_of_BC == ACCOMMODATING:
             s += '(double4)('
             s += '1.0, %g, %g, %g),\n'%(bc.Uwall, bc.Vwall, 1.0/bc.Twall)
         else:
@@ -191,7 +178,22 @@ def genHeader(data):
             s += '0.0, 0.0, 0.0, 0.0),\n'
         count += 1
     s = s.rstrip(',\n')
-    s += '}; // if flagged for diffuse BC, use these values for (D, U, V, 1/T)\n'
+    s += '}; // if flagged for accommodating BC, use these values for (D, U, V, 1/T)\n'
+    
+    s += '__constant double2 wall_alpha[4] = {'
+    count = 0
+    for bc in bc_list:
+        if count > 0:
+            s += '                                 '
+        if bc.type_of_BC == ACCOMMODATING:
+            s += '(double2)('
+            s += '%g, %g),\n'%(bc.alpha_n, bc.alpha_t)
+        else:
+            s += '(double2)('
+            s += '0.0, 0.0),\n'
+        count += 1
+    s = s.rstrip(',\n')
+    s += '}; // Cercignani-Lampis accomodation coefficients\n'
     
     return s
 
