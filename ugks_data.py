@@ -87,6 +87,7 @@ class ResidualOptions:
     non_linear_save = False
     non_linear_dt = False
     plot_residual = False
+    hold_plot = False
 
 #----------------------------------------------------------------------
 
@@ -358,6 +359,10 @@ def non_dimensionalise_all():
             f.UDF_V = "("+f.UDF_V +")/(" + str(gdata.C_ref) + ")"
         if f.UDF_T:
             f.UDF_T = "("+f.UDF_T +")/(" + str(gdata.T_ref) + ")"
+        if f.UDF_qx:
+            f.UDF_qx = "("+f.UDF_qx +")/(" + str(gdata.D_ref*gdata.C_ref**3) + ")"
+        if f.UDF_qy:
+            f.UDF_qy = "("+f.UDF_qy +")/(" + str(gdata.D_ref*gdata.C_ref**3) + ")"
     
     #block conditions
     for b in Block.blockList:
@@ -406,7 +411,10 @@ def global_preparation(jobName="", jobString=""):
     get user input and define flow domain
     """
     print "jobName = ",jobName
-    jobName = os.getcwd()+'/'+jobName
+    
+    if not os.path.isabs(jobName):
+        jobName = os.getcwd()+'/'+jobName
+        
     rootName, ext = os.path.splitext(jobName)
     jobPath, fileName = os.path.split(rootName)
     #print "rootName = ",rootName

@@ -285,6 +285,12 @@ class UGKSBlock(object):
                         if self.fill_condition.UDF_T:
                             fval = eval(self.fill_condition.UDF_T)
                             self.macro_H[i,j,3] = 1.0/fval
+                        if self.fill_condition.UDF_qx:
+                            fval = eval(self.fill_condition.UDF_qx)
+                            self.Q_H[i,j,0] = fval*5.0/(4 + gdata.K)
+                        if self.fill_condition.UDF_qy:
+                            fval = eval(self.fill_condition.UDF_qy)
+                            self.Q_H[i,j,1] = fval*5.0/(4 + gdata.K)
         # time step
         self.time_step_H = np.zeros((self.ni,self.nj),dtype=np.float64)
 

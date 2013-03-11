@@ -77,10 +77,10 @@ double2 fS(double4 prim, double2 Q, double2 uv, double2 M)
   
   S = 0.8*(1-Pr)*(prim.s3*prim.s3)/prim.s0*dot(uv-prim.s12,Q);
   
-  double part = 2*prim.s3*(dot(uv-prim.s12,uv-prim.s12));
+  double part = 2*prim.s3*(dot(uv-prim.s12,uv-prim.s12)) + K;
   
-  S.x *= part-4;
-  S.y *= part-2;
+  S.x *= part-5;
+  S.y *= part-3;
   
   return S*M;
 }

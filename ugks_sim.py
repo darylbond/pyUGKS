@@ -384,8 +384,11 @@ class UGKSim(object):
 
         if res.plot_residual & res.get_residual:
             plt.ioff()
-            print "close residual plot to end run"
-            plt.show()
+            if res.hold_plot:
+                print "close residual plot to end run"
+                plt.show()
+            else:
+                plt.close()
                 
         print " \n\nFINISHED\n"
         
