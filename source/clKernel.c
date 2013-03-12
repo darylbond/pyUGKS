@@ -22,22 +22,6 @@
 #define TSTEP(i,j) time_step[(i)*nj + (j)]
 
 /////////////////////////////////////////
-// KERNEL: cellResidual
-/////////////////////////////////////////
-
-__kernel void
-blockResidual(__global double4* residual)
-{
-  // residual
-  
-  size_t mi = get_global_id(0);
-  size_t mj = get_global_id(1);
-  
-  
-  return;
-}
-
-/////////////////////////////////////////
 // KERNEL: cellGeom
 /////////////////////////////////////////
 __kernel void
@@ -414,8 +398,8 @@ calcQ(__global double2* Fin,
             if (gv < NV) {
                 f = F(gi,gj,gv);
                 uv = QUAD[gv];
-                Q[thread_id].x += (1.0/(K + 1.0))*((uv.x-prim.s1)*(dot(uv-prim.s12, uv-prim.s12)*f.x + (f.y/K)));
-                Q[thread_id].y += (1.0/(K + 1.0))*((uv.y-prim.s2)*(dot(uv-prim.s12, uv-prim.s12)*f.x + (f.y/K)));
+                Q[thread_id].x += 0.5*((uv.x-prim.s1)*(dot(uv-prim.s12, uv-prim.s12)*f.x + (f.y/K)));
+                Q[thread_id].y += 0.5*((uv.y-prim.s2)*(dot(uv-prim.s12, uv-prim.s12)*f.x + (f.y/K)));
             }
         }
       

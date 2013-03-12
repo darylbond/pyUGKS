@@ -449,7 +449,7 @@ class UGKSim(object):
 
         return
 
-    def plotResidualUpdate(self, fit=False):
+    def plotResidualUpdate(self):
         """
         update the residual plot
         """

@@ -548,8 +548,8 @@ calcFaceQ(__global double2* iface_f,
             if (gv < NV) {
                 f = IFACEF(gi,gj,gv);
                 uv = interfaceVelocity(gv, face_normal);
-                Q[thread_id].x += (1.0/(K + 1.0))*((uv.x-prim.s1)*(dot(uv-prim.s12, uv-prim.s12)*f.x + (f.y/K)));
-                Q[thread_id].y += (1.0/(K + 1.0))*((uv.y-prim.s2)*(dot(uv-prim.s12, uv-prim.s12)*f.x + (f.y/K)));
+                Q[thread_id].x += 0.5*((uv.x-prim.s1)*(dot(uv-prim.s12, uv-prim.s12)*f.x + (f.y/K)));
+                Q[thread_id].y += 0.5*((uv.y-prim.s2)*(dot(uv-prim.s12, uv-prim.s12)*f.x + (f.y/K)));
             }
         }
       
