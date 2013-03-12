@@ -189,7 +189,7 @@ class UGKSim(object):
 
         return
 
-    def one_step(self, get_dt, get_res, check_err=False):
+    def one_step(self, get_dt, get_res):
         """
         run one step of the simulation
         """
@@ -277,7 +277,7 @@ class UGKSim(object):
                     if res.non_linear_dt:
                         gdata.dt_update_count = mag
             
-            if res.get_residual & (self.step%res.residual_count == 0):
+            if res.get_residual & ((self.step+1)%res.residual_count == 0):
                 get_res = True
             else:
                 get_res = False
@@ -287,19 +287,13 @@ class UGKSim(object):
                     get_dt = True
                 else:
                     get_dt = False
-            elif not self.step % gdata.dt_update_count:
+            elif not (self.step+1) % gdata.dt_update_count:
                 get_dt = True
             else:
                 get_dt = False
                 
-            if (not self.step % gdata.check_err_count) & (gdata.check_err_count != -1):
-                print "error check"
-                check_err = True
-            else:
-                check_err = False
-                
             # one iteration of the method
-            step_finished = self.one_step(get_dt, get_res, check_err)
+            step_finished = self.one_step(get_dt, get_res)
             
             self.saved = False
 
@@ -330,7 +324,7 @@ class UGKSim(object):
                 self.time_history_residual.append(res.global_residual)
                 self.time_history_residual_N.append(self.step)
                 if res.plot_residual:
-                    self.plotResidualUpdate(self.step)
+                    self.plotResidualUpdate()
                 if np.any(res.global_residual <= res.min_residual) & (self.step >= res.residual_start):
                     print "simulation exit -> minimum residual reached"
                     print "step ",self.step," t = ",gdata.get_time()

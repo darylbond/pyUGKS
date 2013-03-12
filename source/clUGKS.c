@@ -828,7 +828,7 @@ accommodatingWall(__global double4* macro,
         double2 face_normal = NORMAL(gi,gj,face_id);
         
         double4 wall =  wall_primary[face];
-        //double2 alpha = wall_alpha[face];
+        double2 alpha = wall_alpha[face];
         wall.s12 = toLocal(wall.s12, face_normal);
         prim.s12 = toLocal(prim.s12, face_normal);
         
@@ -851,8 +851,8 @@ accommodatingWall(__global double4* macro,
                 data[thread_id].x += uv.x*(1-delta)*face_dist.x;
                 
                 
-                //wall_dist = CeLa(prim, wall, alpha, uv, gv);
-                wall_dist = fM(wall, uv, gv);
+                wall_dist = CeLa(prim, wall, alpha, uv, gv);
+                //wall_dist = fM(wall, uv, gv);
 
                 data[thread_id].y -= uv.x*delta*wall_dist.x;
             }
@@ -891,8 +891,8 @@ accommodatingWall(__global double4* macro,
                 delta = (sign(uv.x)*rot + 1)/2;
                 face_dist = FLUXF(gi,gj,gv);
                 
-                //wall_dist = ratio*delta*CeLa(prim, wall, alpha, uv, gv) + (1-delta)*face_dist;
-                wall_dist = ratio*delta*fM(wall, uv, gv) + (1-delta)*face_dist;
+                wall_dist = ratio*delta*CeLa(prim, wall, alpha, uv, gv) + (1-delta)*face_dist;
+                //wall_dist = ratio*delta*fM(wall, uv, gv) + (1-delta)*face_dist;
 
                 data[thread_id].s0 += uv.x*wall_dist.x;
                 data[thread_id].s1 += uv.x*uv.x*wall_dist.x;
