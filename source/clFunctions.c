@@ -33,25 +33,6 @@ double soundSpeed(double lambda)
 }
 
 /////////////////////////////////////////
-// CL DISTRIBUTION
-/////////////////////////////////////////
-
-double2 CeLa(double4 prim, double4 wall, double2 alpha, double2 uv, size_t gv) 
-{  
-  // Cercignani-Lampis wall scattering
-  
-  double a = (1.0/prim.s3)*(uv.x*uv.x*(alpha.y-1)*(alpha.y-1) - (uv.y - wall.s2)*(uv.y - wall.s2)*(alpha.x-1));
-  double b = (1.0/wall.s3)*((uv.y - wall.s2)*(uv.y - wall.s2)*alpha.x - uv.x*uv.x*(alpha.y - 2)*alpha.y);
-  double c = ((1.0/prim.s3)*(alpha.x - 1) - (1.0/wall.s3)*alpha.x)*((1/prim.s3)*(alpha.y - 1)*(alpha.y - 1) - (1/wall.s3)*(alpha.y - 2)*alpha.y);
-  
-  double2 M;
-  M.x = prim.s0*(prim.s3/PI)*exp((a + b)/c);
-  M.y = (M.x*K)/(2.0*prim.s3);
-  
-  return WEIGHT[gv]*M;
-}
-
-/////////////////////////////////////////
 // MAXWELL-BOLTZMANN EQUILIBRIUM
 /////////////////////////////////////////
     

@@ -666,7 +666,7 @@ class UGKSBlock(object):
             north_wall = np.int32(0)
             #print "north"
             self.prg.accommodatingWall(self.queue, global_size, work_size,
-                                 self.macro_D, self.normal_D, self.length_D, 
+                                 self.normal_D, self.length_D, 
                                  north_wall, self.flux_f_S_D, 
                                  self.flux_macro_S_D, dt)
             
@@ -675,7 +675,7 @@ class UGKSBlock(object):
             south_wall = np.int32(2)
             #print "south"
             self.prg.accommodatingWall(self.queue, global_size, work_size,
-                               self.macro_D, self.normal_D, self.length_D, 
+                               self.normal_D, self.length_D, 
                                south_wall, self.flux_f_S_D, 
                                self.flux_macro_S_D, dt)
         
@@ -770,7 +770,7 @@ class UGKSBlock(object):
             east_wall = np.int32(1)
             #print "east"
             self.prg.accommodatingWall(self.queue, global_size, work_size,
-                               self.macro_D, self.normal_D, self.length_D, 
+                               self.normal_D, self.length_D, 
                                east_wall, self.flux_f_W_D, 
                                self.flux_macro_W_D, dt)
 
@@ -781,7 +781,7 @@ class UGKSBlock(object):
             west_wall = np.int32(3)
             #print "west"
             self.prg.accommodatingWall(self.queue, global_size, work_size,
-                               self.macro_D, self.normal_D, self.length_D, 
+                               self.normal_D, self.length_D, 
                                west_wall, self.flux_f_W_D, 
                                self.flux_macro_W_D, dt)
             
