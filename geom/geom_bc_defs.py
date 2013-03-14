@@ -145,7 +145,7 @@ class PeriodicBC(BoundaryCondition):
     This boundary joins (i.e. is adjacent to) a boundary of another block.
     """
     def __init__(self, other_block=-1, other_face=-1, orientation=0, label="PERIODIC"):
-        BoundaryCondition.__init__(self, type_of_BC=PERIODIC, other_block=other_block,
+        BoundaryCondition.__init__(self, type_of_BC=ADJACENT, other_block=other_block,
                                    other_face=other_face, orientation=orientation,
                                    label=label)
         return

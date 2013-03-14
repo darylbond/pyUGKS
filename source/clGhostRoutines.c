@@ -125,10 +125,10 @@ xyExchange(__global double2* xyA,
   switch (this_face) {
     case GNORTH:
       gi += GHOST;
-      gj += NJ - GHOST;
+      gj += NJ - GHOST + 1;
       break;
     case GEAST:
-      gi += NI - GHOST;
+      gi += NI - GHOST + 1;
       gj += GHOST;
       break;
     case GSOUTH:

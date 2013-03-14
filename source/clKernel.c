@@ -184,6 +184,9 @@ paraBC(__global double* para_def,
     WALL(GWEST,ci) = prim;
   }
   
+  // do something with s to stop a warning
+  s += 1;
+  
   return;
 }
 

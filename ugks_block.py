@@ -553,9 +553,9 @@ class UGKSBlock(object):
         NjB = np.int32(other_block.Nj)
         
         if this_face in [NORTH, SOUTH]:
-            global_size = (self.ni, self.ghost)
+            global_size = (self.ni, self.ghost-1)
         else:
-            global_size = (self.ghost, self.nj)
+            global_size = (self.ghost-1, self.nj)
         
         self.prg.xyExchange(self.queue, global_size, None,
                                self.xy_D, faceA,
