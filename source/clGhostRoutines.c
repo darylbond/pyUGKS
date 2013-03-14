@@ -376,7 +376,7 @@ edgeExtrapolate(__global double2* Fin,
 __kernel void
 edgeConstant(__global double2* Fin,
 	   int this_face,
-	   double D, double U, double V, double T)
+	   __global double4* wall_def)
 {
   // set distribution functions to the equilibrium value defined by the input data
   
@@ -385,20 +385,26 @@ edgeConstant(__global double2* Fin,
   size_t gj = get_global_id(1);
   size_t ti = get_local_id(2);
   
+  size_t ci;
+  
   switch (this_face) {
     case GNORTH:
+      ci = gi;
       gi += GHOST;
       gj += NJ - GHOST;
       break;
     case GEAST:
+      ci = gj;
       gi += NI - GHOST;
       gj += GHOST;
       break;
     case GSOUTH:
+      ci = gi;
       gi += GHOST;
       gj += 0;
       break;
     case GWEST:
+      ci = gj;
       gi += 0;
       gj += GHOST;
       break;
@@ -409,10 +415,8 @@ edgeConstant(__global double2* Fin,
   double4 prim;
   double2 Q;
   
-  prim.s0 = D;
-  prim.s1 = U;
-  prim.s2 = V;
-  prim.s3 = 1.0/T;
+  prim = WALL(this_face, ci);
+  
   Q = 0.0;
   
   for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {

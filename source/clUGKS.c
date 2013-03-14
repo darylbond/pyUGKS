@@ -770,7 +770,8 @@ distFlux(__global double2* flux_f,
 #if HAS_ACCOMMODATING_WALL == 1
 __kernel void
 accommodatingWall(__global double2* normal,
-            __global double* side_length, int face, 
+            __global double* side_length, int face,
+            __global double4* wall_def, 
             __global double2* flux_f, __global double4* flux_macro, 
             double dt)
 {
@@ -781,30 +782,35 @@ accommodatingWall(__global double2* normal,
     size_t gi = get_global_id(0);
     size_t gj = get_global_id(1);
     size_t thread_id = get_local_id(2);
+    size_t ci;
     
     int rot;
     int face_id;
 
     switch (face) {
         case GNORTH:
+            ci = gi;
             gi += GHOST;
             gj += NJ - GHOST;
             rot = -1;
             face_id = SOUTH;
             break;
         case GEAST:
+            ci = gj;
             gi += NI - GHOST;
             gj += GHOST;
             rot = -1;
             face_id = WEST;
             break;
         case GSOUTH:
+            ci = gi;
             gi += GHOST;
             gj += GHOST;
             rot = 1;
             face_id = SOUTH;
             break;
         case GWEST:
+            ci = gj;
             gi += GHOST;
             gj += GHOST;
             rot = 1;
@@ -821,8 +827,7 @@ accommodatingWall(__global double2* normal,
 
         double2 face_normal = NORMAL(gi,gj,face_id);
         
-        double4 wall =  wall_primary[face];
-        //double2 alpha = wall_alpha[face];
+        double4 wall = WALL(face, ci);
         wall.s12 = toLocal(wall.s12, face_normal);
         
         double2 uv, face_dist, wall_dist;

@@ -240,6 +240,9 @@ class UGKSBlock(object):
         self.aT_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
         self.faceQ_H = np.zeros((self.Ni,self.Nj,2),dtype=np.float64)
         self.Mxi_H = np.zeros((self.Ni,self.Nj,3),dtype=np.float64)
+        
+        
+        self.wall_H = np.zeros((max(self.ni, self.nj), 4, 4),dtype=np.float64)
 
         # macro variables, without ghost cells
         #.s0 -> density
@@ -315,6 +318,8 @@ class UGKSBlock(object):
         self.faceQ_D = self.set_buffer(self.faceQ_H)
         self.Mxi_D = self.set_buffer(self.Mxi_H)
         
+        self.wall_D = self.set_buffer(self.wall_H)
+        
         self.sigma_D = self.set_buffer(self.sigma_H)
         
         # macroscopic properties, without ghost cells
@@ -354,7 +359,9 @@ class UGKSBlock(object):
             self.prg.calcQ(self.queue, global_size, work_size,
                             self.f_D, self.macro_D, self.Q_D)
                             
-                   
+       
+        # also update the boundary conditions
+        self.parametricBC()
         
         
         print("global buffers initialised") 
@@ -417,14 +424,8 @@ class UGKSBlock(object):
         generate distribution function values from the defined 
          constants and populate the ghost cells with this data
         """
-        bc = self.bc_list[this_face]
         
         face = np.int32(this_face)
-        
-        D = np.float64(bc.Dwall)
-        U = np.float64(bc.Uwall)
-        V = np.float64(bc.Vwall)
-        T = np.float64(bc.Twall)
         
         f = self.f_D
         
@@ -436,7 +437,7 @@ class UGKSBlock(object):
         global_size, work_size = m_tuple(global_size,(1,1,gdata.CL_local_size))
         
         self.prg.edgeConstant(self.queue, global_size, work_size,
-                               f, face, D, U, V, T)
+                               f, face, self.wall_D)
     
     def ghostMirror(self, this_face):
         """
@@ -474,7 +475,27 @@ class UGKSBlock(object):
         
         self.prg.edgeConstGrad(self.queue, global_size, work_size,
                                f, face)
+    
+    def parametricBC(self):
+        """
+        update the parametric boundary conditions
+        """
         
+        global_size, work_size = m_tuple((max(self.ni,self.nj),1),(1,1))
+        
+        t = np.float64(gdata.time)
+        
+        self.prg.paraBC(self.queue, global_size, work_size, self.para_D,
+                        self.wall_D, t)
+        
+        cl.enqueue_barrier(self.queue)
+        
+#        cl.enqueue_copy(self.queue, self.wall_H, self.wall_D)
+#        
+#        print self.wall_H[:,:,3]
+        
+        return
+    
     def updateBC(self):
         """
         update all boundary conditions
@@ -612,6 +633,48 @@ class UGKSBlock(object):
         # the total area of this block
         self.total_area = np.sum(self.area_H[self.ghost:-self.ghost, self.ghost:-self.ghost])
         
+        # the parametric value along the side of the block for each edge cell
+        para = np.zeros((max(self.ni, self.nj), 4), dtype=np.float64)
+        
+        #NORTH
+        stencil = self.length_H[self.ghost:(-self.ghost),-self.ghost,0]
+        total_length = np.sum(stencil)
+        length = 0.0
+        for i in range(len(stencil)):
+            cell_length = stencil[i]
+            para[i,0] = (length + cell_length/2.0)/total_length
+            length += cell_length      
+            
+        #SOUTH
+        stencil = self.length_H[self.ghost:(-self.ghost),self.ghost,0]
+        total_length = np.sum(stencil)
+        length = 0.0
+        for i in range(len(stencil)):
+            cell_length = stencil[i]
+            para[i,2] = (length + cell_length/2.0)/total_length
+            length += cell_length     
+            
+        #EAST
+        stencil = self.length_H[-self.ghost,self.ghost:(-self.ghost),1]
+        total_length = np.sum(stencil)
+        length = 0.0
+        for i in range(len(stencil)):
+            cell_length = stencil[i]
+            para[i,1] = (length + cell_length/2.0)/total_length
+            length += cell_length   
+            
+        #WEST
+        stencil = self.length_H[self.ghost,self.ghost:(-self.ghost),1]
+        total_length = np.sum(stencil)
+        length = 0.0
+        for i in range(len(stencil)):
+            cell_length = stencil[i]
+            para[i,3] = (length + cell_length/2.0)/total_length
+            length += cell_length   
+        
+        self.para_H = para
+        self.para_D = self.set_buffer(self.para_H)
+        
         return
         
     def get_flag(self):
@@ -667,7 +730,7 @@ class UGKSBlock(object):
             #print "north"
             self.prg.accommodatingWall(self.queue, global_size, work_size,
                                  self.normal_D, self.length_D, 
-                                 north_wall, self.flux_f_S_D, 
+                                 north_wall, self.wall_D, self.flux_f_S_D, 
                                  self.flux_macro_S_D, dt)
             
         if self.bc_list[2].type_of_BC == ACCOMMODATING:
@@ -676,7 +739,7 @@ class UGKSBlock(object):
             #print "south"
             self.prg.accommodatingWall(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
-                               south_wall, self.flux_f_S_D, 
+                               south_wall, self.wall_D, self.flux_f_S_D, 
                                self.flux_macro_S_D, dt)
         
         ##
@@ -771,7 +834,7 @@ class UGKSBlock(object):
             #print "east"
             self.prg.accommodatingWall(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
-                               east_wall, self.flux_f_W_D, 
+                               east_wall, self.wall_D, self.flux_f_W_D, 
                                self.flux_macro_W_D, dt)
 
             
@@ -782,7 +845,7 @@ class UGKSBlock(object):
             #print "west"
             self.prg.accommodatingWall(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
-                               west_wall, self.flux_f_W_D, 
+                               west_wall, self.wall_D, self.flux_f_W_D, 
                                self.flux_macro_W_D, dt)
             
             

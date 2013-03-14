@@ -368,10 +368,19 @@ def non_dimensionalise_all():
     for b in Block.blockList:
         #boundary conditions
         for bc in b.bc_list:
-            bc.Dwall /= gdata.D_ref
-            bc.Twall /= gdata.T_ref
-            bc.Uwall /= gdata.C_ref
-            bc.Vwall /= gdata.C_ref
+            bc.D /= gdata.D_ref
+            bc.T /= gdata.T_ref
+            bc.U /= gdata.C_ref
+            bc.V /= gdata.C_ref
+            
+            if bc.UDF_D:
+                bc.UDF_D = "("+bc.UDF_D +")/(" + str(gdata.D_ref) + ")"
+            if bc.UDF_U:
+                bc.UDF_U = "("+bc.UDF_U +")/(" + str(gdata.C_ref) + ")"
+            if bc.UDF_V:
+                bc.UDF_V = "("+bc.UDF_V +")/(" + str(gdata.C_ref) + ")"
+            if bc.UDF_T:
+                bc.UDF_T = "("+bc.UDF_T +")/(" + str(gdata.T_ref) + ")"
         #grid
         b.grid.x /= gdata.L_ref
         b.grid.y /= gdata.L_ref

@@ -52,32 +52,37 @@ class BoundaryCondition(object):
     Base class for boundary condition specifications.
 
     type_of_BC: specifies the boundary condition
-    Twall: fixed wall temperature (in degrees K) that will be used if
+    T: fixed wall temperature (in degrees K) that will be used if
         the boundary conditions needs such a value.
     """
-    __slots__ = 'type_of_BC', 'Dwall', 'Twall', "Uwall", "Vwall", 'other_block',\
-            'other_face', 'orientation', 'label', 'alpha_n', 'alpha_t'
+    __slots__ = 'type_of_BC', 'D', 'T', "U", "V", 'other_block',\
+            'other_face', 'orientation', 'label', 'UDF_U',\
+            'UDF_V', 'UDF_T','UDF_D'
             
     def __init__(self,
                  type_of_BC = REFLECT,
-                 Dwall = 1.0,
-                 Twall = 300.0,
-                 Uwall = 0.0,
-                 Vwall = 0.0,
-                 alpha_n = 1.0,
-                 alpha_t = 1.0,
+                 D = 1.0,
+                 T = 300.0,
+                 U = 0.0,
+                 V = 0.0,
+                 UDF_D = None,
+                 UDF_U = None,
+                 UDF_V = None,
+                 UDF_T = None,
                  other_block=-1,
                  other_face=-1,
                  orientation=0,
                  label=""):
                      
         self.type_of_BC = type_of_BC
-        self.Dwall = Dwall
-        self.Twall = Twall
-        self.Uwall = Uwall
-        self.Vwall = Vwall
-        self.alpha_n = alpha_n
-        self.alpha_t = alpha_t
+        self.D = D
+        self.T = T
+        self.U = U
+        self.V = V
+        self.UDF_D = UDF_D
+        self.UDF_U = UDF_U
+        self.UDF_V = UDF_V
+        self.UDF_T = UDF_T
         self.other_block = other_block
         self.other_face = other_face
         self.orientation = orientation
@@ -87,12 +92,14 @@ class BoundaryCondition(object):
     def __str__(self):
         str_rep = "BoundaryCondition("
         str_rep += "type_of_BC=%d" % self.type_of_BC
-        str_rep += ", Dwall=%g" % self.Dwall
-        str_rep += ", Twall=%g" % self.Twall
-        str_rep += ", Uwall=%g" % self.Uwall
-        str_rep += ", Vwall=%g" % self.Vwall
-        str_rep += ", alpha_n=%g" % self.alpha_n
-        str_rep += ", alpha_t=%g" % self.alpha_t
+        str_rep += ", D=%g" % self.D
+        str_rep += ", T=%g" % self.T
+        str_rep += ", U=%g" % self.U
+        str_rep += ", V=%g" % self.V
+        str_rep += ", UDF_D=%s" % self.UDF_D
+        str_rep += ", UDF_U=%s" % self.UDF_U
+        str_rep += ", UDF_V=%s" % self.UDF_V
+        str_rep += ", UDF_T=%s" % self.UDF_T
         str_rep += ", other_block=%d" % self.other_block
         str_rep += ", other_face=%d" % self.other_face
         str_rep += ", orientation=%d" % self.orientation
@@ -100,12 +107,14 @@ class BoundaryCondition(object):
         return str_rep
     def __copy__(self):
         return BoundaryCondition(type_of_BC=self.type_of_BC,
-                                 Dwall=self.Dwall,
-                                 Twall=self.Twall,
-                                 Uwall=self.Uwall,
-                                 Vwall=self.Vwall,
-                                 alpha_n = self.alpha_n,
-                                 alpha_t = self.alpha_t,
+                                 D=self.D,
+                                 T=self.T,
+                                 U=self.U,
+                                 V=self.V,
+                                 UDF_D = self.UDF_D,
+                                 UDF_U = self.UDF_U,
+                                 UDF_V = self.UDF_V,
+                                 UDF_T = self.UDF_T,
                                  other_block=self.other_block,
                                  other_face=self.other_face,
                                  orientation=self.orientation,
@@ -170,18 +179,22 @@ class ConstantBC(BoundaryCondition):
     fill the ghost cells with data that is constant throughout the simulation
     run. This data is loaded at the initialisation stage and then left untouched
     """
-    def __init__(self, Dwall = 1.0, Twall = 300.0, Uwall = 0.0, Vwall = 0.0, 
-                 label="CONSTANT"):
-        BoundaryCondition.__init__(self, type_of_BC=CONSTANT, Dwall = Dwall, 
-                                   Twall = Twall, Uwall = Uwall, Vwall = Vwall, 
-                                   label=label)
+    def __init__(self, D=0, T=0, U=0, V=0, UDF_D=None,
+                 UDF_U=None, UDF_V=None, UDF_T=None, label="CONSTANT"):
+        BoundaryCondition.__init__(self, U=U, V=V, T=T, 
+                                   UDF_D=UDF_D, UDF_U=UDF_U, UDF_V=UDF_V, UDF_T=UDF_T, 
+                                   type_of_BC=CONSTANT, label=label)
         return
     def __str__(self):
-        return "ConstantBC(Dwall=%d, Twall=%d, Uwall=%d, Vwall=%d label=\"%s\")" % \
-            (self.Dwall, self.Twall, self.Uwall, self.Vwall, self.label)
+        return "ConstantBC(D=%d, T=%d, U=%d, V=%d, UDF_D=%s, UDF_U=%s, UDF_V=%s, UDF_T=%s, label=\"%s\")" % \
+            (self.D, self.T, self.U, self.V, self.UDF_D, 
+             self.UDF_D, self.UDF_U, self.UDF_V, self.UDF_T, self.label)
     def __copy__(self):
-        return ConstantBC(Dwall=self.Dwall, Twall = self.Twall,
-                          Uwall = self.Uwall, Vwall = self.Vwall, label=self.label)
+        return ConstantBC(D=self.D, T = self.T,
+                          U = self.U, V = self.V,
+                          UDF_D=self.UDF_D, UDF_U=self.UDF_U, 
+                          UDF_V=self.UDF_V, UDF_T=self.UDF_T,
+                          label=self.label)
     
 class ReflectBC(BoundaryCondition):
     """
@@ -200,22 +213,26 @@ class ReflectBC(BoundaryCondition):
 class AccommodatingBC(BoundaryCondition):
     """
     define the values used to define the equilibrium distribution for the wall
-    Uwall = velocity of wall, parallel to wall, positive in direction of cell wall tangent vector
+    U = velocity of wall, parallel to wall, positive in direction of cell wall tangent vector
     """
-    def __init__(self, Twall = 300.0, Uwall = 0.0, Vwall = 0.0, 
-                 alpha_n = 1.0, alpha_t = 1.0, label="ACCOMMODATING"):
-        BoundaryCondition.__init__(self, type_of_BC=ACCOMMODATING, Twall = Twall, 
-                                   Uwall = Uwall, Vwall=Vwall, 
-                                   alpha_n = alpha_n, alpha_t = alpha_t,
-                                   label=label)
+    def __init__(self, D=1, T=0, U=0, V=0, UDF_D=None, 
+                 UDF_U=None, UDF_V=None, UDF_T=None, label="ACCOMMODATING"):
+        BoundaryCondition.__init__(self, D=D, U=U, 
+                                   V=V, T=T, UDF_D=UDF_D, 
+                                   UDF_U=UDF_U, UDF_V=UDF_V, UDF_T=UDF_T, 
+                                   type_of_BC=ACCOMMODATING, label=label)
+        
         return
     def __str__(self):
-        return "AccommodatingBC(Twall=%g, Uwall=%g, Vwall=%g, alpha,n=%g, alpha,t=%g, label=\"%s\")" % \
-            (self.Twall, self.Uwall, self.Vwall, self.alpha_n, self.alpha_t, self.label)
+        return "AccommodatingBC(D=%g, T=%g, U=%g, V=%g, UDF_D=%s, UDF_U=%s, UDF_V=%s, UDF_T=%s, label=\"%s\")" % \
+            (self.D, self.T, self.U, self.V, self.UDF_D, self.UDF_U, self.UDF_V, self.UDF_T, self.label)
     def __copy__(self):
-        return AccommodatingBC(Twall = self.Twall,
-                          Uwall = self.Uwall, 
-                          Vwall = self.Vwall,
-                          alpha_n = self.alpha_n,
-                          alpha_t = self.alpha_t,
-                          label=self.label)
+        return AccommodatingBC(D=self.D,
+                               T = self.T,
+                               U = self.U, 
+                               V = self.V,
+                               UDF_D = self.UDF_D,
+                               UDF_U = self.UDF_U, 
+                               UDF_V = self.UDF_V,
+                               UDF_T = self.UDF_T,
+                               label=self.label)
