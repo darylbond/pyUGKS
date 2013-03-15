@@ -633,20 +633,6 @@ class UGKSBlock(object):
         # the total area of this block
         self.total_area = np.sum(self.area_H[self.ghost:-self.ghost, self.ghost:-self.ghost])
         
-        print self.length_H[:,:,1]
-        
-        
-        from mpl_toolkits.mplot3d import axes3d
-        import matplotlib.pyplot as plt
-        
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        ax.plot_wireframe(self.xy_H[:,:,0], self.xy_H[:,:,1], np.zeros((self.Ni+1,self.Nj+1)))
-        
-        plt.show()
-        
-        
-        
         # the parametric value along the side of the block for each edge cell
         para = np.zeros((max(self.ni, self.nj), 4), dtype=np.float64)
         
@@ -920,11 +906,7 @@ class UGKSBlock(object):
                           self.length_D, west, dt, self.prim_D, self.aL_D,
                           self.aR_D, self.aT_D, self.Mxi_D, self.faceQ_D, 
                           offset_bot, offset_top)
-                          
-                           
-        #--------------------------------------------------------------------                   
-
-                                         
+                         
             
         return
         

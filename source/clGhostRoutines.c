@@ -305,7 +305,7 @@ edgeExchange(__global double2* fA_,
              int this_face,
              __global double2* fB_,
              __global double2* xyB,
-             int NIB, int NJB,int that_face)
+             int NIB, int NJB, int that_face)
 {
   // update ghost cells
   
@@ -367,24 +367,27 @@ edgeExchange(__global double2* fA_,
   
   getSwapIndex(this_face, &iB, &jB, that_face, NIB, NJB);
   
-  
   // figure out if we have to negate x, y directions
   
   double2 ori = orientation(a0, a1, b0, b1, (double2)(1,1));
   
+  size_t gv1, gv2;
   for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
-    size_t gv = li*LOCAL_SIZE+ti;
-    if (gv < NV) {
+    gv1 = li*LOCAL_SIZE+ti;
+    if (gv1 < NV) {
       
+      // THIS NEEDS VERIFICATION FOR ALL CASES
       if ((ori.x == 1) && (ori.y == -1)) {
-        gv = mirror_NS[gv];
+        gv2 = mirror_NS[gv1];
       } else if ((ori.x == -1) && (ori.y == -1)) {
-        gv = mirror_NS[mirror_EW[gv]];
+        gv2 = mirror_NS[mirror_EW[gv1]];
       } else if ((ori.x == -1) && (ori.y == 1)) {
-        gv = mirror_EW[gv];
+        gv2 = mirror_EW[gv1];
+      } else {
+        gv2 = gv1;
       }
       
-      fA(gi,gj,gv) = fB(iB,jB,gv);
+      fA(gi,gj,gv1) = fB(iB,jB,gv2);
     }
   }
       
