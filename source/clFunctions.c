@@ -13,10 +13,9 @@ double relaxTime(double4 prim)
   //double mu_ref = 5*(alpha_ref+1)*(alpha_ref+2)*sqrt(PI)/(4*alpha_ref*(5-2*omega_ref)*(7-2*omega_ref))*Kn;
   //double tau = mu_ref*2*pow(prim.s3,1-chi)/prim.s0;
   
-  double tau = (Kn/prim.s0)*sqrt(2.0/PI)*pow(prim.s3,1.0 - chi);
-  
-  //double tau = (Kn/rho)*sqrt(2.0/PI)*pow(T,chi - 1.0);
-  //double tau = (5./8.)*(Kn/rho)*sqrt(2.0/PI)*pow(T,chi - 1.0);
+  //double tau = (Kn/prim.s0)*sqrt(2.0/PI)*pow(prim.s3,1.0 - chi);
+
+  double tau = (5./8.)*(Kn/prim.s0)*sqrt(2.0/PI)*pow(prim.s3,1.0 - chi);
   
   return tau;
 }
@@ -126,7 +125,7 @@ double2 toGlobal(double2 in, double2 n)
 
 double2 toLocal(double2 in, double2 n)
 {
-  // find velocities aligned with the nominated face
+  // find velocities aligned with the nominated normal
   
   // tangent to edge
   double2 t;
@@ -202,5 +201,51 @@ double2 WENO5(double2* S, double dx)
     return (fL - S[J])/dx;
 }
 #endif
+
+double2 transform(double2 a0, double2 a1, double2 b0, double2 b1, double2 n)
+{
+  // given [a,b] and [c,d] generate an affine map that maps
+  // a -> c and b ->d and apply this mapping to n, return 
+  // the resulting mapped value
+  
+  double2 m;
+  
+  double d1 = fabs(a0.x - a1.x)*fabs(a0.x - a1.x) + fabs(a0.y - a1.y)*fabs(a0.y - a1.y);
+  double d2 = ((a0.x - a1.x)*(a0.x - a1.x) + (a0.y - a1.y)*(a0.y - a1.y))*
+                (fabs(b0.x - b1.x)*fabs(b0.x - b1.x) + fabs(b0.y - b1.y)*fabs(b0.y - b1.y));
+  
+  m.x = a0.x - ((-(a1.x*((b0.x - b1.x)*(b0.x - n.x) + (b0.y - b1.y)*(b0.y - n.y))) + 
+        a0.x*(b0.x*b0.x + b1.x*n.x - b0.x*(b1.x + n.x) + (b0.y - b1.y)*(b0.y - n.y)) + 
+        (a0.y - a1.y)*(b0.y*b1.x - b0.x*b1.y - b0.y*n.x + b1.y*n.x + b0.x*n.y - b1.x*n.y))*d1)/d2;
+  
+  m.y = a0.y - ((a0.y*(b0.x*b0.x + b1.x*n.x - b0.x*(b1.x + n.x) + (b0.y - b1.y)*(b0.y - n.y)) - 
+        a1.y*(b0.x*b0.x + b1.x*n.x - b0.x*(b1.x + n.x) + (b0.y - b1.y)*(b0.y - n.y)) + 
+        (a0.x - a1.x)*(b0.x*b1.y - b1.y*n.x + b0.y*(-b1.x + n.x) - b0.x*n.y + b1.x*n.y))*d1)/d2;
+  
+  return m;
+}
+
+double2 orientation(double2 a0, double2 a1, double2 b0, double2 b1, double2 n)
+{
+  // given [a,b] and [c,d] generate an affine map that maps
+  // a -> c and b ->d and apply this mapping to n, return 
+  // the resulting mapped value
+  
+  double2 m;
+  
+  double d1 = sqrt((fabs(a0.x - a1.x)*fabs(a0.x - a1.x) + 
+      fabs(a0.y - a1.y)*fabs(a0.y - a1.y))/(fabs(b0.x - b1.x)*fabs(b0.x - b1.x) 
+      + fabs(b0.y - b1.y)*fabs(b0.y - b1.y)));
+      
+  double d2 = (a0.x - a1.x)*(a0.x - a1.x) + (a0.y - a1.y)*(a0.y - a1.y);
+  
+  m.x = ((((a0.x - a1.x)*(b0.x - b1.x) + (a0.y - a1.y)*(b0.y - b1.y))*n.x + 
+      (-((a0.y - a1.y)*(b0.x - b1.x)) + (a0.x - a1.x)*(b0.y - b1.y))*n.y)*d1)/d2;
+     
+  m.y = ((((a0.y - a1.y)*(b0.x - b1.x) - (a0.x - a1.x)*(b0.y - b1.y))*n.x + 
+      ((a0.x - a1.x)*(b0.x - b1.x) + (a0.y - a1.y)*(b0.y - b1.y))*n.y)*d1)/d2;
+  
+  return m;
+}
 
 

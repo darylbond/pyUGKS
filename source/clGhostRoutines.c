@@ -122,34 +122,70 @@ xyExchange(__global double2* xyA,
   size_t gi = get_global_id(0);
   size_t gj = get_global_id(1);
   
+  int ci, cj, di, dj;
+  
   switch (this_face) {
     case GNORTH:
       gi += GHOST;
       gj += NJ - GHOST + 1;
+      ci = GHOST;
+      cj = NJ - GHOST;
+      di = NI- GHOST;
+      dj = NJ - GHOST;
       break;
     case GEAST:
       gi += NI - GHOST + 1;
       gj += GHOST;
+      ci = NI - GHOST;
+      cj = GHOST;
+      di = NI - GHOST;
+      dj = NJ - GHOST;
       break;
     case GSOUTH:
       gi += GHOST;
       gj += 0;
+      ci = GHOST;
+      cj = GHOST;
+      di = NI - GHOST;
+      dj = GHOST;
       break;
     case GWEST:
       gi += 0;
       gj += GHOST;
+      ci = GHOST;
+      cj = GHOST;
+      di = GHOST;
+      dj = NJ - GHOST;
       break;
   }
+  
+  double2 a0, a1, b0, b1;
+  
+  a0 = XYA(ci,cj);
+  a1 = XYA(di,dj);
+  
+  getSwapIndex(this_face, &ci, &cj, that_face, NIB, NJB);
+  getSwapIndex(this_face, &di, &dj, that_face, NIB, NJB);
+  
+  b0 = XYB(ci,cj);
+  b1 = XYB(di,dj);
+  
+  //printf("(%i, %i) a = [%v2g], b = [%v2g], c = [%v2g], d = [%v2g]\n",gi, gj, a,b,c,d);
   
   int iB = gi;
   int jB = gj;
   
   getSwapIndex(this_face, &iB, &jB, that_face, NIB, NJB);
   
-  XYA(gi,gj) = XYB(iB,jB);
-  XYA(gi+1,gj) = XYB(iB+1,jB);
-  XYA(gi+1,gj+1) = XYB(iB+1,jB+1);
-  XYA(gi,gj+1) = XYB(iB,jB+1);
+  XYA(gi,gj) = transform(a0, a1, b0, b1, XYB(iB,jB));
+  XYA(gi+1,gj) = transform(a0, a1, b0, b1, XYB(iB+1,jB));
+  XYA(gi+1,gj+1) = transform(a0, a1, b0, b1, XYB(iB+1,jB+1));
+  XYA(gi,gj+1) = transform(a0, a1, b0, b1, XYB(iB,jB+1));
+  
+  //XYA(gi,gj) = XYB(iB,jB);
+  //XYA(gi+1,gj) = XYB(iB+1,jB);
+  //XYA(gi+1,gj+1) = XYB(iB+1,jB+1);
+  //XYA(gi,gj+1) = XYB(iB,jB+1);
       
   return;
 }
@@ -265,9 +301,11 @@ xyExtrapolate(__global double2* xy, int this_face)
     
 __kernel void
 edgeExchange(__global double2* fA_,
-	   int this_face,
-	   __global double2* fB_,
-	   int NIB, int NJB,int that_face)
+             __global double2* xyA,
+             int this_face,
+             __global double2* fB_,
+             __global double2* xyB,
+             int NIB, int NJB,int that_face)
 {
   // update ghost cells
   
@@ -276,33 +314,76 @@ edgeExchange(__global double2* fA_,
   size_t gj = get_global_id(1);
   size_t ti = get_local_id(2);
   
+  int ci, cj, di, dj;
+
   switch (this_face) {
     case GNORTH:
       gi += GHOST;
       gj += NJ - GHOST;
+      ci = GHOST;
+      cj = NJ - GHOST;
+      di = NI- GHOST;
+      dj = NJ - GHOST;
       break;
     case GEAST:
       gi += NI - GHOST;
       gj += GHOST;
+      ci = NI - GHOST;
+      cj = GHOST;
+      di = NI - GHOST;
+      dj = NJ - GHOST;
       break;
     case GSOUTH:
       gi += GHOST;
       gj += 0;
+      ci = GHOST;
+      cj = GHOST;
+      di = NI - GHOST;
+      dj = GHOST;
       break;
     case GWEST:
       gi += 0;
       gj += GHOST;
+      ci = GHOST;
+      cj = GHOST;
+      di = GHOST;
+      dj = NJ - GHOST;
       break;
   }
+  
+  double2 a0, a1, b0, b1;
+  
+  a0 = XYA(ci,cj);
+  a1 = XYA(di,dj);
+  
+  getSwapIndex(this_face, &ci, &cj, that_face, NIB, NJB);
+  getSwapIndex(this_face, &di, &dj, that_face, NIB, NJB);
+  
+  b0 = XYB(ci,cj);
+  b1 = XYB(di,dj);
   
   int iB = gi;
   int jB = gj;
   
   getSwapIndex(this_face, &iB, &jB, that_face, NIB, NJB);
   
+  
+  // figure out if we have to negate x, y directions
+  
+  double2 ori = orientation(a0, a1, b0, b1, (double2)(1,1));
+  
   for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
     size_t gv = li*LOCAL_SIZE+ti;
     if (gv < NV) {
+      
+      if ((ori.x == 1) && (ori.y == -1)) {
+        gv = mirror_NS[gv];
+      } else if ((ori.x == -1) && (ori.y == -1)) {
+        gv = mirror_NS[mirror_EW[gv]];
+      } else if ((ori.x == -1) && (ori.y == 1)) {
+        gv = mirror_EW[gv];
+      }
+      
       fA(gi,gj,gv) = fB(iB,jB,gv);
     }
   }

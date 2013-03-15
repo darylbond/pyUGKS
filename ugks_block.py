@@ -166,7 +166,7 @@ class UGKSBlock(object):
     def initGeom(self):
         
          # coordinate data, with ghost cells
-        self.xy_H = np.ones((self.Ni+1,self.Nj+1,2),dtype=np.float64) # x, y
+        self.xy_H = np.ones((self.Ni+1,self.Nj+1,2),dtype=np.float64)*np.nan # x, y
         
         # initialise coordinate data
         start = np.array([self.ghost, self.ghost])
@@ -396,8 +396,8 @@ class UGKSBlock(object):
         global_size, work_size = m_tuple(global_size,(1,1,gdata.CL_local_size))
         
         self.prg.edgeExchange(self.queue, global_size, work_size,
-                               this_f, faceA,
-                               that_f, NiB, NjB, faceB)
+                               this_f, self.xy_D, faceA,
+                               that_f, other_block.xy_D, NiB, NjB, faceB)
 
     def ghostExtrapolate(self, this_face):
         """
@@ -632,6 +632,20 @@ class UGKSBlock(object):
                 
         # the total area of this block
         self.total_area = np.sum(self.area_H[self.ghost:-self.ghost, self.ghost:-self.ghost])
+        
+        print self.length_H[:,:,1]
+        
+        
+        from mpl_toolkits.mplot3d import axes3d
+        import matplotlib.pyplot as plt
+        
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.plot_wireframe(self.xy_H[:,:,0], self.xy_H[:,:,1], np.zeros((self.Ni+1,self.Nj+1)))
+        
+        plt.show()
+        
+        
         
         # the parametric value along the side of the block for each edge cell
         para = np.zeros((max(self.ni, self.nj), 4), dtype=np.float64)
