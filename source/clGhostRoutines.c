@@ -378,11 +378,11 @@ edgeExchange(__global double2* fA_,
       
       // THIS NEEDS VERIFICATION FOR ALL CASES
       if ((ori.x == 1) && (ori.y == -1)) {
-        gv2 = mirror_NS[gv1];
+        //gv2 = mirror_NS[gv1];
       } else if ((ori.x == -1) && (ori.y == -1)) {
         gv2 = mirror_NS[mirror_EW[gv1]];
       } else if ((ori.x == -1) && (ori.y == 1)) {
-        gv2 = mirror_EW[gv1];
+        //gv2 = mirror_EW[gv1];
       } else {
         gv2 = gv1;
       }
