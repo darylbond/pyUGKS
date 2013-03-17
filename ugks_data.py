@@ -117,7 +117,7 @@ class UGKSData(object):
                 'runtime_conf', 'restart',\
                 'u_min', 'v_min', 'u_mid', 'v_mid', 'u_max','v_max',\
                 'u_num','v_num','quad_type',\
-                'work_size_i','work_size_j'
+                'work_size_i','work_size_j','opt_sample_size', 'opt_run'
     
     def __init__(self):
         """
@@ -199,6 +199,9 @@ class UGKSData(object):
         
         # residual options
         self.residual_options = ResidualOptions()
+        
+        self.opt_run = False
+        self.opt_sample_size = 10
         
         # Make one instance to accumulate the settings for 2D SVG rendering.
         self.sketch = SketchEnvironment()

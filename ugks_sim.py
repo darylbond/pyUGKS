@@ -5,8 +5,8 @@ import pyopencl as cl
 import numpy as np
 
 import matplotlib.pylab as plt
+from mpl_toolkits.mplot3d import Axes3D
 
-from tvtk.api import tvtk
 import time
 import os
 #from math import sqrt
@@ -23,7 +23,12 @@ class UGKSim(object):
     """
 
     step = 0
-    t = 0.0
+    
+    run_time = 0.0
+    opt = []
+    opt_time = []
+    opt_step = 0
+    opt_item = 1
 
     def __init__(self):
         """
@@ -33,6 +38,10 @@ class UGKSim(object):
         ## OpenCL initialisation
         print "\n INITIALISE OPENCL\n"
         self.init_CL()
+        
+        # initialise the optimization list to run through
+        # also sets the values for compilation in CL source
+        self.set_opt_list()
         
         ## restart??
         self.restart()
@@ -74,6 +83,55 @@ class UGKSim(object):
         self.saveToFile(save_f=gdata.save_options.save_initial_f)
 
         return
+        
+    def set_opt_list(self):
+        """
+        set up the list of settings to run through for optimisation
+        of run time
+        """
+        
+        if not gdata.opt_run:
+            return
+        
+        opt = []
+        
+        r = int(np.log2(256)+1)
+        s = 0
+        
+        for i in range(s,r):
+            cl_local_size = 2**i
+            if cl_local_size <= gdata.Nv:
+                for j in range(s,r):
+                    for k in range(s,r):
+                        si = 2**j
+                        sj = 2**k
+                        if (si*sj) <= 256:
+                            sub_opt = [cl_local_size, si, sj]
+                            opt.append(sub_opt)
+                            
+        self.opt = opt
+        
+        gdata.CL_local_size = opt[0][0]
+        gdata.work_size_i = opt[0][1]
+        gdata.work_size_j = opt[0][2]
+        
+        return
+        
+    def start_timer(self):
+        """
+        start timer
+        """
+        
+        self.timer = time.time()
+        
+        return
+        
+    def stop_timer(self):
+        """
+        return timer
+        """
+        
+        return time.time() - self.timer
 
     def init_CL(self):
         """
@@ -188,7 +246,74 @@ class UGKSim(object):
             b.updateBC()
 
         return
+    
+    def update_run_config(self, i):
+        """
+        update the runtime configuration
+        """
+        
+        gdata.work_size_i = self.opt[i][1]
+        gdata.work_size_j = self.opt[i][2]
+        
+        if gdata.CL_local_size != self.opt[i][0]:
+            gdata.CL_local_size = self.opt[i][0]
+            for b in self.blocks:
+                b.update_CL()
+        
+        return          
+        
+    def run_optimisation(self):
+        """
+        run optimisation
+        """
+        
+        if gdata.opt_run:
+            self.queue.finish()
+            self.run_time += self.stop_timer()
+            self.opt_step += 1
+            if self.opt_step == gdata.opt_sample_size:
+                self.opt_time.append(self.run_time/float(self.opt_step))
+                
+                print "opt -> [%d, %d, %d] = %s"%(gdata.CL_local_size,
+                                            gdata.work_size_i,
+                                            gdata.work_size_j,
+                                            self.secToTime(self.opt_time[-1]))
 
+                if self.opt_item == len(self.opt):
+                    gdata.opt_run == False
+                    i = self.opt_time.index(min(self.opt_time))
+
+                    print "--optimum found--"                    
+                    
+                    self.update_run_config(i)
+                    
+                    print "optimum -> [%d, %d, %d] = %s"%(gdata.CL_local_size,
+                                            gdata.work_size_i,
+                                            gdata.work_size_j,
+                                            self.secToTime(self.opt_time[i]))
+                                            
+#                    fig = plt.figure()
+#                    ax = fig.add_subplot(111, projection='3d')
+#                    data = np.array(self.opt)
+#                    sc = ax.scatter(data[:,1],data[:,2],self.opt_time,c=data[:,0])
+#                    plt.colorbar(sc)
+#                    ax.set_xlabel('i')
+#                    ax.set_ylabel('j')
+#                    ax.set_zlabel('t')
+#                    plt.show()
+                    
+                    
+                else:
+                
+                    self.update_run_config(self.opt_item)
+                                       
+                    self.run_time = 0.0
+                    self.opt_step = 0
+                    self.opt_item += 1
+                
+                
+        return
+        
     def one_step(self, get_dt, get_res):
         """
         run one step of the simulation
@@ -200,6 +325,9 @@ class UGKSim(object):
         # make sure all ghost cells are up to date
         self.updateAllBC()
         
+        if gdata.opt_run:
+            self.start_timer()
+        
         cl.enqueue_barrier(self.queue)
 
         for b in self.blocks:
@@ -208,6 +336,8 @@ class UGKSim(object):
             b.UGKS_update(get_res)
             
         cl.enqueue_barrier(self.queue)
+        
+        self.run_optimisation()
         
         if get_dt:
             self.updateTimeStep()
@@ -264,7 +394,6 @@ class UGKSim(object):
         if save.save:
             self.saveToFile(save_f=save.save_initial_f)
         
-            
         while self.step < gdata.max_step:
             
             ## FLAGS
@@ -493,9 +622,10 @@ class UGKSim(object):
         """
         return hrs mins and secs from an input of secs
         """
-        m, s = divmod(seconds, 60)
+        s, ms = divmod(seconds*1000, 1000)
+        m, s = divmod(s, 60)
         h, m = divmod(m, 60)
-        out = "%d:%02d:%02d" % (h, m, s)
+        out = "%d:%02d:%02d:%02d" % (h, m, s, ms)
 
         return out
         

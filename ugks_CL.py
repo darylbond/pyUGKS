@@ -333,4 +333,21 @@ def genOpenCL(data):
     print "done"
     
     return fileName
+
+def update_source(source, fileName):
+    """
+    look through the code and update any #defines that need it
+    """
     
+    for i, line in enumerate(source):
+        if "#define LOCAL_SIZE" in line:
+            source[i] = '#define LOCAL_SIZE %d\n'%gdata.CL_local_size
+        elif '#define LOCAL_LOOP_LENGTH' in line:
+            source[i] = '#define LOCAL_LOOP_LENGTH %d\n'%(np.ceil(gdata.Nv/float(gdata.CL_local_size)))
+            break
+        
+    fp = open(fileName, "w")
+    fp.write("".join(source))
+    fp.close()
+    
+    return source

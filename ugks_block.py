@@ -14,7 +14,7 @@ import time
 import sys
 
 from ugks_data import Block, gdata
-from ugks_CL import genOpenCL
+from ugks_CL import genOpenCL, update_source
 from geom.geom_bc_defs import *
 from geom.geom_defs import *
 
@@ -47,6 +47,7 @@ class UGKSBlock(object):
     host_update = 0 # flag to indicate if the host is up to date
     macro_update = 0
     has_accommodating = False  #flag to indicate if we have any accommodating walls
+    grab_timer = 0
     
     def __init__(self, block_id, cl_ctx, cl_queue):
         """
@@ -84,10 +85,6 @@ class UGKSBlock(object):
         
         # number of velocities
         self.Nv = gdata.Nv
-        
-        # work-group size
-        self.work_size_i = gdata.work_size_i
-        self.work_size_j = gdata.work_size_j
         
         # boundaries for flow domain, excluding ghost cells
         self.imin = self.ghost
@@ -129,7 +126,7 @@ class UGKSBlock(object):
         print "=== block ",self.id, " initialised ===\n"
         
         return
-        
+
     def block_CL(self):
         """
         generate OpenCL code from source
@@ -141,17 +138,38 @@ class UGKSBlock(object):
         'jmax':self.jmax, 'ghost':self.ghost, 'block_id':self.id,\
         'bc_list':self.bc_list}
         
-        name = genOpenCL(data)
-        f = open(name,'r')
-        fstr = "".join(f.readlines())
+        self.source_name = genOpenCL(data)
+        f = open(self.source_name,'r')
+        fstr = f.readlines()
         f.close()
         #print fstr
+        
+        self.source_CL = fstr
+        
+        fstr = "".join(fstr)
         
         t0 = time.clock()
         self.prg = cl.Program(self.ctx, fstr).build()
         t = time.clock() - t0
         
         print "block {}: OpenCL kernel compiled ({}s)".format(self.id, t)
+        return
+        
+    def update_CL(self):
+        """
+        update the CL source code
+        """
+        
+        self.source_CL = update_source(self.source_CL, self.source_name)
+        
+        fstr = "".join(self.source_CL)
+        
+        t0 = time.clock()
+        self.prg = cl.Program(self.ctx, fstr).build()
+        t = time.clock() - t0
+        
+        print "block {}: OpenCL kernel compiled ({}s)".format(self.id, t)
+        
         return
         
     def set_buffer(self,host_buffer):
@@ -766,7 +784,7 @@ class UGKSBlock(object):
         
         cl.enqueue_barrier(self.queue)
         
-        global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (self.work_size_i,self.work_size_j))
+        global_size, work_size = size_cl((self.ni, self.nj+1-shrink), (gdata.work_size_i,gdata.work_size_j))
         
         self.prg.getPLR(self.queue, global_size, work_size,
                         self.centre_D, self.side_D, south, self.prim_D, 
@@ -873,7 +891,7 @@ class UGKSBlock(object):
         
         cl.enqueue_barrier(self.queue)
         
-        global_size, work_size = size_cl((self.ni+1-shrink, self.nj), (self.work_size_i,self.work_size_j))
+        global_size, work_size = size_cl((self.ni+1-shrink, self.nj), (gdata.work_size_i,gdata.work_size_j))
         
         self.prg.getPLR(self.queue, global_size, work_size,
                         self.centre_D, self.side_D, west, self.prim_D, 
@@ -925,7 +943,7 @@ class UGKSBlock(object):
         cl.enqueue_barrier(self.queue)
         
         # update the macro buffer
-        global_size, work_size = size_cl((self.ni, self.nj),(self.work_size_i, self.work_size_j))
+        global_size, work_size = size_cl((self.ni, self.nj),(gdata.work_size_i, gdata.work_size_j))
         self.prg.updateMacro(self.queue, global_size, work_size,
                              self.flux_macro_S_D, self.flux_macro_W_D, self.area_D,
                              self.macro_D, self.residual_D)
@@ -950,7 +968,7 @@ class UGKSBlock(object):
             
             cl.enqueue_barrier(self.queue)
             
-            global_size, work_size = m_tuple((self.ni, self.nj), (self.work_size_i, self.work_size_j))        
+            global_size, work_size = m_tuple((self.ni, self.nj), (gdata.work_size_i, gdata.work_size_j))        
             self.prg.getResidual(self.queue, global_size, work_size,
                              self.macro_D, self.residual_D)
                              
@@ -976,7 +994,7 @@ class UGKSBlock(object):
         global_size = (self.ni, self.nj)
         
         if gdata.save_options.internal_data:
-            global_size, work_size = m_tuple((self.ni, self.nj),(self.work_size_i,self.work_size_j))
+            global_size, work_size = m_tuple((self.ni, self.nj),(gdata.work_size_i,gdata.work_size_j))
             self.prg.getInternalTemp(self.queue, global_size, work_size,
                                  self.f_D, self.Txyz_D)
             cl.enqueue_barrier(self.queue)
