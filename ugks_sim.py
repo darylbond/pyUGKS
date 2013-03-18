@@ -96,7 +96,7 @@ class UGKSim(object):
         opt = []
         
         r = int(np.log2(256)+1)
-        s = 0
+        s = int(np.log2(gdata.opt_start))
         
         for i in range(s,r):
             cl_local_size = 2**i
@@ -256,6 +256,7 @@ class UGKSim(object):
         gdata.work_size_j = self.opt[i][2]
         
         if gdata.CL_local_size != self.opt[i][0]:
+            print "opt -> updating source"
             gdata.CL_local_size = self.opt[i][0]
             for b in self.blocks:
                 b.update_CL()

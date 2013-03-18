@@ -768,11 +768,12 @@ distFlux(__global double2* flux_f,
 }
 
 #if HAS_ACCOMMODATING_WALL == 1
+// the kernel here has been split to accomodate the vagaries of GPU computing
 __kernel void
-accommodatingWall(__global double2* normal,
-            __global double* side_length, int face,
+accommodatingWallDist(__global double2* normal,
+            int face,
             __global double4* wall_def, 
-            __global double2* flux_f, __global double4* flux_macro, 
+            __global double2* flux_f, 
             double dt)
 {
     // given the flux information for each wall of each cell
@@ -875,6 +876,77 @@ accommodatingWall(__global double2* normal,
         
         barrier(CLK_LOCAL_MEM_FENCE);
 
+        // calculate the flux that would come back in if an equilibrium distribution resided in the wall
+        
+        for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+            size_t gv = li*LOCAL_SIZE+thread_id;
+            if (gv < NV) {
+                uv = interfaceVelocity(gv, face_normal);
+                delta = (sign(uv.x)*rot + 1)/2;
+                
+                face_dist = FLUXF(gi,gj,gv);
+                
+                wall_dist = ratio*delta*fM(wall, uv, gv) + (1-delta)*face_dist;
+                
+                //FLUXF(gi,gj,gv) = uv.x*wall_dist*face_length*dt;
+                FLUXF(gi,gj,gv) = wall_dist;
+            }
+        }
+    }
+
+    return;
+
+}
+
+
+__kernel void
+accommodatingWallMacro(__global double2* normal,
+            __global double* side_length, int face,
+            __global double2* flux_f, __global double4* flux_macro, 
+            double dt)
+{
+    // given the flux information for each wall of each cell
+    // modify the fluxes at the defined wall to give a diffuse wall
+    
+
+    size_t gi = get_global_id(0);
+    size_t gj = get_global_id(1);
+    size_t thread_id = get_local_id(2);
+    
+    int face_id;
+
+    switch (face) {
+        case GNORTH:
+            gi += GHOST;
+            gj += NJ - GHOST;
+            face_id = SOUTH;
+            break;
+        case GEAST:
+            gi += NI - GHOST;
+            gj += GHOST;
+            face_id = WEST;
+            break;
+        case GSOUTH:
+            gi += GHOST;
+            gj += GHOST;
+            face_id = SOUTH;
+            break;
+        case GWEST:
+            gi += GHOST;
+            gj += GHOST;
+            face_id = WEST;
+            break;
+    }
+    
+    __local double4 data[LOCAL_SIZE];
+
+    if (((face_id == SOUTH) && ((gi - GHOST) < ni)) 
+    || ((face_id == WEST) && ((gj - GHOST) < nj))) {
+
+        // get the interface distribution and the flux out due to this distribution
+
+        double2 face_normal = NORMAL(gi,gj,face_id);
+
         double face_length = LENGTH(gi,gj,face_id);
 
         // calculate the flux that would come back in if an equilibrium distribution resided in the wall
@@ -883,27 +955,25 @@ accommodatingWall(__global double2* normal,
         for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
             size_t gv = li*LOCAL_SIZE+thread_id;
             if (gv < NV) {
-                uv = interfaceVelocity(gv, face_normal);
-                delta = (sign(uv.x)*rot + 1)/2;
-                face_dist = FLUXF(gi,gj,gv);
-                wall_dist = ratio*delta*fM(wall, uv, gv) + (1-delta)*face_dist;
-
+                double2 uv = interfaceVelocity(gv, face_normal);
+                
+                double2 wall_dist = FLUXF(gi,gj,gv);
+                
+                FLUXF(gi,gj,gv) = uv.x*wall_dist*face_length*dt;
+                
                 data[thread_id].s0 += uv.x*wall_dist.x;
                 data[thread_id].s1 += uv.x*uv.x*wall_dist.x;
                 data[thread_id].s2 += uv.x*uv.y*wall_dist.x;
                 data[thread_id].s3 += 0.5*uv.x*(dot(uv,uv)*wall_dist.x + wall_dist.y);
-
-                FLUXF(gi,gj,gv) = uv.x*wall_dist*face_length*dt;
             }
-
         }
         
         barrier(CLK_LOCAL_MEM_FENCE);
         
-        // perform reduction, again...
+        // perform reduction
         
-        step = 1;
-        grab_id = 2;
+        int step = 1;
+        int grab_id = 2;
         while (step < LOCAL_SIZE) {
             if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
                 // reduce

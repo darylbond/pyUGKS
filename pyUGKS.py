@@ -10,6 +10,7 @@
 import os
 
 os.environ["PYOPENCL_COMPILER_OUTPUT"]="1"
+#os.environ["PYOPENCL_NO_CACHE"]="1"
 
 #local
 
