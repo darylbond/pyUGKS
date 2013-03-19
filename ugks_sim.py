@@ -379,8 +379,10 @@ class UGKSim(object):
         res = gdata.residual_options
         
         # plotting
-        if res.get_residual & res.plot_residual:
-            self.plotResidualInit()
+        if res.get_residual:
+            first_res = True
+            if res.plot_residual:
+                self.plotResidualInit()
             
         mag = 1
         
@@ -455,10 +457,21 @@ class UGKSim(object):
                 self.time_history_residual_N.append(self.step)
                 if res.plot_residual:
                     self.plotResidualUpdate()
-                if np.any(res.global_residual <= res.min_residual) & (self.step >= res.residual_start):
-                    print "simulation exit -> minimum residual reached"
-                    print "step ",self.step," t = ",gdata.get_time()
-                    break
+                if self.step >= res.residual_start:
+                    if first_res:
+                        initial_res = res.global_residual
+                        first_res = False
+                    else:
+                        res_drop = initial_res/res.global_residual
+                        print "residual drop = ",res_drop
+                        if np.all(res_drop >= res.res_drop):
+                            print "simulation exit -> residual reduction limit reached"
+                            print "step ",self.step," t = ",gdata.get_time()
+                            break
+                    if np.all(res.global_residual <= res.min_residual):
+                        print "simulation exit -> minimum residual reached"
+                        print "step ",self.step," t = ",gdata.get_time()
+                        break
                 if (len(self.time_history_residual) >= res.slope_sample) & (self.step >= res.slope_start):
                     # fit a line to the last three data points
                     slope = np.polyfit(np.log(self.time_history_residual_N[-3::]), np.log(self.time_history_residual[-3::]), 1)
