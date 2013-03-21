@@ -98,8 +98,18 @@ class UGKSim(object):
         r = int(np.log2(256)+1)
         s = int(np.log2(gdata.opt_start))
         
-        for i in range(s,r):
-            cl_local_size = 2**i
+        if gdata.CL_local_size == None:
+            cl_range = range(s,r)
+        else:
+            cl_range = [0]
+        
+        for i in cl_range:
+            
+            if gdata.CL_local_size == None:
+                cl_local_size = 2**i
+            else:
+                cl_local_size = gdata.CL_local_size
+            
             if cl_local_size <= gdata.Nv:
                 for j in range(s,r):
                     for k in range(s,r):
