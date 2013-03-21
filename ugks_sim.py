@@ -17,6 +17,10 @@ from ugks_data import gdata
 from ugks_data import Block
 from ugks_block import UGKSBlock
 
+def reject_outliers(data, m=2):
+    data = np.array(data)
+    return data[abs(data - np.mean(data)) < m * np.std(data)]
+
 class UGKSim(object):
     """
     class that handles actual simulation
@@ -24,7 +28,7 @@ class UGKSim(object):
 
     step = 0
     
-    run_time = 0.0
+    run_time = []
     opt = []
     opt_time = []
     opt_step = 0
@@ -280,10 +284,11 @@ class UGKSim(object):
         
         if gdata.opt_run:
             self.queue.finish()
-            self.run_time += self.stop_timer()
+            self.run_time.append(self.stop_timer())
             self.opt_step += 1
             if self.opt_step == gdata.opt_sample_size:
-                self.opt_time.append(self.run_time/float(self.opt_step))
+                self.run_time = reject_outliers(self.run_time)
+                self.opt_time.append(np.sum(self.run_time)/float(self.opt_step))
                 
                 print "opt -> [%d, %d, %d] = %s"%(gdata.CL_local_size,
                                             gdata.work_size_i,
@@ -303,6 +308,8 @@ class UGKSim(object):
                                             gdata.work_size_j,
                                             self.secToTime(self.opt_time[i]))
                                             
+                    gdata.opt_run = False
+                                            
 #                    fig = plt.figure()
 #                    ax = fig.add_subplot(111, projection='3d')
 #                    data = np.array(self.opt)
@@ -318,7 +325,7 @@ class UGKSim(object):
                 
                     self.update_run_config(self.opt_item)
                                        
-                    self.run_time = 0.0
+                    self.run_time = []
                     self.opt_step = 0
                     self.opt_item += 1
                 
