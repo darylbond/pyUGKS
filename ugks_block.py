@@ -169,58 +169,67 @@ class UGKSBlock(object):
         
     def set_buffer(self,host_buffer):
         """
-        initialise a buffer on the device
+        initialise a buffer on the device given a pointer to a host side buffer
         """
         
         device_buffer = cl.Buffer(self.ctx, self.mf.READ_WRITE | self.mem_access, hostbuf = host_buffer)
+        
+        return device_buffer
+        
+    def set_buffer_size(self,size):
+        """
+        initialise a buffer on the device given the size of the buffer
+        """
+        
+        device_buffer = cl.Buffer(self.ctx, self.mf.READ_WRITE, size=size, hostbuf=None)
         
         return device_buffer
     
     def initGeom(self):
         
          # coordinate data, with ghost cells
-        self.xy_H = np.ones((self.Ni+1,self.Nj+1,2),dtype=np.float64)*np.nan # x, y
+        xy_H = np.ones((self.Ni+1,self.Nj+1,2),dtype=np.float64)*np.nan # x, y
         
         # initialise coordinate data
         start = np.array([self.ghost, self.ghost])
         stop = start + np.array([self.x.shape[0], self.x.shape[1]])
         
-        self.xy_H[start[0]:stop[0],start[1]:stop[1],0] = self.x[0:(self.ni+1),0:(self.nj+1),0]
-        self.xy_H[start[0]:stop[0],start[1]:stop[1],1] = self.y[0:(self.ni+1),0:(self.nj+1),0]
+        xy_H[start[0]:stop[0],start[1]:stop[1],0] = self.x[0:(self.ni+1),0:(self.nj+1),0]
+        xy_H[start[0]:stop[0],start[1]:stop[1],1] = self.y[0:(self.ni+1),0:(self.nj+1),0]
         
         # cell centres
-        self.centre_H = -1.0*np.ones((self.Ni,self.Nj,2),dtype=np.float64) # cell centres, x, y
+        centre_H = -1.0*np.ones((self.Ni,self.Nj,2),dtype=np.float64) # cell centres, x, y
         
         # mid-side nodes
-        self.side_H = -1.0*np.ones((self.Ni,self.Nj,2,2),dtype=np.float64) # mid-side node, x, y
+        side_H = -1.0*np.ones((self.Ni,self.Nj,2,2),dtype=np.float64) # mid-side node, x, y
         
         # cell area
         self.area_H = -1.0*np.ones((self.Ni,self.Nj),dtype=np.float64) # cell area
         
         # cell normals
-        self.normal_H = -1.0*np.ones((self.Ni,self.Nj,2,2),dtype=np.float64) # side normals, x, y
+        normal_H = -1.0*np.ones((self.Ni,self.Nj,2,2),dtype=np.float64) # side normals, x, y
         
         # cell side lengths
-        self.length_H = -1.0*np.ones((self.Ni,self.Nj,2),dtype=np.float64) #  side length
+        length_H = -1.0*np.ones((self.Ni,self.Nj,2),dtype=np.float64) #  side length
         
         ###
         # coordinate data, with ghost cells
-        self.xy_D = self.set_buffer(self.xy_H) # x, y
+        self.xy_D = self.set_buffer(xy_H) # x, y
         
         # cell centres
-        self.centre_D = self.set_buffer(self.centre_H) # cell centres, x, y
+        self.centre_D = self.set_buffer(centre_H) # cell centres, x, y
         
          # mid-side nodes
-        self.side_D = self.set_buffer(self.side_H) # mid-side node, x, y
+        self.side_D = self.set_buffer(side_H) # mid-side node, x, y
         
         # cell area
         self.area_D = self.set_buffer(self.area_H) # cell area
         
         # cell normals
-        self.normal_D = self.set_buffer(self.normal_H) # side normals, x, y
+        self.normal_D = self.set_buffer(normal_H) # side normals, x, y
         
         # cell side lengths
-        self.length_D = self.set_buffer(self.length_H) #  side length
+        self.length_D = self.set_buffer(length_H) #  side length
         
         return
         
@@ -231,32 +240,6 @@ class UGKSBlock(object):
         ghost cells
         """        
         
-        ####################
-        ## HOST SIDE DATA
-        
-        self.flag_H = np.zeros((2), dtype=np.int32)
-        
-        ## common
-        self.f_H = -1.0*np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64) # mass.x, energy.y
-        
-        self.flux_f_S_H = np.zeros((self.Ni,self.Nj,self.Nv,2),dtype=np.float64) # mass.x, energy.y
-        self.flux_f_W_H = np.zeros((self.Ni,self.Nj,self.Nv,2),dtype=np.float64) # mass.x, energy.y
-        
-        self.sigma_H = np.zeros((self.Ni,self.Nj,self.Nv,2),dtype=np.float64) # distribution slopes
-        
-        self.flux_macro_S_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
-        self.flux_macro_W_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
-        
-        self.prim_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
-        self.aL_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
-        self.aR_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
-        self.aT_H = np.zeros((self.Ni,self.Nj,4),dtype=np.float64)
-        self.faceQ_H = np.zeros((self.Ni,self.Nj,2),dtype=np.float64)
-        self.Mxi_H = np.zeros((self.Ni,self.Nj,3),dtype=np.float64)
-        
-        
-        self.wall_H = np.zeros((max(self.ni, self.nj), 4, 4),dtype=np.float64)
-
         # macro variables, without ghost cells
         #.s0 -> density
         #.s1 -> x velocity
@@ -273,7 +256,7 @@ class UGKSBlock(object):
             self.macro_H[:,:,1:2] = data['UV'][()]
             self.macro_H[:,:,3] = 1.0/data['T'][()]
             self.Q_H[:] = data['Q'][()]
-            self.f_H[:] = data['f'][()]
+            f_H[:] = data['f'][()]
             
         else:
             self.macro_H[:,:,0] *= self.fill_condition.D # density
@@ -307,33 +290,42 @@ class UGKSBlock(object):
                         if self.fill_condition.UDF_qy:
                             fval = eval(self.fill_condition.UDF_qy)
                             self.Q_H[i,j,1] = fval*5.0/(4 + gdata.K)
+                        
+                        # hack to remove error
+                        x += x
+                        y += y
         # time step
         self.time_step_H = np.zeros((self.ni,self.nj),dtype=np.float64)
 
         ####################
         ## DEVICE SIDE DATA
         
+        self.flag_H = np.zeros((2), dtype=np.int32)
         self.flag_D = self.set_buffer(self.flag_H)
         
         ## common
-        self.f_D = self.set_buffer(self.f_H)
+
+        f64_size = np.dtype(np.float64).itemsize
+        dist_size = self.Ni*self.Nj*self.Nv*2*f64_size
+        macro_size = self.Ni*self.Nj*4*f64_size
+
+        self.f_D = self.set_buffer_size(dist_size)
+        self.flux_f_S_D = self.set_buffer_size(dist_size)
+        self.flux_macro_S_D = self.set_buffer_size(macro_size)
         
-        self.flux_f_S_D = self.set_buffer(self.flux_f_S_H)
-        self.flux_macro_S_D = self.set_buffer(self.flux_macro_S_H)
+        self.flux_f_W_D = self.set_buffer_size(dist_size)
+        self.flux_macro_W_D = self.set_buffer_size(macro_size)
         
-        self.flux_f_W_D = self.set_buffer(self.flux_f_W_H)
-        self.flux_macro_W_D = self.set_buffer(self.flux_macro_W_H)
+        self.prim_D = self.set_buffer_size(macro_size)
+        self.aL_D = self.set_buffer_size(macro_size)
+        self.aR_D = self.set_buffer_size(macro_size)
+        self.aT_D = self.set_buffer_size(macro_size)
+        self.faceQ_D = self.set_buffer_size(self.Ni*self.Nj*2*f64_size)
+        self.Mxi_D = self.set_buffer_size(self.Ni*self.Nj*3*f64_size)
         
-        self.prim_D = self.set_buffer(self.prim_H)
-        self.aL_D = self.set_buffer(self.aL_H)
-        self.aR_D = self.set_buffer(self.aR_H)
-        self.aT_D = self.set_buffer(self.aT_H)
-        self.faceQ_D = self.set_buffer(self.faceQ_H)
-        self.Mxi_D = self.set_buffer(self.Mxi_H)
+        self.wall_D = self.set_buffer_size(max(self.ni, self.nj)*4*4*f64_size)
         
-        self.wall_D = self.set_buffer(self.wall_H)
-        
-        self.sigma_D = self.set_buffer(self.sigma_H)
+        self.sigma_D = self.set_buffer_size(dist_size)
         
         # macroscopic properties, without ghost cells
         self.macro_D = self.set_buffer(self.macro_H)
@@ -503,10 +495,6 @@ class UGKSBlock(object):
         
         cl.enqueue_barrier(self.queue)
         
-#        cl.enqueue_copy(self.queue, self.wall_H, self.wall_D)
-#        
-#        print self.wall_H[:,:,3]
-        
         return
     
     def updateBC(self):
@@ -612,9 +600,6 @@ class UGKSBlock(object):
             
             this_face += 1
         
-        cl.enqueue_barrier(self.queue)
-        cl.enqueue_copy(self.queue, self.xy_H, self.xy_D)
-        
         
         # once all vertex positions are updated, we can caclulate geometric 
         #  properties of the cells
@@ -626,12 +611,13 @@ class UGKSBlock(object):
         
         cl.enqueue_barrier(self.queue)
         
-        # get it all back for later use
+        # get it back for later use
+        centre_H = np.ones((self.Ni,self.Nj,2),dtype=np.float64)
+        length_H = np.ones((self.Ni,self.Nj,2),dtype=np.float64)
+        
         cl.enqueue_copy(self.queue, self.area_H, self.area_D)
-        cl.enqueue_copy(self.queue, self.centre_H, self.centre_D)
-        cl.enqueue_copy(self.queue, self.side_H, self.side_D)
-        cl.enqueue_copy(self.queue, self.normal_H, self.normal_D)
-        cl.enqueue_copy(self.queue, self.length_H, self.length_D)
+        cl.enqueue_copy(self.queue, centre_H, self.centre_D)
+        cl.enqueue_copy(self.queue, length_H, self.length_D)
         
         grabI = range(self.ghost, self.Ni-self.ghost)
         grabJ = range(self.ghost, self.Nj-self.ghost)
@@ -640,8 +626,8 @@ class UGKSBlock(object):
             I = grabI[i]
             for j in range(self.nj):
                 J = grabJ[j]
-                self.centreX[i,j] = self.centre_H[I,J,0]
-                self.centreY[i,j] = self.centre_H[I,J,1]
+                self.centreX[i,j] = centre_H[I,J,0]
+                self.centreY[i,j] = centre_H[I,J,1]
                 
         # the total area of this block
         self.total_area = np.sum(self.area_H[self.ghost:-self.ghost, self.ghost:-self.ghost])
@@ -650,7 +636,7 @@ class UGKSBlock(object):
         para = np.zeros((max(self.ni, self.nj), 4), dtype=np.float64)
         
         #NORTH
-        stencil = self.length_H[self.ghost:(-self.ghost),-self.ghost,0]
+        stencil = length_H[self.ghost:(-self.ghost),-self.ghost,0]
         total_length = np.sum(stencil)
         length = 0.0
         for i in range(len(stencil)):
@@ -659,7 +645,7 @@ class UGKSBlock(object):
             length += cell_length      
             
         #SOUTH
-        stencil = self.length_H[self.ghost:(-self.ghost),self.ghost,0]
+        stencil = length_H[self.ghost:(-self.ghost),self.ghost,0]
         total_length = np.sum(stencil)
         length = 0.0
         for i in range(len(stencil)):
@@ -668,7 +654,7 @@ class UGKSBlock(object):
             length += cell_length     
             
         #EAST
-        stencil = self.length_H[-self.ghost,self.ghost:(-self.ghost),1]
+        stencil = length_H[-self.ghost,self.ghost:(-self.ghost),1]
         total_length = np.sum(stencil)
         length = 0.0
         for i in range(len(stencil)):
@@ -677,7 +663,7 @@ class UGKSBlock(object):
             length += cell_length   
             
         #WEST
-        stencil = self.length_H[self.ghost,self.ghost:(-self.ghost),1]
+        stencil = length_H[self.ghost,self.ghost:(-self.ghost),1]
         total_length = np.sum(stencil)
         length = 0.0
         for i in range(len(stencil)):
@@ -685,8 +671,8 @@ class UGKSBlock(object):
             para[i,3] = (length + cell_length/2.0)/total_length
             length += cell_length   
         
-        self.para_H = para
-        self.para_D = self.set_buffer(self.para_H)
+        para_H = para
+        self.para_D = self.set_buffer(para_H)
         
         return
         
@@ -1061,9 +1047,11 @@ class UGKSBlock(object):
             # get internal data, if specified
             self.getInternal()
             
-            if getF:
-                cl.enqueue_copy(self.queue,self.f_H,self.f_D)
-        
+        if getF:
+            f_H = np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64)
+            cl.enqueue_copy(self.queue,f_H,self.f_D)
+            return f_H
+            
         return
     
     def getDT(self):
@@ -1075,9 +1063,6 @@ class UGKSBlock(object):
                           self.xy_D, self.area_D, self.macro_D, self.time_step_D)
                           
         cl.enqueue_barrier(self.queue)
-        
-        #cl.enqueue_copy(self.queue,self.time_step_H,self.time_step_D)
-        #print self.time_step_H
         
         # run reduction kernel
         max_freq = cl_array.max(self.time_step_array,queue=self.queue).get()
@@ -1096,7 +1081,10 @@ class UGKSBlock(object):
         sgrp.create_dataset("dt",data=gdata.dt)
         sgrp.create_dataset("time",data=gdata.time)
         
-        self.updateHost(getF = all_data)
+        if all_data:
+            f_H = self.updateHost(getF = all_data)
+        else:
+            self.updateHost(getF = all_data)
         
         sgrp.create_dataset("rho",data=self.macro_H[:,:,0], compression=gdata.save_options.compression)
         xdmf += '<Attribute Name="rho" AttributeType="Scalar" Center="Cell">\n'
@@ -1167,7 +1155,7 @@ class UGKSBlock(object):
         if all_data:
             sgrp = grp.require_group("block_" + str(self.id))
 
-            sgrp.create_dataset("f",data=self.f_H, compression=gdata.save_options.compression)
+            sgrp.create_dataset("f",data=f_H, compression=gdata.save_options.compression)
                 
         
         return xdmf
