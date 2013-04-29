@@ -253,10 +253,10 @@ class UGKSBlock(object):
             step = restart_hdf['global_data/final_step'][()]
             data = restart_hdf['step_%d/block_%d'%(step, self.id)]
             self.macro_H[:,:,0] = data['rho'][()]
-            self.macro_H[:,:,1:2] = data['UV'][()]
+            self.macro_H[:,:,1:3] = data['UV'][()]
             self.macro_H[:,:,3] = 1.0/data['T'][()]
             self.Q_H[:] = data['Q'][()]
-            f_H[:] = data['f'][()]
+            f_H = data['f'][()]
             
         else:
             self.macro_H[:,:,0] *= self.fill_condition.D # density
@@ -309,7 +309,11 @@ class UGKSBlock(object):
         dist_size = self.Ni*self.Nj*self.Nv*2*f64_size
         macro_size = self.Ni*self.Nj*4*f64_size
 
-        self.f_D = self.set_buffer_size(dist_size)
+        if restart_hdf:
+            self.f_D = self.set_buffer(f_H)
+        else:
+            self.f_D = self.set_buffer_size(dist_size)
+            
         self.flux_f_S_D = self.set_buffer_size(dist_size)
         self.flux_macro_S_D = self.set_buffer_size(macro_size)
         

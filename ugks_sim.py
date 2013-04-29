@@ -70,9 +70,6 @@ class UGKSim(object):
         self.updateTimeStep()
 
         print "\n INITIALISATION COMPLETE\n"
-        
-        self.time_history_residual = []
-        self.time_history_residual_N = []
                 
         
         if self.restart_hdf:
@@ -425,6 +422,14 @@ class UGKSim(object):
                         save.save_count = mag
                     if res.non_linear_dt:
                         gdata.dt_update_count = mag
+                        
+                        
+                if gdata.restart:
+                    if self.step >= res.non_linear_output_limit:
+                        if res.non_linear_save:
+                            save.save_count = res.non_linear_output_limit
+                        if res.non_linear_dt:
+                            gdata.dt_update_count = res.non_linear_output_limit
             
             if res.get_residual & ((self.step+1)%res.residual_count == 0):
                 get_res = True
@@ -573,10 +578,17 @@ class UGKSim(object):
         
         self.resPlot = self.resFig.add_subplot(111)
         
-        self.line_residual_0, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual,'r',label="rho")
-        self.line_residual_1, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'g', label="U")
-        self.line_residual_2, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'b', label="V")
-        self.line_residual_3, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'k', label="1/T")
+        if gdata.restart:
+            init = np.array(self.time_history_residual)
+            self.line_residual_0, = self.resPlot.loglog(self.time_history_residual_N, init[:,0],'r',label="rho")
+            self.line_residual_1, = self.resPlot.loglog(self.time_history_residual_N, init[:,1], 'g', label="U")
+            self.line_residual_2, = self.resPlot.loglog(self.time_history_residual_N, init[:,2], 'b', label="V")
+            self.line_residual_3, = self.resPlot.loglog(self.time_history_residual_N, init[:,3], 'k', label="1/T")
+        else:
+            self.line_residual_0, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual,'r',label="rho")
+            self.line_residual_1, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'g', label="U")
+            self.line_residual_2, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'b', label="V")
+            self.line_residual_3, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'k', label="1/T")
         
         plt.legend(loc=3)        
         
@@ -672,11 +684,12 @@ class UGKSim(object):
             gdata.time = self.restart_hdf['step_%d/block_0/time'%gdata.step][()]
             
             if gdata.residual_options.plot_residual & gdata.residual_options.get_residual:
-                self.time_history_residual_N = self.restart_hdf['global_data/residual_xy'][0,:].tolist()
-                self.time_history_residual = self.restart_hdf['global_data/residual_xy'][1,:].tolist()
-                
+                self.time_history_residual_N = self.restart_hdf['global_data/residual_xy'][:,0].tolist()
+                self.time_history_residual = self.restart_hdf['global_data/residual_xy'][:,1:5].tolist()
         else:
             self.restart_hdf = None
+            self.time_history_residual = []
+            self.time_history_residual_N = []
             
         
         return
@@ -704,7 +717,7 @@ class UGKSim(object):
             
         h5Name = os.path.join(h5Path,name+".h5")
             
-        if gdata.restart & os.path.isfile(h5Name):
+        if (gdata.restart != False) & os.path.isfile(h5Name):
             # we can't over-write our restart file!!
             name += '_restart_t=%g'%gdata.time
             name.replace(".","-")
@@ -715,6 +728,7 @@ class UGKSim(object):
         self.h5name_short = name+".h5"
             
         
+        print "HDF save to --> %s"%h5Name
         self.hdf = h5py.File(h5Name, 'w') #open new file to save to
         
         grp = self.hdf.create_group("global_data")
