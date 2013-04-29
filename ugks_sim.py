@@ -4,8 +4,10 @@
 import pyopencl as cl
 import numpy as np
 
-import matplotlib.pylab as plt
-from mpl_toolkits.mplot3d import Axes3D
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+#from mpl_toolkits.mplot3d import Axes3D
 
 import time
 import os
@@ -573,9 +575,6 @@ class UGKSim(object):
 
         # generate plot
         self.resFig = plt.figure(figsize=(12, 6))
-
-        #turn on interactive
-        
         self.resPlot = self.resFig.add_subplot(111)
         
         if gdata.restart:
@@ -595,7 +594,7 @@ class UGKSim(object):
         if not self.time_history_residual:
             max_res = 1
         else:
-            max_res = np.max(self.time_history_residual[-1])
+            max_res = np.max(self.time_history_residual)
         
         plot_title = "Residual"
         if gdata.title:
@@ -608,6 +607,8 @@ class UGKSim(object):
         plt.ylim(gdata.residual_options.min_residual,max_res)
         plt.ion()
         plt.show()
+        
+        print "\nresidual plot generated\n"
         
 
         # throw away first few samples
