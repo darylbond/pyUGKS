@@ -731,45 +731,32 @@ class UGKSBlock(object):
             offset_top = 1
             north_wall = np.int32(0)
             #print "north"
+            self.prg.accommodatingWallDist(self.queue, global_size, work_size,
+                                 self.normal_D, north_wall, self.wall_D, 
+                                 self.flux_f_S_D, dt)
             
-            self.prg.accommodatingWall(self.queue, global_size, work_size,
+            cl.enqueue_barrier(self.queue)
+            
+            self.prg.accommodatingWallMacro(self.queue, global_size, work_size,
                                  self.normal_D, self.length_D, 
-                                 north_wall, self.wall_D, self.flux_f_S_D, 
+                                 north_wall, self.flux_f_S_D, 
                                  self.flux_macro_S_D, dt)
-                                 
-#            self.prg.accommodatingWallDist(self.queue, global_size, work_size,
-#                                 self.normal_D, north_wall, self.wall_D, 
-#                                 self.flux_f_S_D, dt)
-#            
-#            cl.enqueue_barrier(self.queue)
-#            
-#            self.prg.accommodatingWallMacro(self.queue, global_size, work_size,
-#                                 self.normal_D, self.length_D, 
-#                                 north_wall, self.flux_f_S_D, 
-#                                 self.flux_macro_S_D, dt)
             
             
         if self.bc_list[2].type_of_BC == ACCOMMODATING:
             offset_bot = 1
             south_wall = np.int32(2)
             #print "south"
+            self.prg.accommodatingWallDist(self.queue, global_size, work_size,
+                               self.normal_D, south_wall, self.wall_D, 
+                               self.flux_f_S_D, dt)
             
-            self.prg.accommodatingWall(self.queue, global_size, work_size,
+            cl.enqueue_barrier(self.queue)
+            
+            self.prg.accommodatingWallMacro(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
-                               south_wall, self.wall_D, self.flux_f_S_D, 
+                               south_wall, self.flux_f_S_D, 
                                self.flux_macro_S_D, dt)
-                               
-                               
-#            self.prg.accommodatingWallDist(self.queue, global_size, work_size,
-#                               self.normal_D, south_wall, self.wall_D, 
-#                               self.flux_f_S_D, dt)
-#            
-#            cl.enqueue_barrier(self.queue)
-#            
-#            self.prg.accommodatingWallMacro(self.queue, global_size, work_size,
-#                               self.normal_D, self.length_D, 
-#                               south_wall, self.flux_f_S_D, 
-#                               self.flux_macro_S_D, dt)
                                
         
         ##
@@ -862,47 +849,32 @@ class UGKSBlock(object):
             offset_top = 1
             east_wall = np.int32(1)
             #print "east"
+            self.prg.accommodatingWallDist(self.queue, global_size, work_size,
+                               self.normal_D, east_wall, self.wall_D, 
+                               self.flux_f_W_D, dt)
             
-            self.prg.accommodatingWall(self.queue, global_size, work_size,
+            cl.enqueue_barrier(self.queue)
+            
+            self.prg.accommodatingWallMacro(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
-                               east_wall, self.wall_D, self.flux_f_W_D, 
+                               east_wall, self.flux_f_W_D, 
                                self.flux_macro_W_D, dt)
-
-
-
-#            self.prg.accommodatingWallDist(self.queue, global_size, work_size,
-#                               self.normal_D, east_wall, self.wall_D, 
-#                               self.flux_f_W_D, dt)
-#            
-#            cl.enqueue_barrier(self.queue)
-#            
-#            self.prg.accommodatingWallMacro(self.queue, global_size, work_size,
-#                               self.normal_D, self.length_D, 
-#                               east_wall, self.flux_f_W_D, 
-#                               self.flux_macro_W_D, dt)
             
             
         if self.bc_list[3].type_of_BC == ACCOMMODATING:
             offset_bot = 1
             west_wall = np.int32(3)
             #print "west"
+            self.prg.accommodatingWallDist(self.queue, global_size, work_size,
+                               self.normal_D, west_wall, self.wall_D, 
+                               self.flux_f_W_D, dt)
             
-            self.prg.accommodatingWall(self.queue, global_size, work_size,
+            cl.enqueue_barrier(self.queue)
+            
+            self.prg.accommodatingWallMacro(self.queue, global_size, work_size,
                                self.normal_D, self.length_D, 
-                               west_wall, self.wall_D, self.flux_f_W_D, 
+                               west_wall, self.flux_f_W_D, 
                                self.flux_macro_W_D, dt)
-                               
-                               
-#            self.prg.accommodatingWallDist(self.queue, global_size, work_size,
-#                               self.normal_D, west_wall, self.wall_D, 
-#                               self.flux_f_W_D, dt)
-#            
-#            cl.enqueue_barrier(self.queue)
-#            
-#            self.prg.accommodatingWallMacro(self.queue, global_size, work_size,
-#                               self.normal_D, self.length_D, 
-#                               west_wall, self.flux_f_W_D, 
-#                               self.flux_macro_W_D, dt)
             
         ##
         # calculate the internal fluxes    
