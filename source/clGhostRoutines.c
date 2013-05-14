@@ -460,7 +460,7 @@ edgeExtrapolate(__global double2* Fin,
 __kernel void
 edgeConstant(__global double2* Fin,
 	   int this_face,
-	   __global double4* wall_def)
+	   __global double4* wall_prop)
 {
   // set distribution functions to the equilibrium value defined by the input data
   
@@ -499,7 +499,7 @@ edgeConstant(__global double2* Fin,
   double4 prim;
   double2 Q;
   
-  prim = WALL(this_face, ci);
+  prim = WALL_PROP(this_face, ci);
   
   Q = 0.0;
   

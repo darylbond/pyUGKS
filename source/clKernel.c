@@ -21,7 +21,7 @@
 
 #define TSTEP(i,j) time_step[(i)*nj + (j)]
 
-#define WALL(w, i) wall_def[(i)*4 + (w)]
+#define WALL_PROP(w, i) wall_prop[(i)*4 + (w)]
 #define PARA(w, i) para_def[(i)*4 + (w)]
 
 /////////////////////////////////////////
@@ -139,7 +139,7 @@ cellGeom(__global double2* xy,
 /////////////////////////////////////////
 __kernel void
 paraBC(__global double* para_def,
-       __global double4* wall_def,
+       __global double4* wall_prop,
        double t)
 {
   // update the wall values used in boundary conditions
@@ -157,14 +157,14 @@ paraBC(__global double* para_def,
     prim.s1 = WALL_N_U;
     prim.s2 = WALL_N_V;
     prim.s3 = WALL_N_T;
-    WALL(GNORTH,ci) = prim;
+    WALL_PROP(GNORTH,ci) = prim;
     
     s = PARA(GSOUTH, ci);
     prim.s0 = WALL_S_D;
     prim.s1 = WALL_S_U;
     prim.s2 = WALL_S_V;
     prim.s3 = WALL_S_T;
-    WALL(GSOUTH,ci) = prim;
+    WALL_PROP(GSOUTH,ci) = prim;
   }
   
   // EAST & WEST FACES
@@ -174,14 +174,14 @@ paraBC(__global double* para_def,
     prim.s1 = WALL_E_U;
     prim.s2 = WALL_E_V;
     prim.s3 = WALL_E_T;
-    WALL(GEAST,ci) = prim;
+    WALL_PROP(GEAST,ci) = prim;
     
     s = PARA(GWEST, ci);
     prim.s0 = WALL_W_D;
     prim.s1 = WALL_W_U;
     prim.s2 = WALL_W_V;
     prim.s3 = WALL_W_T;
-    WALL(GWEST,ci) = prim;
+    WALL_PROP(GWEST,ci) = prim;
   }
   
   // do something with s to stop a warning

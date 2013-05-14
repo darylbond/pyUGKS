@@ -118,7 +118,9 @@ class UGKSData(object):
                 'u_min', 'v_min', 'u_mid', 'v_mid', 'u_max','v_max',\
                 'u_num','v_num','quad_type',\
                 'work_size_i','work_size_j','opt_sample_size', 'opt_run',\
-                'opt_start'
+                'opt_start',\
+                'beta_n','beta_t','epsilon_0','gamma_f','gamma_b','S_T',\
+                'vartheta_initial','alpha_p','alpha_n','alpha_t'
     
     def __init__(self):
         """
@@ -185,6 +187,32 @@ class UGKSData(object):
         self.v_mid = 0.0
         self.u_max = 0.0
         self.v_max = 0.0
+        
+        ## wall values
+        
+        # factors used in determining probability of sticking to a wall 
+        # based on molecular velocity, zero gives equal probability for
+        # all velocities
+        self.beta_n = 0.0 # normal 
+        self.beta_t = 0.0 # tangential
+        self.epsilon_0 = 1.0 # overall factor
+        
+        # factors for forward and backward reaction rates
+        self.gamma_f = 0.0
+        self.gamma_b = 0.0
+        
+        # initial coverage of adsorbed molecules
+        self.vartheta_initial = 0.0
+        
+        # total concentration of adsorbtion sites
+        self.S_T = 400.0
+        
+        # dimensionless constant for change in vartheta
+        self.alpha_p = 1.0
+        
+        # Cercignani - Lampis accomodation coefficients
+        self.alpha_n = 1.0
+        self.alpha_t = 1.0
         
         # EXTERNAL SOURCE        
         src_loader = sl.SourceLoader()
@@ -292,6 +320,8 @@ class UGKSData(object):
         # internal degrees of freedom
         self.b = 2.0/(self.gamma - 1.0)     # number of dimensions present
         self.K = self.b - 2   # number of dimensions added to simulation
+        
+        self.alpha_p = self.C_ref*self.t_ref/self.S_T
         
         # Gauss-Hermite
         self.init_quad()

@@ -72,6 +72,103 @@ double2 fEQ(double4 prim, double2 Q, double2 uv, size_t gv)
   return M + fS(prim, Q, uv, M);
 }
 
+double bessi0(double x) { 
+	// -- See paper J.M. Blair, "Rational Chebyshev approximations for the modified Bessel 
+	// functions I_0(x) and I_1(x)", Math. Comput., vol. 28, n. 126, pp. 581-583, Apr. 1974.
+	double num, den, x2;
+	x2 = fabs(x*x);    x=fabs(x);
+	if (x > 15.0) {
+		den = 1.0 / x;
+		num =              -4.4979236558557991E+006;
+		num = fma (num, den,  2.7472555659426521E+006);
+		num = fma (num, den, -6.4572046640793153E+005);
+		num = fma (num, den,  8.5476214845610564E+004);
+		num = fma (num, den, -7.1127665397362362E+003);
+		num = fma (num, den,  4.1710918140001479E+002);
+		num = fma (num, den, -1.3787683843558749E+001);
+		num = fma (num, den,  1.1452802345029696E+000);
+		num = fma (num, den,  2.1935487807470277E-001);
+		num = fma (num, den,  9.0727240339987830E-002);
+		num = fma (num, den,  4.4741066428061006E-002);
+		num = fma (num, den,  2.9219412078729436E-002);
+		num = fma (num, den,  2.8050629067165909E-002);
+		num = fma (num, den,  4.9867785050221047E-002);  
+		num = fma (num, den,  3.9894228040143265E-001);
+		num = num * den;
+		den = sqrt (x);
+		num = num * den;
+		den = exp (0.5 * x);  /* prevent premature overflow */
+		num = num * den;
+		num = num * den;
+		return num;
+	} else {  
+		num = -0.28840544803647313855232E-028;
+		num = fma (num, x2, -0.72585406935875957424755E-025);
+		num = fma (num, x2, -0.1247819710175804058844059E-021);
+		num = fma (num, x2, -0.15795544211478823152992269E-018);
+		num = fma (num, x2, -0.15587387207852991014838679E-015); 
+		num = fma (num, x2, -0.121992831543841162565677055E-012); 
+		num = fma (num, x2, -0.760147559624348256501094832E-010);  
+		num = fma (num, x2, -0.375114023744978945259642850E-007); 
+		num = fma (num, x2, -0.1447896113298369009581404138E-004);
+		num = fma (num, x2, -0.4287350374762007105516581810E-002);
+		num = fma (num, x2, -0.947449149975326604416967031E+000); 
+		num = fma (num, x2, -0.1503841142335444405893518061E+003); 
+		num = fma (num, x2, -0.1624100026427837007503320319E+005); 
+		num = fma (num, x2, -0.11016595146164611763171787004E+007);
+		num = fma (num, x2, -0.4130296432630476829274339869E+008); 
+		num = fma (num, x2, -0.6768549084673824894340380223E+009);  
+		num = fma (num, x2, -0.27288446572737951578789523409E+010);
+		den = 0.1E+001;
+		den = fma (den, x2, -0.38305191682802536272760E+004); 
+		den = fma (den, x2, 0.5356255851066290475987259E+007);  
+		den = fma (den, x2, -0.2728844657273795156746641315E+010);
+		return num/den; 
+	} 
+}
+
+double scatterNormal(double c_in, double c_out, double alpha_n, double Tw)
+{
+  // normal scattering
+  
+  double Rn = (2.0/(alpha_n*Tw))*fabs(c_out)
+        *bessi0((2*sqrt(1-alpha_n))/(alpha_n*Tw)*c_in*c_out)
+        *exp(-(c_out*c_out + (1-alpha_n)*c_in*c_in)/(alpha_n*Tw));
+  
+  return Rn;
+}
+
+double scatterTangential(double c_in, double c_out, double alpha_t, double Tw)
+{
+  // tangential scattering
+  
+  double a = c_out - (1-alpha_t)*c_in;
+  
+  double Rt = (1.0/sqrt(PI*alpha_t*(2-alpha_t)*Tw))
+               *exp(-a*a/(alpha_t*(2-alpha_t)*Tw));
+  
+  return Rt;
+}
+
+double2 CercignaniLampis(double2 uv_in, double2 uv_out, double2 f_in, double alpha_n, double alpha_t, double Tw)
+{
+  // calculate the contribution of uv_in to uv_out
+  
+  double2 f_out;
+  
+  f_out = fabs(uv_in.x/uv_out.x)
+             *scatterNormal(uv_in.x, uv_out.x, alpha_n, Tw)
+             *scatterTangential(uv_in.y, uv_out.y, alpha_t, Tw);
+             
+             
+  f_out *= f_in;
+  
+  f_out.y *= (1-alpha_t)*(1-alpha_t);
+  
+  
+  return f_out;
+}
+
 /////////////////////////////////////////
 // interfaceVelocity
 /////////////////////////////////////////
@@ -246,4 +343,14 @@ double2 orientation(double2 a0, double2 a1, double2 b0, double2 b1, double2 n)
   return m;
 }
 
+double stickingProbability(double2 uv, double T)
+{
+  // return the probability of a particle sticking to a surface
+  // given the velocity (x-> normal to surface, y -> tangential to 
+  // surface) and temperature (to account for z direction)
+  
+  double a = (BETA_N*BETA_N)*(uv.x*uv.x) + (BETA_T*BETA_T)*(uv.y*uv.y);
+  
+  return (EPSILON_0/(sqrt(1.0 + T*BETA_T*BETA_T)))*exp(-a);
+}
 
