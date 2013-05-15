@@ -888,8 +888,11 @@ accommodatingWallDist(__global double2* normal,
                 
                 wall_dist = ratio*delta*fM(wall, uv, gv) + (1-delta)*face_dist;
                 
-                //FLUXF(gi,gj,gv) = uv.x*wall_dist*face_length*dt;
                 FLUXF(gi,gj,gv) = wall_dist;
+                
+                if (((face == GNORTH) && (ci == 0))){
+                    printf("gv = %d, wall_dist = [%v2g]\n",gv, wall_dist);
+                }
             }
         }
     }
@@ -921,6 +924,10 @@ adsorbingWallDist(__global double2* normal,
     
     int rot;
     int face_id;
+    
+    // mean temperature of cell next to wall, should _really_ be 
+    // using temp of face_dist but this would be expensive to calculate
+    double T; 
 
     switch (face) {
         case GNORTH:
@@ -929,6 +936,7 @@ adsorbingWallDist(__global double2* normal,
             gj += NJ - GHOST;
             rot = -1;
             face_id = SOUTH;
+            T = 1.0/MACRO(gi-GHOST, gj-GHOST-1).s3;
             break;
         case GEAST:
             ci = gj;
@@ -936,6 +944,7 @@ adsorbingWallDist(__global double2* normal,
             gj += GHOST;
             rot = -1;
             face_id = WEST;
+            T = 1.0/MACRO(gi-GHOST-1, gj-GHOST).s3;
             break;
         case GSOUTH:
             ci = gi;
@@ -943,6 +952,7 @@ adsorbingWallDist(__global double2* normal,
             gj += GHOST;
             rot = 1;
             face_id = SOUTH;
+            T = 1.0/MACRO(gi-GHOST, gj-GHOST).s3;
             break;
         case GWEST:
             ci = gj;
@@ -950,6 +960,7 @@ adsorbingWallDist(__global double2* normal,
             gj += GHOST;
             rot = 1;
             face_id = WEST;
+            T = 1.0/MACRO(gi-GHOST, gj-GHOST).s3;
             break;
     }
     
@@ -970,12 +981,11 @@ adsorbingWallDist(__global double2* normal,
         double2 uv, face_dist;
         int delta;
         
-        //data = [reflected flux, _maybe_ adsorbed flux]
+        //data = [reflected flux, adsorbed flux]
         
         data[thread_id] = 0.0;
         
         double vartheta = COVER(face, ci); // the fraction of cover that this wall section has
-        double T = 1.0/MACRO(gi-GHOST, gj-GHOST).s3; // temperature of cell next to wall, should _really_ be using temp of face_dist
         
         for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
             size_t gv = li*LOCAL_SIZE+thread_id;
@@ -997,7 +1007,8 @@ adsorbingWallDist(__global double2* normal,
                 data[thread_id].x += reflected_flux.x;
                 data[thread_id].y += adsorbed_flux.x;
                 
-                WALL_DIST(ci, gv) = reflected_flux;  // save the reflected distribution for later
+                WALL_DIST(ci, gv) = reflected_flux/uv.x;  // save the reflected distribution for later
+                
             }
         }
         
@@ -1017,7 +1028,6 @@ adsorbingWallDist(__global double2* normal,
         }
         
         // we now know how much needs to be reflected and adsorbed
-        // adjust the adsorbed fraction
         
         if (thread_id == 0) {
             
@@ -1028,41 +1038,44 @@ adsorbingWallDist(__global double2* normal,
             COVER(face, ci) += dt*ALPHA_P*(adsorbed_flux.x - desorbed_flux.x);
         }
         
-        barrier(CLK_LOCAL_MEM_FENCE);
-        
         data[thread_id] = 0.0;
-        
-        barrier(CLK_LOCAL_MEM_FENCE);
         
         // now calculate the Cercignani - Lampis distribution for the 
         // reflected flux
-        double2 CL_v;
+        double2 CL_v, CL;
         for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
             size_t gv = li*LOCAL_SIZE+thread_id;
             if (gv < NV) {
-                double2 uv_out = interfaceVelocity(gv, -face_normal); // velocities out of wall
-                delta = (sign(uv_out.x)*rot - 1)/2;
-                
-                face_dist = FLUXF(gi,gj,gv);
+                double2 uv_out = interfaceVelocity(gv, face_normal); // velocities out of wall
+                delta = (sign(uv_out.x)*rot + 1)/2; // (1 -> out of wall)
                 
                 // calculate the CL distribution for this velocity
                 CL_v = 0.0;
-                for (size_t va = 0; va < NV; ++ va) {
-                    double2 uv_in = interfaceVelocity(va, face_normal); // velocities into the wall
-                    if (!((sign(uv_in.x)*rot + 1)/2)) {
-                        CL_v += CercignaniLampis(uv_in, uv_out, WALL_DIST(ci, va), ALPHA_N, ALPHA_T, 1.0/wall.s3);
+                if (delta) {
+                    for (size_t va = 0; va < NV; ++va) {
+                        double2 uv_in = interfaceVelocity(va, face_normal); // velocities into the wall
+                        int delta_in = (sign(uv_in.x)*rot + 1)/2; // (0 -> into wall)
+                        
+                        if (!delta_in) {
+                            CL = CercignaniLampis(uv_in, uv_out, WALL_DIST(ci, va), ALPHA_N, ALPHA_T, 1.0/wall.s3);
+                            CL.y += 0.5*ALPHA_T*(2-ALPHA_T)/wall.s3*CL.x;
+                            CL_v += CL;
+                        }
                     }
+                    
+                    CL_v *= WEIGHT[gv];
                 }
                 
-                CL_v.y += 0.5*ALPHA_T*(2-ALPHA_T)/wall.s3*CL_v.x;
-                
+                face_dist = FLUXF(gi,gj,gv);
                 FLUXF(gi,gj,gv) = delta*CL_v + (1-delta)*face_dist;
                 
-                data[thread_id] += CL_v;
-                
+                data[thread_id] -= uv_out.x*CL_v;
             }
         }
         
+        barrier(CLK_LOCAL_MEM_FENCE);
+        
+
         // perform reduction
         step = 1;
         grab_id = 2;
@@ -1086,20 +1099,21 @@ adsorbingWallDist(__global double2* normal,
         barrier(CLK_LOCAL_MEM_FENCE);
         
         double ratio = data[0].x;
-        
+
         // now adjust the Cercignani - Lampis distribution so that we conserve mass
+        // also add on any desorbing flux
+        wall.s0 = 2*desorbed_flux.x;
         for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
             size_t gv = li*LOCAL_SIZE+thread_id;
             if (gv < NV) {
-                double2 uv_out = interfaceVelocity(gv, -face_normal); // velocities out of wall
-                delta = (sign(uv_out.x)*rot - 1)/2;
+                uv = interfaceVelocity(gv, face_normal);
+                delta = (sign(uv.x)*rot + 1)/2; // (1 -> out of wall)
                 
-                face_dist = FLUXF(gi,gj,gv);
-                
-                FLUXF(gi,gj,gv) = delta*ratio*FLUXF(gi,gj,gv) + (1-delta)*FLUXF(gi,gj,gv);
+                 FLUXF(gi,gj,gv) *= ((1-delta) + ratio*delta);
+                 
+                 FLUXF(gi,gj,gv) += delta*fM(wall, uv, gv);
             }
         }
-        
     }
     
     return;
@@ -1107,7 +1121,7 @@ adsorbingWallDist(__global double2* normal,
 
 
 __kernel void
-wallMacro(__global double2* normal,
+wallFlux(__global double2* normal,
             __global double* side_length, int face,
             __global double2* flux_f, __global double4* flux_macro, 
             double dt)

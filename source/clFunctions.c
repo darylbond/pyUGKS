@@ -132,7 +132,7 @@ double scatterNormal(double c_in, double c_out, double alpha_n, double Tw)
   // normal scattering
   
   double Rn = (2.0/(alpha_n*Tw))*fabs(c_out)
-        *bessi0((2*sqrt(1-alpha_n))/(alpha_n*Tw)*c_in*c_out)
+        *bessi0(((2*sqrt(1-alpha_n))/(alpha_n*Tw))*c_in*c_out)
         *exp(-(c_out*c_out + (1-alpha_n)*c_in*c_in)/(alpha_n*Tw));
   
   return Rn;
@@ -145,7 +145,7 @@ double scatterTangential(double c_in, double c_out, double alpha_t, double Tw)
   double a = c_out - (1-alpha_t)*c_in;
   
   double Rt = (1.0/sqrt(PI*alpha_t*(2-alpha_t)*Tw))
-               *exp(-a*a/(alpha_t*(2-alpha_t)*Tw));
+               *exp(-(a*a)/(alpha_t*(2-alpha_t)*Tw));
   
   return Rt;
 }
@@ -349,8 +349,8 @@ double stickingProbability(double2 uv, double T)
   // given the velocity (x-> normal to surface, y -> tangential to 
   // surface) and temperature (to account for z direction)
   
-  double a = (BETA_N*BETA_N)*(uv.x*uv.x) + (BETA_T*BETA_T)*(uv.y*uv.y);
+  double a = -(BETA_N*BETA_N)*(uv.x*uv.x) - (BETA_T*BETA_T)*(uv.y*uv.y);
   
-  return (EPSILON_0/(sqrt(1.0 + T*BETA_T*BETA_T)))*exp(-a);
+  return (EPSILON_0/(sqrt(1.0 + T*BETA_T*BETA_T)))*exp(a);
 }
 
