@@ -936,7 +936,7 @@ adsorbingWallDist(__global double2* normal,
             gj += NJ - GHOST;
             rot = -1;
             face_id = SOUTH;
-            T = 1.0/MACRO(gi-GHOST, gj-GHOST-1).s3;
+            T = 1.0/MACRO(ci, gj-GHOST-1).s3;
             break;
         case GEAST:
             ci = gj;
@@ -944,7 +944,7 @@ adsorbingWallDist(__global double2* normal,
             gj += GHOST;
             rot = -1;
             face_id = WEST;
-            T = 1.0/MACRO(gi-GHOST-1, gj-GHOST).s3;
+            T = 1.0/MACRO(gi-GHOST-1, ci).s3;
             break;
         case GSOUTH:
             ci = gi;
@@ -952,7 +952,7 @@ adsorbingWallDist(__global double2* normal,
             gj += GHOST;
             rot = 1;
             face_id = SOUTH;
-            T = 1.0/MACRO(gi-GHOST, gj-GHOST).s3;
+            T = 1.0/MACRO(ci, gj-GHOST).s3;
             break;
         case GWEST:
             ci = gj;
@@ -960,7 +960,7 @@ adsorbingWallDist(__global double2* normal,
             gj += GHOST;
             rot = 1;
             face_id = WEST;
-            T = 1.0/MACRO(gi-GHOST, gj-GHOST).s3;
+            T = 1.0/MACRO(gi-GHOST, ci).s3;
             break;
     }
     
@@ -996,7 +996,7 @@ adsorbingWallDist(__global double2* normal,
 
                 delta = (sign(uv.x)*rot + 1)/2; // flag to indicate if this velocity is going out of the wall (delta = 1 -> out of wall)
                 
-                total_flux = uv.x*(1-delta)*face_dist; // total flux that is impinging on wall
+                total_flux = fabs(uv.x)*(1-delta)*face_dist; // total flux that is impinging on wall
                 
                 beta = stickingProbability(uv, T); // probability giving the amount of this discrete velocity that has a chance of sticking 
                 
@@ -1008,6 +1008,10 @@ adsorbingWallDist(__global double2* normal,
                 data[thread_id].y += adsorbed_flux.x;
                 
                 WALL_DIST(ci, gv) = reflected_flux/uv.x;  // save the reflected distribution for later
+                
+                //~ if ((face == GNORTH) && (ci == 0)) {
+                    //~ printf("gv = %d, vtheta = %g,  adsorbed_flux = %g, reflected = %g\n",gv, vartheta, adsorbed_flux.x,  reflected_flux.x);
+                //~ }
                 
             }
         }
@@ -1029,76 +1033,81 @@ adsorbingWallDist(__global double2* normal,
         
         // we now know how much needs to be reflected and adsorbed
         
+        reflected_flux.x = data[0].x;
+        adsorbed_flux.x  = data[0].y;
+        desorbed_flux.x  = GAMMA_B*vartheta;
+        
         if (thread_id == 0) {
             
-            reflected_flux.x = data[0].x;
-            adsorbed_flux.x  = data[0].y;
-            desorbed_flux.x  = GAMMA_B*vartheta;
-        
             COVER(face, ci) += dt*ALPHA_P*(adsorbed_flux.x - desorbed_flux.x);
+            
+            printf("\nface = %d, cell = %d\n reflected = %g\n adsorbed = %g\n desorbed = %g\n cover = %g\n\n",face, ci, reflected_flux.x, adsorbed_flux.x, desorbed_flux.x, COVER(face, ci));
         }
         
         data[thread_id] = 0.0;
         
         // now calculate the Cercignani - Lampis distribution for the 
         // reflected flux
-        double2 CL_v, CL;
-        for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
-            size_t gv = li*LOCAL_SIZE+thread_id;
-            if (gv < NV) {
-                double2 uv_out = interfaceVelocity(gv, face_normal); // velocities out of wall
-                delta = (sign(uv_out.x)*rot + 1)/2; // (1 -> out of wall)
-                
-                // calculate the CL distribution for this velocity
-                CL_v = 0.0;
-                if (delta) {
-                    for (size_t va = 0; va < NV; ++va) {
-                        double2 uv_in = interfaceVelocity(va, face_normal); // velocities into the wall
-                        int delta_in = (sign(uv_in.x)*rot + 1)/2; // (0 -> into wall)
-                        
-                        if (!delta_in) {
-                            CL = CercignaniLampis(uv_in, uv_out, WALL_DIST(ci, va), ALPHA_N, ALPHA_T, 1.0/wall.s3);
-                            CL.y += 0.5*ALPHA_T*(2-ALPHA_T)/wall.s3*CL.x;
-                            CL_v += CL;
+        double ratio;
+        if (reflected_flux.x > 0.0) {
+            double2 CL_v, CL;
+            for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+                size_t gv = li*LOCAL_SIZE+thread_id;
+                if (gv < NV) {
+                    double2 uv_out = interfaceVelocity(gv, face_normal); // velocities out of wall
+                    delta = (sign(uv_out.x)*rot + 1)/2; // (1 -> out of wall)
+                    
+                    // calculate the CL distribution for this velocity
+                    CL_v = 0.0;
+                    if (delta) {
+                        for (size_t va = 0; va < NV; ++va) {
+                            double2 uv_in = interfaceVelocity(va, face_normal); // velocities into the wall
+                            int delta_in = (sign(uv_in.x)*rot + 1)/2; // (0 -> into wall)
+                            
+                            if (!delta_in) {
+                                CL = CercignaniLampis(uv_in, uv_out, WALL_DIST(ci, va), ALPHA_N, ALPHA_T, 1.0/wall.s3);
+                                CL.y += 0.5*ALPHA_T*(2-ALPHA_T)/wall.s3*CL.x;
+                                CL_v += CL;
+                            }
                         }
+                        
+                        CL_v *= WEIGHT[gv];
                     }
                     
-                    CL_v *= WEIGHT[gv];
+                    face_dist = FLUXF(gi,gj,gv);
+                    FLUXF(gi,gj,gv) = delta*CL_v + (1-delta)*face_dist;
+                    
+                    data[thread_id] -= uv_out.x*CL_v;
                 }
-                
-                face_dist = FLUXF(gi,gj,gv);
-                FLUXF(gi,gj,gv) = delta*CL_v + (1-delta)*face_dist;
-                
-                data[thread_id] -= uv_out.x*CL_v;
             }
-        }
-        
-        barrier(CLK_LOCAL_MEM_FENCE);
-        
-
-        // perform reduction
-        step = 1;
-        grab_id = 2;
-        while (step < LOCAL_SIZE) {
-            if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
-                // reduce
-                data[thread_id] += data[thread_id+step];
-            }
-            step *= 2;
-            grab_id *= 2;
+            
             barrier(CLK_LOCAL_MEM_FENCE);
+            
+
+            // perform reduction
+            step = 1;
+            grab_id = 2;
+            while (step < LOCAL_SIZE) {
+                if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
+                    // reduce
+                    data[thread_id] += data[thread_id+step];
+                }
+                step *= 2;
+                grab_id *= 2;
+                barrier(CLK_LOCAL_MEM_FENCE);
+            }
+            
+            // now we know how much the CL flux out of the wall is and can 
+            // compare it to 'reflected_flux'
+            
+            if (thread_id == 0) {
+                data[0].x = reflected_flux.x/data[0].x;
+            }
+            
+            barrier(CLK_LOCAL_MEM_FENCE);
+            
+            ratio = data[0].x;
         }
-        
-        // now we now how much the CL flux out of the wall is and can 
-        // compare it to 'reflected_flux'
-        
-        if (thread_id == 0) {
-            data[0].x = reflected_flux.x/data[0].x;
-        }
-        
-        barrier(CLK_LOCAL_MEM_FENCE);
-        
-        double ratio = data[0].x;
 
         // now adjust the Cercignani - Lampis distribution so that we conserve mass
         // also add on any desorbing flux
@@ -1112,6 +1121,15 @@ adsorbingWallDist(__global double2* normal,
                  FLUXF(gi,gj,gv) *= ((1-delta) + ratio*delta);
                  
                  FLUXF(gi,gj,gv) += delta*fM(wall, uv, gv);
+                 
+                 //~ if ((face == GNORTH) && (ci == 0)) {
+                     //~ printf("gv = %d, flux = [%v2g]\n",gv,FLUXF(gi,gj,gv));
+                 //~ }
+                 
+                 if (any(isnan(FLUXF(gi,gj,gv)))) {
+                     printf("ERROR - NAN.\n");
+                     return;
+                 }
             }
         }
     }

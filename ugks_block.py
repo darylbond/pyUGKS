@@ -331,8 +331,8 @@ class UGKSBlock(object):
         wall_len = max(self.ni, self.nj)
         self.wall_prop_D = self.set_buffer_size(wall_len*4*4*f64_size) # [D,U,V,T]
         
-        wall_cover_H = gdata.vartheta_initial*np.ones((wall_len,4),dtype=np.float64)
-        self.wall_cover_D = self.set_buffer(wall_cover_H) # wall coverage fraction
+        self.wall_cover_H = gdata.vartheta_initial*np.ones((wall_len,4),dtype=np.float64)
+        self.wall_cover_D = self.set_buffer(self.wall_cover_H) # wall coverage fraction
         
         self.wall_dist_D = self.set_buffer_size(wall_len*self.Nv*2*f64_size)
         
@@ -1051,6 +1051,7 @@ class UGKSBlock(object):
         if self.macro_update == 0:
             cl.enqueue_barrier(self.queue)
             cl.enqueue_copy(self.queue,self.macro_H,self.macro_D)
+            cl.enqueue_copy(self.queue,self.wall_cover_H,self.wall_cover_D)
             self.macro_update = 1
             
         return
@@ -1187,6 +1188,7 @@ class UGKSBlock(object):
         xdmf += '</DataItem>\n'
         xdmf += '</Attribute>\n'
         
+        sgrp.create_dataset("cover",data=self.wall_cover_H, compression=gdata.save_options.compression)
             
         if all_data:
             sgrp = grp.require_group("block_" + str(self.id))

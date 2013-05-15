@@ -321,7 +321,7 @@ class UGKSData(object):
         self.b = 2.0/(self.gamma - 1.0)     # number of dimensions present
         self.K = self.b - 2   # number of dimensions added to simulation
         
-        self.alpha_p = self.C_ref*self.t_ref/self.S_T
+        self.alpha_p = self.C_ref*self.D_ref*self.t_ref/self.S_T
         
         # Gauss-Hermite
         self.init_quad()
