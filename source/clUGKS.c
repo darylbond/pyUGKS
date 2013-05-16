@@ -996,7 +996,7 @@ adsorbingWallDist(__global double2* normal,
 
                 delta = (sign(uv.x)*rot + 1)/2; // flag to indicate if this velocity is going out of the wall (delta = 1 -> out of wall)
                 
-                total_flux = fabs(uv.x)*(1-delta)*face_dist; // total flux that is impinging on wall
+                total_flux = -rot*uv.x*(1-delta)*face_dist; // total flux that is impinging on wall
                 
                 beta = stickingProbability(uv, T); // probability giving the amount of this discrete velocity that has a chance of sticking 
                 
@@ -1037,12 +1037,18 @@ adsorbingWallDist(__global double2* normal,
         adsorbed_flux.x  = data[0].y;
         desorbed_flux.x  = GAMMA_B*vartheta;
         
-        if (thread_id == 0) {
-            
-            COVER(face, ci) += dt*ALPHA_P*(adsorbed_flux.x - desorbed_flux.x);
-            
-            printf("\nface = %d, cell = %d\n reflected = %g\n adsorbed = %g\n desorbed = %g\n cover = %g\n\n",face, ci, reflected_flux.x, adsorbed_flux.x, desorbed_flux.x, COVER(face, ci));
+        double dvtheta = dt*ALPHA_P*(adsorbed_flux.x - desorbed_flux.x);
+        
+        // make sure we don't get negative ratio of coverage
+        if (vartheta + dvtheta < 0.0) {
+            dvtheta = -vartheta;
+            desorbed_flux.x = adsorbed_flux.x - dvtheta/(dt*ALPHA_P);
         }
+             
+        if (thread_id == 0) {
+            COVER(face, ci) += dvtheta;
+        }
+        
         
         data[thread_id] = 0.0;
         
@@ -1077,7 +1083,7 @@ adsorbingWallDist(__global double2* normal,
                     face_dist = FLUXF(gi,gj,gv);
                     FLUXF(gi,gj,gv) = delta*CL_v + (1-delta)*face_dist;
                     
-                    data[thread_id] -= uv_out.x*CL_v;
+                    data[thread_id] += rot*uv_out.x*CL_v;
                 }
             }
             
@@ -1108,6 +1114,10 @@ adsorbingWallDist(__global double2* normal,
             
             ratio = data[0].x;
         }
+            
+        //~ if(((face == GNORTH) || (face == GSOUTH)) && ((ci == 0) &&  (thread_id == 0))) {
+            //~ printf(" ratio = %0.16e\n\n",ratio);
+        //~ }
 
         // now adjust the Cercignani - Lampis distribution so that we conserve mass
         // also add on any desorbing flux

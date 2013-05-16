@@ -77,7 +77,9 @@ double bessi0(double x) {
 	// functions I_0(x) and I_1(x)", Math. Comput., vol. 28, n. 126, pp. 581-583, Apr. 1974.
 	double num, den, x2;
 	x2 = fabs(x*x);    x=fabs(x);
-	if (x > 15.0) {
+  if ( x == 0.0) {
+    return 1.0;
+	} else if (x > 15.0) {
 		den = 1.0 / x;
 		num =              -4.4979236558557991E+006;
 		num = fma (num, den,  2.7472555659426521E+006);
