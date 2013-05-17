@@ -1008,11 +1008,6 @@ adsorbingWallDist(__global double2* normal,
                 data[thread_id].y += adsorbed_flux.x;
                 
                 WALL_DIST(ci, gv) = reflected_flux/uv.x;  // save the reflected distribution for later
-                
-                //~ if ((face == GNORTH) && (ci == 0)) {
-                    //~ printf("gv = %d, vtheta = %g,  adsorbed_flux = %g, reflected = %g\n",gv, vartheta, adsorbed_flux.x,  reflected_flux.x);
-                //~ }
-                
             }
         }
         
@@ -1040,15 +1035,16 @@ adsorbingWallDist(__global double2* normal,
         double dvtheta = dt*ALPHA_P*(adsorbed_flux.x - desorbed_flux.x);
         
         // make sure we don't get negative ratio of coverage
+        // also ensure that we only desorb what is available, not 
+        //  including what we have just adsorbed in this time step
         if (vartheta + dvtheta < 0.0) {
-            dvtheta = -vartheta;
-            desorbed_flux.x = adsorbed_flux.x - dvtheta/(dt*ALPHA_P);
+            desorbed_flux.x = vartheta/(dt*ALPHA_P);
+            dvtheta = dt*ALPHA_P*(adsorbed_flux.x - desorbed_flux.x);
         }
              
         if (thread_id == 0) {
             COVER(face, ci) += dvtheta;
         }
-        
         
         data[thread_id] = 0.0;
         
@@ -1114,34 +1110,27 @@ adsorbingWallDist(__global double2* normal,
             
             ratio = data[0].x;
         }
-            
-        //~ if(((face == GNORTH) || (face == GSOUTH)) && ((ci == 0) &&  (thread_id == 0))) {
-            //~ printf(" ratio = %0.16e\n\n",ratio);
-        //~ }
 
         // now adjust the Cercignani - Lampis distribution so that we conserve mass
         // also add on any desorbing flux
-        wall.s0 = 2*desorbed_flux.x;
+        // convert from flux to density of distribution assuming that we 
+        // have a Maxwellian (this is true for the desorbed particles)
+        wall.s0 = 2*desorbed_flux.x*sqrt(PI*wall.s3);
         for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
             size_t gv = li*LOCAL_SIZE+thread_id;
             if (gv < NV) {
                 uv = interfaceVelocity(gv, face_normal);
                 delta = (sign(uv.x)*rot + 1)/2; // (1 -> out of wall)
                 
-                 FLUXF(gi,gj,gv) *= ((1-delta) + ratio*delta);
+                face_dist = FLUXF(gi,gj,gv);
+                
+                 face_dist *= ((1-delta) + ratio*delta);
                  
-                 FLUXF(gi,gj,gv) += delta*fM(wall, uv, gv);
+                 face_dist += delta*fM(wall, uv, gv);
                  
-                 //~ if ((face == GNORTH) && (ci == 0)) {
-                     //~ printf("gv = %d, flux = [%v2g]\n",gv,FLUXF(gi,gj,gv));
-                 //~ }
-                 
-                 if (any(isnan(FLUXF(gi,gj,gv)))) {
-                     printf("ERROR - NAN.\n");
-                     return;
-                 }
+                 FLUXF(gi,gj,gv) = face_dist;
             }
-        }
+        } 
     }
     
     return;
