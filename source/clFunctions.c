@@ -167,7 +167,6 @@ double2 CercignaniLampis(double2 uv_in, double2 uv_out, double2 f_in, double alp
   
   f_out.y *= (1-alpha_t)*(1-alpha_t);
   
-  
   return f_out;
 }
 

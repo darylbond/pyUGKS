@@ -331,7 +331,8 @@ class UGKSBlock(object):
         wall_len = max(self.ni, self.nj)
         self.wall_prop_D = self.set_buffer_size(wall_len*4*4*f64_size) # [D,U,V,T]
         
-        self.wall_cover_H = gdata.vartheta_initial*np.ones((wall_len,4),dtype=np.float64)
+        self.wall_cover_H = np.zeros((wall_len,4,4),dtype=np.float64)
+        self.wall_cover_H[:,:,0] = gdata.vartheta_initial
         self.wall_cover_D = self.set_buffer(self.wall_cover_H) # wall coverage fraction
         
         self.wall_dist_D = self.set_buffer_size(wall_len*self.Nv*2*f64_size)
@@ -743,7 +744,14 @@ class UGKSBlock(object):
                                  self.normal_D, north_wall, self.wall_prop_D, 
                                  self.flux_f_S_D, dt)
             else:               
-                self.prg.adsorbingWallDist(self.queue, global_size, work_size,
+                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
+                                 self.normal_D, north_wall, self.wall_prop_D,
+                                 self.wall_cover_D, self.wall_dist_D,
+                                 self.flux_f_S_D, self.macro_D, dt)
+                                 
+                cl.enqueue_barrier(self.queue)
+                
+                self.prg.adsorbingWall_P2(self.queue, global_size, work_size,
                                  self.normal_D, north_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_S_D, self.macro_D, dt)
@@ -765,11 +773,18 @@ class UGKSBlock(object):
                                self.normal_D, south_wall, self.wall_prop_D, 
                                self.flux_f_S_D, dt)
             else:             
-                self.prg.adsorbingWallDist(self.queue, global_size, work_size,
+                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
                                  self.normal_D, south_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_S_D, self.macro_D, dt)
-            
+                                 
+                cl.enqueue_barrier(self.queue)
+                
+                self.prg.adsorbingWall_P2(self.queue, global_size, work_size,
+                                 self.normal_D, south_wall, self.wall_prop_D,
+                                 self.wall_cover_D, self.wall_dist_D,
+                                 self.flux_f_S_D, self.macro_D, dt)
+                
             cl.enqueue_barrier(self.queue)
             
             self.prg.wallFlux(self.queue, global_size, work_size,
@@ -873,7 +888,14 @@ class UGKSBlock(object):
                                self.normal_D, east_wall, self.wall_prop_D, 
                                self.flux_f_W_D, dt)
             else:
-                self.prg.adsorbingWallDist(self.queue, global_size, work_size,
+                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
+                                 self.normal_D, east_wall, self.wall_prop_D,
+                                 self.wall_cover_D, self.wall_dist_D,
+                                 self.flux_f_W_D, self.macro_D, dt)
+                                 
+                cl.enqueue_barrier(self.queue)
+                
+                self.prg.adsorbingWall_P2(self.queue, global_size, work_size,
                                  self.normal_D, east_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_W_D, self.macro_D, dt)
@@ -896,7 +918,14 @@ class UGKSBlock(object):
                                self.flux_f_W_D, dt)
            
             else:
-                self.prg.adsorbingWallDist(self.queue, global_size, work_size,
+                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
+                                 self.normal_D, west_wall, self.wall_prop_D,
+                                 self.wall_cover_D, self.wall_dist_D,
+                                 self.flux_f_W_D, self.macro_D, dt)
+                                 
+                cl.enqueue_barrier(self.queue)
+                                 
+                self.prg.adsorbingWall_P2(self.queue, global_size, work_size,
                                  self.normal_D, west_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_W_D, self.macro_D, dt)
