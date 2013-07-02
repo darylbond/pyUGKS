@@ -190,7 +190,7 @@ class UGKSData(object):
         
         ## wall values
         
-        self.boundary_type = 'diffuse' # options = 'adsorb_specular','adsorb_diffuse', 'diffuse'
+        self.boundary_type = 'diffuse' # options = 'adsorb_CL','adsorb_specular-diffuse', 'diffuse'
         
         # factors used in determining probability of sticking to a wall 
         # based on molecular velocity, zero gives equal probability for

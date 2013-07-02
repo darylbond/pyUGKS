@@ -744,14 +744,14 @@ class UGKSBlock(object):
                                  self.flux_f_S_D, dt)
             
             elif gdata.boundary_type == 'adsorb_CL':
-                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
+                self.prg.adsorbingWallCL_P1(self.queue, global_size, work_size,
                                  self.normal_D, north_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_S_D, self.macro_D, dt)
                                  
                 cl.enqueue_barrier(self.queue)
                 
-                self.prg.adsorbingWall_P2(self.queue, global_size, work_size,
+                self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
                                  self.normal_D, north_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_S_D, self.macro_D, dt)
@@ -774,14 +774,14 @@ class UGKSBlock(object):
                                self.flux_f_S_D, dt)
             
             elif gdata.boundary_type == 'adsorb_CL':
-                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
+                self.prg.adsorbingWallCL_P1(self.queue, global_size, work_size,
                                  self.normal_D, south_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_S_D, self.macro_D, dt)
                                  
                 cl.enqueue_barrier(self.queue)
                 
-                self.prg.adsorbingWall_P2(self.queue, global_size, work_size,
+                self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
                                  self.normal_D, south_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_S_D, self.macro_D, dt)
@@ -890,14 +890,14 @@ class UGKSBlock(object):
                                self.flux_f_W_D, dt)
             
             elif gdata.boundary_type == 'adsorb_CL':
-                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
+                self.prg.adsorbingWallCL_P1(self.queue, global_size, work_size,
                                  self.normal_D, east_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_W_D, self.macro_D, dt)
                                  
                 cl.enqueue_barrier(self.queue)
                 
-                self.prg.adsorbingWall_P2(self.queue, global_size, work_size,
+                self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
                                  self.normal_D, east_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_W_D, self.macro_D, dt)
@@ -920,14 +920,14 @@ class UGKSBlock(object):
                                self.flux_f_W_D, dt)
            
             elif gdata.boundary_type == 'adsorb_CL':
-                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
+                self.prg.adsorbingWallCL_P1(self.queue, global_size, work_size,
                                  self.normal_D, west_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_W_D, self.macro_D, dt)
                                  
                 cl.enqueue_barrier(self.queue)
                                  
-                self.prg.adsorbingWall_P2(self.queue, global_size, work_size,
+                self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
                                  self.normal_D, west_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_W_D, self.macro_D, dt)

@@ -164,7 +164,12 @@ def genHeader(data):
     for bc in bc_list:
         if bc.type_of_BC in  [ACCOMMODATING, CONSTANT]:
             val = 1
-            has_accommodating = 1
+            if gdata.boundary_type == "diffuse":
+                has_accommodating = 1
+            elif gdata.boundary_type == "adsorb_CL":
+                has_accommodating = 2
+            elif gdata.boundary_type == "adsorb_specular-diffuse":
+                has_accommodating = 3
         else:
             val = 0
         s += str(val)

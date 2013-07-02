@@ -901,11 +901,13 @@ accommodatingWallDist(__global double2* normal,
 
 }
 
+#endif
+#if HAS_ACCOMMODATING_WALL == 2
 #define COVER(w, i) wall_cover[(i)*4 + (w)]
 #define WALL_DIST(i, v) wall_dist[(i)*NV + (v)]
 
 __kernel void
-adsorbingWall_P1(__global double2* normal,
+adsorbingWallCL_P1(__global double2* normal,
                     int face,
                     __global double4* wall_prop,
                     __global double4* wall_cover,
@@ -1051,7 +1053,7 @@ adsorbingWall_P1(__global double2* normal,
 }
 
 __kernel void
-adsorbingWall_P2(__global double2* normal,
+adsorbingWallCL_P2(__global double2* normal,
                     int face,
                     __global double4* wall_prop,
                     __global double4* wall_cover,
@@ -1212,7 +1214,9 @@ adsorbingWall_P2(__global double2* normal,
     return;
 }
 
+#endif
 
+#if HAS_ACCOMMODATING_WALL > 0
 __kernel void
 wallFlux(__global double2* normal,
             __global double* side_length, int face,
