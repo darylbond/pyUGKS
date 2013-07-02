@@ -708,7 +708,6 @@ class UGKSBlock(object):
         """
         get the fluxes for a specified distribution
         """
-        adsorb = 1
         south = np.int32(0)
         west = np.int32(1)
         
@@ -739,11 +738,12 @@ class UGKSBlock(object):
             offset_top = 1
             north_wall = np.int32(0)
             #print "north"
-            if not adsorb:
+            if gdata.boundary_type == 'diffuse':
                 self.prg.accommodatingWallDist(self.queue, global_size, work_size,
                                  self.normal_D, north_wall, self.wall_prop_D, 
                                  self.flux_f_S_D, dt)
-            else:               
+            
+            elif gdata.boundary_type == 'adsorb_CL':
                 self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
                                  self.normal_D, north_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
@@ -768,11 +768,12 @@ class UGKSBlock(object):
             offset_bot = 1
             south_wall = np.int32(2)
             #print "south"
-            if not adsorb:
+            if gdata.boundary_type == 'diffuse':
                 self.prg.accommodatingWallDist(self.queue, global_size, work_size,
                                self.normal_D, south_wall, self.wall_prop_D, 
                                self.flux_f_S_D, dt)
-            else:             
+            
+            elif gdata.boundary_type == 'adsorb_CL':
                 self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
                                  self.normal_D, south_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
@@ -883,11 +884,12 @@ class UGKSBlock(object):
             offset_top = 1
             east_wall = np.int32(1)
             #print "east"
-            if not adsorb:
+            if gdata.boundary_type == 'diffuse':
                 self.prg.accommodatingWallDist(self.queue, global_size, work_size,
                                self.normal_D, east_wall, self.wall_prop_D, 
                                self.flux_f_W_D, dt)
-            else:
+            
+            elif gdata.boundary_type == 'adsorb_CL':
                 self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
                                  self.normal_D, east_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
@@ -912,12 +914,12 @@ class UGKSBlock(object):
             offset_bot = 1
             west_wall = np.int32(3)
             #print "west"
-            if not adsorb:
+            if gdata.boundary_type == 'diffuse':
                 self.prg.accommodatingWallDist(self.queue, global_size, work_size,
                                self.normal_D, west_wall, self.wall_prop_D, 
                                self.flux_f_W_D, dt)
            
-            else:
+            elif gdata.boundary_type == 'adsorb_CL':
                 self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
                                  self.normal_D, west_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,

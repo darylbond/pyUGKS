@@ -120,7 +120,7 @@ class UGKSData(object):
                 'work_size_i','work_size_j','opt_sample_size', 'opt_run',\
                 'opt_start',\
                 'beta_n','beta_t','epsilon_0','gamma_f','gamma_b','S_T',\
-                'vartheta_initial','alpha_p','alpha_n','alpha_t'
+                'vartheta_initial','alpha_p','alpha_n','alpha_t','boundary_type'
     
     def __init__(self):
         """
@@ -189,6 +189,8 @@ class UGKSData(object):
         self.v_max = 0.0
         
         ## wall values
+        
+        self.boundary_type = 'diffuse' # options = 'adsorb_specular','adsorb_diffuse', 'diffuse'
         
         # factors used in determining probability of sticking to a wall 
         # based on molecular velocity, zero gives equal probability for
@@ -302,9 +304,6 @@ class UGKSData(object):
         
         self.mirror_NS = np.ravel(np.fliplr(index_array))
         self.mirror_EW = np.ravel(np.flipud(index_array))
-        
-        return
-        
         
         return
     
