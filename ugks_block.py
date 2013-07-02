@@ -743,15 +743,22 @@ class UGKSBlock(object):
                                  self.normal_D, north_wall, self.wall_prop_D, 
                                  self.flux_f_S_D, dt)
             
-            elif gdata.boundary_type == 'adsorb_CL':
-                self.prg.adsorbingWallCL_P1(self.queue, global_size, work_size,
+            else:
+                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
                                  self.normal_D, north_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_S_D, self.macro_D, dt)
                                  
                 cl.enqueue_barrier(self.queue)
-                
+            
+            if gdata.boundary_type == 'adsorb_CL':
                 self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
+                                 self.normal_D, north_wall, self.wall_prop_D,
+                                 self.wall_cover_D, self.wall_dist_D,
+                                 self.flux_f_S_D, self.macro_D, dt)
+                                 
+            elif gdata.boundary_type == 'adsorb_specular-diffuse':
+                self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
                                  self.normal_D, north_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_S_D, self.macro_D, dt)
@@ -773,15 +780,22 @@ class UGKSBlock(object):
                                self.normal_D, south_wall, self.wall_prop_D, 
                                self.flux_f_S_D, dt)
             
-            elif gdata.boundary_type == 'adsorb_CL':
-                self.prg.adsorbingWallCL_P1(self.queue, global_size, work_size,
+            else:
+                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
                                  self.normal_D, south_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_S_D, self.macro_D, dt)
                                  
                 cl.enqueue_barrier(self.queue)
                 
+            if gdata.boundary_type == 'adsorb_CL':
                 self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
+                                 self.normal_D, south_wall, self.wall_prop_D,
+                                 self.wall_cover_D, self.wall_dist_D,
+                                 self.flux_f_S_D, self.macro_D, dt)
+            
+            elif gdata.boundary_type == 'adsorb_specular-diffuse':
+                self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
                                  self.normal_D, south_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_S_D, self.macro_D, dt)
@@ -889,19 +903,26 @@ class UGKSBlock(object):
                                self.normal_D, east_wall, self.wall_prop_D, 
                                self.flux_f_W_D, dt)
             
-            elif gdata.boundary_type == 'adsorb_CL':
-                self.prg.adsorbingWallCL_P1(self.queue, global_size, work_size,
+            else:
+                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
                                  self.normal_D, east_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_W_D, self.macro_D, dt)
                                  
                 cl.enqueue_barrier(self.queue)
                 
+            if gdata.boundary_type == 'adsorb_CL':
                 self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
                                  self.normal_D, east_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_W_D, self.macro_D, dt)
                                  
+            elif gdata.boundary_type == 'adsorb_specular-diffuse':                
+                self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
+                                 self.normal_D, east_wall, self.wall_prop_D,
+                                 self.wall_cover_D, self.wall_dist_D,
+                                 self.flux_f_W_D, self.macro_D, dt)
+                
             cl.enqueue_barrier(self.queue)
             
             self.prg.wallFlux(self.queue, global_size, work_size,
@@ -919,19 +940,27 @@ class UGKSBlock(object):
                                self.normal_D, west_wall, self.wall_prop_D, 
                                self.flux_f_W_D, dt)
            
-            elif gdata.boundary_type == 'adsorb_CL':
-                self.prg.adsorbingWallCL_P1(self.queue, global_size, work_size,
+            else:
+                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
                                  self.normal_D, west_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_W_D, self.macro_D, dt)
                                  
                 cl.enqueue_barrier(self.queue)
+            
+            if gdata.boundary_type == 'adsorb_CL':
                                  
                 self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
                                  self.normal_D, west_wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  self.flux_f_W_D, self.macro_D, dt)
             
+            elif gdata.boundary_type == 'adsorb_specular-diffuse':
+                self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
+                                 self.normal_D, west_wall, self.wall_prop_D,
+                                 self.wall_cover_D, self.wall_dist_D,
+                                 self.flux_f_W_D, self.macro_D, dt)
+                
             cl.enqueue_barrier(self.queue)
             
             self.prg.wallFlux(self.queue, global_size, work_size,
@@ -1219,7 +1248,38 @@ class UGKSBlock(object):
         xdmf += '</DataItem>\n'
         xdmf += '</Attribute>\n'
         
-        sgrp.create_dataset("cover",data=self.wall_cover_H, compression=gdata.save_options.compression)
+        print self.wall_cover_H.shape
+        sgrp.create_dataset("cover",data=self.wall_cover_H[:,:,0], compression=gdata.save_options.compression)
+        
+        sgrp.create_dataset("reflected",data=self.wall_cover_H[:,:,1], compression=gdata.save_options.compression)        
+        sgrp.create_dataset("adsorbed",data=self.wall_cover_H[:,:,2], compression=gdata.save_options.compression)
+        sgrp.create_dataset("desorbed",data=self.wall_cover_H[:,:,3], compression=gdata.save_options.compression)        
+        
+        
+        xdmf_cover = ''
+        xdmf_cover += '<Attribute Name="cover" AttributeType="Scalar" Center="Cell">\n'
+        xdmf_cover += '<DataItem Dimensions="%d" NumberType="Float" Precision="8" Format="HDF">\n'%(2*(self.ni+self.nj))
+        xdmf_cover += '%s:/step_%d/block_%d/cover\n'%(h5Name, step, self.id)
+        xdmf_cover += '</DataItem>\n'
+        xdmf_cover += '</Attribute>\n'
+        
+        xdmf_cover += '<Attribute Name="reflected" AttributeType="Scalar" Center="Cell">\n'
+        xdmf_cover += '<DataItem Dimensions="%d" NumberType="Float" Precision="8" Format="HDF">\n'%(2*(self.ni+self.nj))
+        xdmf_cover += '%s:/step_%d/block_%d/reflected\n'%(h5Name, step, self.id)
+        xdmf_cover += '</DataItem>\n'
+        xdmf_cover += '</Attribute>\n'
+        
+        xdmf_cover += '<Attribute Name="adsorbed" AttributeType="Scalar" Center="Cell">\n'
+        xdmf_cover += '<DataItem Dimensions="%d" NumberType="Float" Precision="8" Format="HDF">\n'%(2*(self.ni+self.nj))
+        xdmf_cover += '%s:/step_%d/block_%d/adsorbed\n'%(h5Name, step, self.id)
+        xdmf_cover += '</DataItem>\n'
+        xdmf_cover += '</Attribute>\n'
+        
+        xdmf_cover += '<Attribute Name="desorbed" AttributeType="Scalar" Center="Cell">\n'
+        xdmf_cover += '<DataItem Dimensions="%d" NumberType="Float" Precision="8" Format="HDF">\n'%(2*(self.ni+self.nj))
+        xdmf_cover += '%s:/step_%d/block_%d/desorbed\n'%(h5Name, step, self.id)
+        xdmf_cover += '</DataItem>\n'
+        xdmf_cover += '</Attribute>\n'
             
         if all_data:
             sgrp = grp.require_group("block_" + str(self.id))
@@ -1227,7 +1287,7 @@ class UGKSBlock(object):
             sgrp.create_dataset("f",data=f_H, compression=gdata.save_options.compression)
                 
         
-        return xdmf
+        return xdmf, xdmf_cover
         
         
     def block_mass(self):

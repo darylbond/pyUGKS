@@ -348,10 +348,8 @@ double stickingProbability(double2 uv, double T)
 {
   // return the probability of a particle sticking to a surface
   // given the velocity (x-> normal to surface, y -> tangential to 
-  // surface) and temperature (to account for z direction)
+  // surface) and temperature
   
-  double a = -(BETA_N*BETA_N)*(uv.x*uv.x) - (BETA_T*BETA_T)*(uv.y*uv.y);
-  
-  return (EPSILON_0/(sqrt(1.0 + T*BETA_T*BETA_T)))*exp(a);
+  return EPSILON_0*(1.0 - BETA_N*exp(-uv.x*uv.x/T));
 }
 

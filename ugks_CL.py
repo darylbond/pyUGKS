@@ -39,7 +39,7 @@ def genHeader(data):
         mid_stencil = 2
     
     if gdata.platform == "AMD":
-        s += '#pragma OPENCL EXTENSION cl_amd_fp64 : enable \n'
+        #s += '#pragma OPENCL EXTENSION cl_amd_fp64 : enable \n'
         s += '#pragma OPENCL EXTENSION cl_amd_printf : enable\n\n'
     elif gdata.platform == "Intel":
         s += '#pragma OPENCL EXTENSION cl_khr_fp64 : enable \n'
@@ -98,6 +98,7 @@ def genHeader(data):
     s += '#define ALPHA_P %0.15e\n'%gdata.alpha_p
     s += '#define ALPHA_N %0.15e\n'%gdata.alpha_n
     s += '#define ALPHA_T %0.15e\n'%gdata.alpha_t
+    s += '#define VARTHETA_LANGMUIR %0.15e\n'%gdata.vartheta_langmuir
     s += '\n'
     
     s += '__constant double2 QUAD[{}] = {{'.format(gdata.Nv)

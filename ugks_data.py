@@ -120,7 +120,8 @@ class UGKSData(object):
                 'work_size_i','work_size_j','opt_sample_size', 'opt_run',\
                 'opt_start',\
                 'beta_n','beta_t','epsilon_0','gamma_f','gamma_b','S_T',\
-                'vartheta_initial','alpha_p','alpha_n','alpha_t','boundary_type'
+                'vartheta_initial','alpha_p','alpha_n','alpha_t','boundary_type',\
+                'vartheta_langmuir'
     
     def __init__(self):
         """
@@ -203,6 +204,9 @@ class UGKSData(object):
         self.gamma_f = 0.0
         self.gamma_b = 0.0
         
+        # Langmuir isotherm
+        self.vartheta_langmuir = 0.0
+        
         # initial coverage of adsorbed molecules
         self.vartheta_initial = 0.0
         
@@ -210,6 +214,8 @@ class UGKSData(object):
         self.S_T = 400.0
         
         # dimensionless constant for change in vartheta
+        # don't need to modify this, it is updated regardless of value in 
+        # init_ref_values.
         self.alpha_p = 1.0
         
         # Cercignani - Lampis accomodation coefficients
@@ -305,8 +311,38 @@ class UGKSData(object):
         self.mirror_NS = np.ravel(np.fliplr(index_array))
         self.mirror_EW = np.ravel(np.flipud(index_array))
         
+        if 0:
+            import matplotlib.pylab as plt
+            
+            plt.plot(self.quad[:,0], self.quad[:,1],'.')
+            for i in range(self.Nv):
+                plt.text(self.quad[i,0], self.quad[i,1],str(i))
+
+            plt.figure()
+            
+            for i in range(self.Nv):
+                plt.plot(self.quad[self.mirror_NS[i],0], self.quad[self.mirror_NS[i],1],'.')
+                plt.text(self.quad[self.mirror_NS[i],0], self.quad[self.mirror_NS[i],1],str(i))    
+            plt.title("NS")
+            plt.figure()
+            
+            for i in range(self.Nv):
+                plt.plot(self.quad[self.mirror_EW[i],0], self.quad[self.mirror_EW[i],1],'.')
+                plt.text(self.quad[self.mirror_EW[i],0], self.quad[self.mirror_EW[i],1],str(i))    
+            plt.title("EW")
+            plt.show()
+        
         return
     
+    def check_values(self):
+        """
+        run some checks on some key variables
+        """
+        
+        if self.vartheta_langmuir == 0.0:
+            raise RuntimeError('vartheta_langmuir == 0.0, this will cause divide by zero errors in adsorbingWall_P1')
+        
+        return
 
     def init_ref_values(self):
         """
@@ -510,6 +546,9 @@ def global_preparation(jobName="", jobString=""):
         
     # svg location
     gdata.sketch.root_file_name = os.path.join(rootName,fileName)
+    
+    # check variables
+    gdata.check_values()
     
     # generate reference values
     gdata.init_ref_values()

@@ -776,18 +776,59 @@ class UGKSim(object):
             blk.create_dataset("centreX",data=b.centreX, compression=save.compression)
             blk.create_dataset("centreY",data=b.centreY, compression=save.compression)
             
-            s = ""
-            s += '<Grid Name="Block_%d" GridType="Uniform">\n'%(b.id)
-            s += '<Topology TopologyType="2DSMesh" NumberOfElements="%d %d"/>\n'%(b.ni+1, b.nj+1)
-            s += '<Geometry GeometryType="X_Y">\n'
-            s += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(b.ni+1, b.nj+1)
-            s += '%s:/global_data/block_%d/x\n'%(self.h5name_short, b.id)
-            s += '</DataItem>\n'
-            s += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(b.ni+1, b.nj+1)
-            s += '%s:/global_data/block_%d/y\n'%(self.h5name_short, b.id)
-            s += '</DataItem>\n'
-            s += '</Geometry>\n'
-            self.xdmf_blocks.append(s)
+            # edge coords
+            sz = 2*(b.ni+b.nj)
+            ex = np.zeros((sz), dtype=np.float64)
+            ey = np.zeros((sz), dtype=np.float64)
+            
+            ex[0:(b.ni+1)] = b.x[:,-1,0]
+            ex[(b.ni):(b.ni+b.nj+1)] = b.x[-1,::-1,0]
+            ex[(b.ni+b.nj):(2*b.ni+b.nj+1)] = b.x[::-1,0,0]
+            ex[(2*b.ni+b.nj)::] = b.x[0,0:-1,0]
+            
+            ey[0:(b.ni+1)] = b.y[:,-1,0]
+            ey[(b.ni):(b.ni+b.nj+1)] = b.y[-1,::-1,0]
+            ey[(b.ni+b.nj):(2*b.ni+b.nj+1)] = b.y[::-1,0,0]
+            ey[(2*b.ni+b.nj)::] = b.y[0,0:-1,0]
+            
+            blk.create_dataset("x_edge",data=ex, compression=save.compression)
+            blk.create_dataset("y_edge",data=ey, compression=save.compression)
+            
+            s1 = ""
+            s1 += '<Grid Name="Block_%d" GridType="Uniform">\n'%(b.id)
+            s1 += '<Topology TopologyType="2DSMesh" NumberOfElements="%d %d"/>\n'%(b.ni+1, b.nj+1)
+            s1 += '<Geometry GeometryType="X_Y">\n'
+            s1 += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(b.ni+1, b.nj+1)
+            s1 += '%s:/global_data/block_%d/x\n'%(self.h5name_short, b.id)
+            s1 += '</DataItem>\n'
+            s1 += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(b.ni+1, b.nj+1)
+            s1 += '%s:/global_data/block_%d/y\n'%(self.h5name_short, b.id)
+            s1 += '</DataItem>\n'
+            s1 += '</Geometry>\n'
+            
+            s2 = ""
+            s2 += '<Grid Name="Block_%d_edges" GridType="Uniform">\n'%(b.id)
+            s2 += '<Topology TopologyType="Polyline" NumberOfElements="%d" NodesPerElement="2">\n'%sz
+            
+            s2 += '<DataItem Format="XML" DataType="Int" Dimensions="%d 2">\n'%sz
+            
+            for i in range(sz-1):
+                s2 += '    %d %d\n'%(i, i+1)
+            s2 += '    %d %d\n'%(sz-1, 0)
+            s2 += '</DataItem>\n'
+            s2 += '</Topology>\n'
+            
+            
+            s2 += '<Geometry GeometryType="X_Y">\n'
+            s2 += '<DataItem Dimensions="%d" NumberType="Float" Precision="8" Format="HDF">\n'%(2*(b.ni+b.nj))
+            s2 += '%s:/global_data/block_%d/x_edge\n'%(self.h5name_short, b.id)
+            s2 += '</DataItem>\n'
+            s2 += '<DataItem Dimensions="%d" NumberType="Float" Precision="8" Format="HDF">\n'%(2*(b.ni+b.nj))
+            s2 += '%s:/global_data/block_%d/y_edge\n'%(self.h5name_short, b.id)
+            s2 += '</DataItem>\n'
+            s2 += '</Geometry>\n'
+            
+            self.xdmf_blocks.append([s1, s2])
             
         #####################################################################
         ## The xdmf file for reading the hdf5 file into paraview
@@ -822,9 +863,13 @@ class UGKSim(object):
         self.xdmf.write('<Time Value="%0.15f" />\n'%gdata.get_time())
         
         for b in self.blocks:
-            xdmf_string = b.save_hdf(self.h5name_short, grp, self.step, all_data=saveAll)
-            self.xdmf.write(self.xdmf_blocks[b.id])
+            xdmf_string, xdmf_cover = b.save_hdf(self.h5name_short, grp, self.step, all_data=saveAll)
+            self.xdmf.write(self.xdmf_blocks[b.id][0])
             self.xdmf.write(xdmf_string)
+            self.xdmf.write('</Grid>\n')
+            
+            self.xdmf.write(self.xdmf_blocks[b.id][1])
+            self.xdmf.write(xdmf_cover)
             self.xdmf.write('</Grid>\n')
             
         self.xdmf.write('</Grid>\n')
