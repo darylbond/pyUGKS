@@ -1248,12 +1248,11 @@ class UGKSBlock(object):
         xdmf += '</DataItem>\n'
         xdmf += '</Attribute>\n'
         
-        print self.wall_cover_H.shape
-        sgrp.create_dataset("cover",data=self.wall_cover_H[:,:,0], compression=gdata.save_options.compression)
-        
-        sgrp.create_dataset("reflected",data=self.wall_cover_H[:,:,1], compression=gdata.save_options.compression)        
-        sgrp.create_dataset("adsorbed",data=self.wall_cover_H[:,:,2], compression=gdata.save_options.compression)
-        sgrp.create_dataset("desorbed",data=self.wall_cover_H[:,:,3], compression=gdata.save_options.compression)        
+        # turn into linear arrays so that xdmf can read them easier
+        sgrp.create_dataset("cover",data=np.ravel(self.wall_cover_H[:,:,0],order='F'), compression=gdata.save_options.compression)
+        sgrp.create_dataset("reflected",data=np.ravel(self.wall_cover_H[:,:,1],order='F'), compression=gdata.save_options.compression)        
+        sgrp.create_dataset("adsorbed",data=np.ravel(self.wall_cover_H[:,:,2],order='F'), compression=gdata.save_options.compression)
+        sgrp.create_dataset("desorbed",data=np.ravel(self.wall_cover_H[:,:,3],order='F'), compression=gdata.save_options.compression)        
         
         
         xdmf_cover = ''
