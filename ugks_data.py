@@ -339,7 +339,7 @@ class UGKSData(object):
         run some checks on some key variables
         """
         
-        if self.vartheta_langmuir == 0.0:
+        if (self.boundary_type != 'diffuse') & (self.vartheta_langmuir == 0.0):
             raise RuntimeError('vartheta_langmuir == 0.0, this will cause divide by zero errors in adsorbingWall_P1')
         
         return
