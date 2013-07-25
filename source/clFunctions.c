@@ -18,7 +18,7 @@ double relaxTime(double4 prim)
   #endif
   
   #if RELAX_TYPE == 1
-  double tau =  (5./8.)*(Kn/DD)*sqrt(PI)*pow(TT,chi - 1.0);
+  double tau =  (5./8.)*(Kn/prim.s0)*sqrt(PI)*pow(prim.s3,1.0 - chi);
   #endif
   
   return tau;
