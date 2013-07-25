@@ -121,7 +121,7 @@ class UGKSData(object):
                 'opt_start',\
                 'beta_n','beta_t','epsilon_0','gamma_f','gamma_b','S_T',\
                 'vartheta_initial','alpha_p','alpha_n','alpha_t','boundary_type',\
-                'vartheta_langmuir'
+                'vartheta_langmuir','relax_type'
     
     def __init__(self):
         """
@@ -188,6 +188,10 @@ class UGKSData(object):
         self.v_mid = 0.0
         self.u_max = 0.0
         self.v_max = 0.0
+        
+        self.relax_type = 0
+        # 0 --> tau = (Kn/prim.s0)*sqrt(2.0/PI)*pow(prim.s3,1.0 - chi);
+        # 1 --> tau = (5./8.)*(Kn/DD)*sqrt(PI)*pow(TT,chi - 1.0);
         
         ## wall values
         

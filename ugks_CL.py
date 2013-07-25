@@ -74,6 +74,7 @@ def genHeader(data):
     s += '#define FLUX_METHOD {}\n'.format(flux_method)
     s += '#define STENCIL_LENGTH {}\n'.format(stencil_length)
     s += '#define MID_STENCIL {}\n'.format(mid_stencil)
+    s += '#define RELAX_TYPE {}\n'.format(gdata.relax_type)
     s += '\n'
     
     s += '#define PI %0.15e\n'%pi
