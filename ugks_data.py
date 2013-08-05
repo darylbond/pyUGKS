@@ -202,7 +202,6 @@ class UGKSData(object):
         # all velocities
         self.beta_n = 0.0 # normal 
         self.beta_t = 0.0 # tangential
-        self.epsilon_0 = 1.0 # overall factor
         
         # factors for forward and backward reaction rates
         self.gamma_f = 0.0
@@ -215,7 +214,7 @@ class UGKSData(object):
         self.vartheta_initial = 0.0
         
         # total concentration of adsorbtion sites
-        self.S_T = 400.0
+        self.S_T = 1.0
         
         # dimensionless constant for change in vartheta
         # don't need to modify this, it is updated regardless of value in 

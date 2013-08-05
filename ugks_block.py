@@ -353,6 +353,10 @@ class UGKSBlock(object):
         self.residual_H = np.zeros((self.ni,self.nj,4),dtype=np.float64)
         self.residual_D = self.set_buffer(self.residual_H)
         
+        ### CHECK
+        self.nan_check_H = np.zeros((2),dtype=np.int32)
+        self.nan_check_D = self.set_buffer(self.nan_check_H)
+        
         ### INTERNAL DATA
         if gdata.save_options.internal_data:
             self.Txyz_H = np.ones((self.ni,self.nj,4),dtype=np.float64)
@@ -1051,6 +1055,8 @@ class UGKSBlock(object):
                              
         cl.enqueue_barrier(self.queue)                    
         
+        self.nan_check_H[:] = 0
+        cl.enqueue_copy(self.queue, self.nan_check_D, self.nan_check_H)
         
         dt = np.float64(gdata.dt)
         
@@ -1058,7 +1064,13 @@ class UGKSBlock(object):
         self.prg.UGKS_update(self.queue, global_size, work_size,
                              self.f_D, self.flux_f_S_D, self.flux_f_W_D,
                              self.area_D, self.macro_D, self.Q_D, 
-                             self.residual_D, dt)
+                             self.residual_D, dt, self.nan_check_D)
+                             
+        cl.enqueue_barrier(self.queue)
+        cl.enqueue_copy(self.queue, self.nan_check_H, self.nan_check_D)
+        
+        if self.nan_check_H[0] == 1:
+            raise RuntimeError("NaN encountered in update")
                              
         
         
@@ -1248,37 +1260,12 @@ class UGKSBlock(object):
         xdmf += '</DataItem>\n'
         xdmf += '</Attribute>\n'
         
-        # turn into linear arrays so that xdmf can read them easier
-        sgrp.create_dataset("cover",data=np.ravel(self.wall_cover_H[:,:,0],order='F'), compression=gdata.save_options.compression)
-        sgrp.create_dataset("reflected",data=np.ravel(self.wall_cover_H[:,:,1],order='F'), compression=gdata.save_options.compression)        
-        sgrp.create_dataset("adsorbed",data=np.ravel(self.wall_cover_H[:,:,2],order='F'), compression=gdata.save_options.compression)
-        sgrp.create_dataset("desorbed",data=np.ravel(self.wall_cover_H[:,:,3],order='F'), compression=gdata.save_options.compression)        
         
+        sgrp.create_dataset("cover",data=self.wall_cover_H[:,:,0], compression=gdata.save_options.compression)
+        sgrp.create_dataset("reflected",data=self.wall_cover_H[:,:,1], compression=gdata.save_options.compression)        
+        sgrp.create_dataset("adsorbed",data=self.wall_cover_H[:,:,2], compression=gdata.save_options.compression)
+        sgrp.create_dataset("desorbed",data=self.wall_cover_H[:,:,3], compression=gdata.save_options.compression)        
         
-        xdmf_cover = ''
-        xdmf_cover += '<Attribute Name="cover" AttributeType="Scalar" Center="Cell">\n'
-        xdmf_cover += '<DataItem Dimensions="%d" NumberType="Float" Precision="8" Format="HDF">\n'%(2*(self.ni+self.nj))
-        xdmf_cover += '%s:/step_%d/block_%d/cover\n'%(h5Name, step, self.id)
-        xdmf_cover += '</DataItem>\n'
-        xdmf_cover += '</Attribute>\n'
-        
-        xdmf_cover += '<Attribute Name="reflected" AttributeType="Scalar" Center="Cell">\n'
-        xdmf_cover += '<DataItem Dimensions="%d" NumberType="Float" Precision="8" Format="HDF">\n'%(2*(self.ni+self.nj))
-        xdmf_cover += '%s:/step_%d/block_%d/reflected\n'%(h5Name, step, self.id)
-        xdmf_cover += '</DataItem>\n'
-        xdmf_cover += '</Attribute>\n'
-        
-        xdmf_cover += '<Attribute Name="adsorbed" AttributeType="Scalar" Center="Cell">\n'
-        xdmf_cover += '<DataItem Dimensions="%d" NumberType="Float" Precision="8" Format="HDF">\n'%(2*(self.ni+self.nj))
-        xdmf_cover += '%s:/step_%d/block_%d/adsorbed\n'%(h5Name, step, self.id)
-        xdmf_cover += '</DataItem>\n'
-        xdmf_cover += '</Attribute>\n'
-        
-        xdmf_cover += '<Attribute Name="desorbed" AttributeType="Scalar" Center="Cell">\n'
-        xdmf_cover += '<DataItem Dimensions="%d" NumberType="Float" Precision="8" Format="HDF">\n'%(2*(self.ni+self.nj))
-        xdmf_cover += '%s:/step_%d/block_%d/desorbed\n'%(h5Name, step, self.id)
-        xdmf_cover += '</DataItem>\n'
-        xdmf_cover += '</Attribute>\n'
             
         if all_data:
             sgrp = grp.require_group("block_" + str(self.id))
@@ -1286,7 +1273,7 @@ class UGKSBlock(object):
             sgrp.create_dataset("f",data=f_H, compression=gdata.save_options.compression)
                 
         
-        return xdmf, xdmf_cover
+        return xdmf
         
         
     def block_mass(self):

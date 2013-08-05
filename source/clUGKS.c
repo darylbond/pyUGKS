@@ -1009,8 +1009,6 @@ adsorbingWall_P1(__global double2* normal,
                 
                 WALL_DIST(ci, gv) = reflected_flux/uv.x;  // save the reflected distribution for later
                 
-                //printf("(%d, %d): adsorbed = [%v2e], reflected = [%v2e], delta = %d\n",ci, gv, adsorbed_flux, reflected_flux, delta);
-                
             }
         }
         
@@ -1154,9 +1152,6 @@ adsorbingWallCL_P2(__global double2* normal,
                                 CL = CercignaniLampis(uv_in, uv_out, WALL_DIST(ci, va), ALPHA_N, ALPHA_T, 1.0/wall.s3);
                                 CL.y += 0.5*ALPHA_T*(2-ALPHA_T)/wall.s3*CL.x;
                                 CL_v += CL;
-                                //~ if (((thread_id == 0) && (ci == 0)) && any(isnan(CL))) {
-                                    //~ printf("CL = [%v2g]\nuv in = [%v2g]\nuv out = [%v2g]\nwall = [%v2g]\nalpha_n = %g\nalpha_t = %g\nT = %g\n",CL,uv_in, uv_out,WALL_DIST(ci, va), ALPHA_N, ALPHA_T, 1.0/wall.s3);
-                                //~ }
                             }
                         }
                         
@@ -1312,13 +1307,12 @@ adsorbingWallDS_P2(__global double2* normal,
                     specular = 0.0;
                     int mv;
                     if (delta) {
-                        if (rot == 1) {
+                        if (face_id == WEST) {
                             mv = mirror_EW[gv];
                         } else {
                             mv = mirror_NS[gv];
                         }
                         specular = WALL_DIST(ci, mv);
-                        //printf("gv = %d, mv = %d, specular = [%v2e]\n",gv, mv, specular);
                     }
                     
                     
@@ -1537,7 +1531,8 @@ UGKS_update(__global double2* Fin,
        __global double4* macro,
        __global double2* gQ,
        __global double4* residual,
-       double dt)
+       double dt,
+       __global int* nan_check)
 {
     // update the macro-properties and distribution
     
@@ -1577,9 +1572,14 @@ UGKS_update(__global double2* Fin,
             // update the distribution function
             
             double2 f_old = F(gi,gj,gv);
-            
-            F(gi,gj,gv) = (f_old + (FLUXFS(gi,gj,gv) - FLUXFS(gi,gj+1,gv) + FLUXFW(gi,gj,gv) - FLUXFW(gi+1,gj,gv))/A
+            double2 f_new = (f_old + (FLUXFS(gi,gj,gv) - FLUXFS(gi,gj+1,gv) + FLUXFW(gi,gj,gv) - FLUXFW(gi+1,gj,gv))/A
                           + 0.5*dt*(feq/tau+(feq_old-f_old)/tau_old))/(1.0+0.5*dt/tau);
+                          
+            if (any(isnan(f_new))) {
+                nan_check[0] = 1;
+            }
+            
+            F(gi,gj,gv) = f_new;
         }
         
     }

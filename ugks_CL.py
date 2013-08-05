@@ -93,7 +93,6 @@ def genHeader(data):
     # boundary factors
     s += '#define BETA_N %0.15e\n'%gdata.beta_n
     s += '#define BETA_T %0.15e\n'%gdata.beta_t
-    s += '#define EPSILON_0 %0.15e\n'%gdata.epsilon_0
     s += '#define GAMMA_F %0.15e\n'%gdata.gamma_f
     s += '#define GAMMA_B %0.15e\n'%gdata.gamma_b
     s += '#define ALPHA_P %0.15e\n'%gdata.alpha_p

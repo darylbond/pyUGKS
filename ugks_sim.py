@@ -806,29 +806,7 @@ class UGKSim(object):
             s1 += '</DataItem>\n'
             s1 += '</Geometry>\n'
             
-            s2 = ""
-            s2 += '<Grid Name="Block_%d_edges" GridType="Uniform">\n'%(b.id)
-            s2 += '<Topology TopologyType="Polyline" NumberOfElements="%d" NodesPerElement="2">\n'%sz
-            
-            s2 += '<DataItem Format="XML" DataType="Int" Dimensions="%d 2">\n'%sz
-            
-            for i in range(sz-1):
-                s2 += '    %d %d\n'%(i, i+1)
-            s2 += '    %d %d\n'%(sz-1, 0)
-            s2 += '</DataItem>\n'
-            s2 += '</Topology>\n'
-            
-            
-            s2 += '<Geometry GeometryType="X_Y">\n'
-            s2 += '<DataItem Dimensions="%d" NumberType="Float" Precision="8" Format="HDF">\n'%(2*(b.ni+b.nj))
-            s2 += '%s:/global_data/block_%d/x_edge\n'%(self.h5name_short, b.id)
-            s2 += '</DataItem>\n'
-            s2 += '<DataItem Dimensions="%d" NumberType="Float" Precision="8" Format="HDF">\n'%(2*(b.ni+b.nj))
-            s2 += '%s:/global_data/block_%d/y_edge\n'%(self.h5name_short, b.id)
-            s2 += '</DataItem>\n'
-            s2 += '</Geometry>\n'
-            
-            self.xdmf_blocks.append([s1, s2])
+            self.xdmf_blocks.append(s1)
             
         #####################################################################
         ## The xdmf file for reading the hdf5 file into paraview
@@ -863,13 +841,9 @@ class UGKSim(object):
         self.xdmf.write('<Time Value="%0.15f" />\n'%gdata.get_time())
         
         for b in self.blocks:
-            xdmf_string, xdmf_cover = b.save_hdf(self.h5name_short, grp, self.step, all_data=saveAll)
-            self.xdmf.write(self.xdmf_blocks[b.id][0])
+            xdmf_string = b.save_hdf(self.h5name_short, grp, self.step, all_data=saveAll)
+            self.xdmf.write(self.xdmf_blocks[b.id])
             self.xdmf.write(xdmf_string)
-            self.xdmf.write('</Grid>\n')
-            
-            self.xdmf.write(self.xdmf_blocks[b.id][1])
-            self.xdmf.write(xdmf_cover)
             self.xdmf.write('</Grid>\n')
             
         self.xdmf.write('</Grid>\n')

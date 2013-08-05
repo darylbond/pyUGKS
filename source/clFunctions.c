@@ -356,6 +356,6 @@ double stickingProbability(double2 uv, double T)
   // given the velocity (x-> normal to surface, y -> tangential to 
   // surface) and temperature
   
-  return EPSILON_0*(1.0 - BETA_N*exp(-uv.x*uv.x/T));
+  return 1.0 - BETA_N*exp(-uv.x*uv.x/T);
 }
 
