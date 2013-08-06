@@ -104,7 +104,7 @@ class UGKSData(object):
                 'print_count', 'max_time', 'max_step', 'dt_plot', \
                 'chi', 'R', 'gamma', 'Pr', 'Kn', \
                 'Nv', 'b', 'K', \
-                'T_ref', 'L_ref', 'C_ref', 't_ref', 'D_ref',\
+                'T_ref', 'L_ref', 'C_ref', 't_ref', 'D_ref','P_ref',\
                 'step','CL_local_size',\
                 'quad','weight',\
                 'mirror_NS',\
@@ -354,6 +354,7 @@ class UGKSData(object):
         # Reference Quantities -> for non-dimensionalising wrt reference quantities
         self.C_ref = sqrt(2*self.R*self.T_ref)    # speed, m/s
         self.t_ref = self.L_ref/self.C_ref      # time, s
+        self.P_ref = self.D_ref*self.R*self.T_ref # pressure, Pa
         
         # internal degrees of freedom
         self.b = 2.0/(self.gamma - 1.0)     # number of dimensions present
@@ -445,6 +446,7 @@ def non_dimensionalise_all():
             bc.T /= gdata.T_ref
             bc.U /= gdata.C_ref
             bc.V /= gdata.C_ref
+            bc.P /= gdata.P_ref
             
             if bc.UDF_D:
                 bc.UDF_D = "("+bc.UDF_D +")/(" + str(gdata.D_ref) + ")"

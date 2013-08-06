@@ -181,118 +181,44 @@ def genHeader(data):
     s += '}; // flag for accommodating boundary condition\n'
     
     s += '#define HAS_ACCOMMODATING_WALL {}\n'.format(has_accommodating)
+
+    wall_name = ['N','E','S','W']    
     
-    bc = bc_list[0]
-    if bc.type_of_BC in  [ACCOMMODATING, CONSTANT]:
-        if bc.UDF_D:
-            st = bc.UDF_D
+    for i, bc in enumerate(bc_list):
+        if bc.type_of_BC in [ACCOMMODATING, CONSTANT, INFLOW, OUTFLOW]:
+            if bc.UDF_D:
+                st = bc.UDF_D
+            else:
+                st = str(bc.D)
+            s += '#define WALL_%s_D %s\n'%(wall_name[i],st)
+            if bc.UDF_U:
+                st = bc.UDF_U
+            else:
+                st = str(bc.U)
+            s += '#define WALL_%s_U %s\n'%(wall_name[i],st)
+            if bc.UDF_V:
+                st = bc.UDF_V
+            else:
+                st = str(bc.V)
+            s += '#define WALL_%s_V %s\n'%(wall_name[i],st)
+            if bc.UDF_T:
+                st = bc.UDF_T
+            else:
+                st = str(bc.T)
+            s += '#define WALL_%s_T 1.0/(%s)\n'%(wall_name[i],st)
+            
+            if bc.type_of_BC == OUTFLOW:
+                s += '#define WALL_%s_P %s\n'%(wall_name[i],bc.P)
+            else:
+                s += '#define WALL_%s_P -1\n'%wall_name[i]
+                
         else:
-            st = str(bc.D)
-        s += '#define WALL_N_D %s\n'%st
-        if bc.UDF_U:
-            st = bc.UDF_U
-        else:
-            st = str(bc.U)
-        s += '#define WALL_N_U %s\n'%st
-        if bc.UDF_V:
-            st = bc.UDF_V
-        else:
-            st = str(bc.V)
-        s += '#define WALL_N_V %s\n'%st
-        if bc.UDF_T:
-            st = bc.UDF_T
-        else:
-            st = str(bc.T)
-        s += '#define WALL_N_T 1.0/(%s)\n'%st
-    else:
-        s += '#define WALL_N_D -1\n'
-        s += '#define WALL_N_U -1\n'
-        s += '#define WALL_N_V -1\n'
-        s += '#define WALL_N_T -1\n'
-        
-    bc = bc_list[1]
-    if bc.type_of_BC in  [ACCOMMODATING, CONSTANT]:
-        if bc.UDF_D:
-            st = bc.UDF_D
-        else:
-            st = str(bc.D)
-        s += '#define WALL_E_D %s\n'%st
-        if bc.UDF_U:
-            st = bc.UDF_U
-        else:
-            st = str(bc.U)
-        s += '#define WALL_E_U %s\n'%st
-        if bc.UDF_V:
-            st = bc.UDF_V
-        else:
-            st = str(bc.V)
-        s += '#define WALL_E_V %s\n'%st
-        if bc.UDF_T:
-            st = bc.UDF_T
-        else:
-            st = str(bc.T)
-        s += '#define WALL_E_T 1.0/(%s)\n'%st
-    else:
-        s += '#define WALL_E_D -1\n'
-        s += '#define WALL_E_U -1\n'
-        s += '#define WALL_E_V -1\n'
-        s += '#define WALL_E_T -1\n'
-        
-    bc = bc_list[2]
-    if bc.type_of_BC in  [ACCOMMODATING, CONSTANT]:
-        if bc.UDF_D:
-            st = bc.UDF_D
-        else:
-            st = str(bc.D)
-        s += '#define WALL_S_D %s\n'%st
-        if bc.UDF_U:
-            st = bc.UDF_U
-        else:
-            st = str(bc.U)
-        s += '#define WALL_S_U %s\n'%st
-        if bc.UDF_V:
-            st = bc.UDF_V
-        else:
-            st = str(bc.V)
-        s += '#define WALL_S_V %s\n'%st
-        if bc.UDF_T:
-            st = bc.UDF_T
-        else:
-            st = str(bc.T)
-        s += '#define WALL_S_T 1.0/(%s)\n'%st
-    else:
-        s += '#define WALL_S_D -1\n'
-        s += '#define WALL_S_U -1\n'
-        s += '#define WALL_S_V -1\n'
-        s += '#define WALL_S_T -1\n'
-        
-    bc = bc_list[3]
-    if bc.type_of_BC == ACCOMMODATING:
-        if bc.UDF_D:
-            st = bc.UDF_D
-        else:
-            st = str(bc.D)
-        s += '#define WALL_W_D %s\n'%st
-        if bc.UDF_U:
-            st = bc.UDF_U
-        else:
-            st = str(bc.U)
-        s += '#define WALL_W_U %s\n'%st
-        if bc.UDF_V:
-            st = bc.UDF_V
-        else:
-            st = str(bc.V)
-        s += '#define WALL_W_V %s\n'%st
-        if bc.UDF_T:
-            st = bc.UDF_T
-        else:
-            st = str(bc.T)
-        s += '#define WALL_W_T 1.0/(%s)\n'%st
-    else:
-        s += '#define WALL_W_D -1\n'
-        s += '#define WALL_W_U -1\n'
-        s += '#define WALL_W_V -1\n'
-        s += '#define WALL_W_T -1\n'        
+            s += '#define WALL_%s_D -1\n'%wall_name[i]
+            s += '#define WALL_%s_U -1\n'%wall_name[i]
+            s += '#define WALL_%s_V -1\n'%wall_name[i]
+            s += '#define WALL_%s_T -1\n'%wall_name[i]
+            s += '#define WALL_%s_P -1\n'%wall_name[i]
+            
     
     return s
 

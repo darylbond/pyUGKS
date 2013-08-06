@@ -35,6 +35,10 @@ class UGKSim(object):
     opt_time = []
     opt_step = 0
     opt_item = 1
+    
+    saved = False
+    closed = False
+    HDF_init = False
 
     def __init__(self):
         """

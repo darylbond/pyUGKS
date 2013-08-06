@@ -439,7 +439,53 @@ class UGKSBlock(object):
         self.prg.edgeExtrapolate(self.queue, global_size, work_size,
                                f, face)
         
-    
+    def ghostInflow(self, this_face):
+        """
+        update the ghost distribution function with an equilibrium distribution
+        defined by a passed in density and temperature and an extrapolated velocity
+        normal to the wall
+        """
+        
+        face = np.int32(this_face)
+        
+        f = self.f_D
+        
+        if this_face in [NORTH, SOUTH]:
+            global_size = (self.ni, self.ghost, 1)
+        else:
+            global_size = (self.ghost, self.nj, 1)
+        
+        global_size, work_size = m_tuple(global_size,(1,1,gdata.CL_local_size))
+        
+        self.prg.edgeInflow(self.queue, global_size, work_size,
+                               f, face, self.normal_D, self.macro_D, self.Q_D)
+        
+        return
+        
+    def ghostOutflow(self, this_face):
+        """
+        update the ghost distribution function with an equilibrium distribution
+        defined by a passed in pressure and an extrapolated velocity
+        normal to the wall. Adjust the density according to the extrapolated 
+        temperature
+        """
+        
+        face = np.int32(this_face)
+        
+        f = self.f_D
+        
+        if this_face in [NORTH, SOUTH]:
+            global_size = (self.ni, self.ghost, 1)
+        else:
+            global_size = (self.ghost, self.nj, 1)
+        
+        global_size, work_size = m_tuple(global_size,(1,1,gdata.CL_local_size))
+        
+        self.prg.edgeOutflow(self.queue, global_size, work_size,
+                               f, face, self.normal_D, self.macro_D, self.Q_D)
+        
+        return
+        
     def ghostConstant(self, this_face):
         """
         generate distribution function values from the defined 
@@ -521,11 +567,7 @@ class UGKSBlock(object):
         
         for this_face, bc in enumerate(self.bc_list):
             
-            if bc.type_of_BC == ADJACENT:
-                # exchange ghost cell information with adjacent cell
-                self.ghostExchange(this_face, bc.other_block, bc.other_face)
-                
-            if bc.type_of_BC == PERIODIC:
+            if bc.type_of_BC in [ADJACENT, PERIODIC]:
                 # exchange ghost cell information with adjacent cell
                 self.ghostExchange(this_face, bc.other_block, bc.other_face)
                 
@@ -548,6 +590,12 @@ class UGKSBlock(object):
                 # extrapolate the cell data to give CONSTANT gradient
                 self.edgeConstGrad(this_face)
                 self.has_accommodating = True
+                
+            elif bc.type_of_BC == INFLOW:
+                self.ghostInflow(this_face)
+            
+            elif bc.type_of_BC == OUTFLOW:
+                self.ghostOutflow(this_face)
             
             #print "block {}, face {}: b.c. updated".format(self.id, this_face)            
     

@@ -515,6 +515,203 @@ edgeConstant(__global double2* Fin,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// KERNEL: edgeInflow: define the flow into the domain
+////////////////////////////////////////////////////////////////////////////////
+
+__kernel void
+edgeInflow(__global double2* Fin,
+	   int this_face,
+     __global double2* normal,
+	   __global double4* macro,
+     __global double2* gQ)
+{
+  // set distribution functions to the equilibrium value defined by the input data
+  
+  // distribution functions global index
+  size_t gi = get_global_id(0);
+  size_t gj = get_global_id(1);
+  size_t ti = get_local_id(2);
+  
+  // extrapolate index
+  size_t ei, ej, ci, noi, noj, face;
+  double density, temperature;
+  
+  switch (this_face) {
+    case GNORTH:
+      ci = gi;
+      gi += GHOST;
+      gj += NJ - GHOST;
+      ei = gi;
+      ej = NJ - GHOST - 1;
+      density = WALL_N_D;
+      temperature = WALL_N_T;
+      noi = gi;
+      noj = gj;
+      face = SOUTH;
+      break;
+    case GEAST:
+      ci = gj;
+      gi += NI - GHOST;
+      gj += GHOST;
+      ei = NI - GHOST - 1;
+      ej = gj;
+      density = WALL_E_D;
+      temperature = WALL_E_T;
+      noi = gi;
+      noj = gj;
+      face = WEST;
+      break;
+    case GSOUTH:
+      ci = gi;
+      gi += GHOST;
+      gj += 0;
+      ei = gi;
+      ej = GHOST;
+      density = WALL_S_D;
+      temperature = WALL_S_T;
+      noi = ei;
+      noj = ej;
+      face = SOUTH;
+      break;
+    case GWEST:
+      ci = gj;
+      gi += 0;
+      gj += GHOST;
+      ei = GHOST;
+      ej = gj;
+      density = WALL_W_D;
+      temperature = WALL_W_T;
+      noi = ei;
+      noj = ej;
+      face = WEST;
+      break;
+  }
+
+  
+  double2 uv;
+  double2 Q = GQ(ei-GHOST,ej-GHOST);
+  
+  double4 ghost_macro = MACRO(ei-GHOST,ej-GHOST);
+  
+  // the wall normal
+  double2 wall_normal = NORMAL(noi,noj,face);
+  
+  // calculate the velocity normal to the interface
+  ghost_macro.s12 = toLocal(ghost_macro.s12, wall_normal);
+  
+  // set the density and temperature
+  ghost_macro.s0 = density;
+  ghost_macro.s3 = temperature; // note that this temperature is actually 1/T
+  
+  
+  for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+    size_t gv = li*LOCAL_SIZE+ti;
+    if (gv < NV) {
+      uv = QUAD[gv];
+      F(gi,gj,gv) = fEQ(ghost_macro, Q, uv, gv);
+    }
+  }
+
+  return;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// KERNEL: edgeOutflow: define the flow out of the domain
+////////////////////////////////////////////////////////////////////////////////
+
+__kernel void
+edgeOutflow(__global double2* Fin,
+	   int this_face,
+     __global double2* normal,
+	   __global double4* macro,
+     __global double2* gQ)
+{
+  // set distribution functions to the equilibrium value defined by the input data
+  
+  // distribution functions global index
+  size_t gi = get_global_id(0);
+  size_t gj = get_global_id(1);
+  size_t ti = get_local_id(2);
+  
+  // extrapolate index
+  size_t ei, ej, ci, noi, noj, face;
+  double pressure;
+  
+  switch (this_face) {
+    case GNORTH:
+      ci = gi;
+      gi += GHOST;
+      gj += NJ - GHOST;
+      ei = gi;
+      ej = NJ - GHOST - 1;
+      pressure = WALL_N_P;
+      noi = gi;
+      noj = gj;
+      face = SOUTH;
+      break;
+    case GEAST:
+      ci = gj;
+      gi += NI - GHOST;
+      gj += GHOST;
+      ei = NI - GHOST - 1;
+      ej = gj;
+      pressure = WALL_E_P;
+      noi = gi;
+      noj = gj;
+      face = WEST;
+      break;
+    case GSOUTH:
+      ci = gi;
+      gi += GHOST;
+      gj += 0;
+      ei = gi;
+      ej = GHOST;
+      pressure = WALL_S_P;
+      noi = ei;
+      noj = ej;
+      face = SOUTH;
+      break;
+    case GWEST:
+      ci = gj;
+      gi += 0;
+      gj += GHOST;
+      ei = GHOST;
+      ej = gj;
+      pressure = WALL_W_P;
+      noi = ei;
+      noj = ej;
+      face = WEST;
+      break;
+  }
+
+  
+  double2 uv;
+  double2 Q = GQ(ei-GHOST,ej-GHOST);
+  
+  double4 ghost_macro = MACRO(ei-GHOST,ej-GHOST);
+  
+  // the wall normal
+  double2 wall_normal = NORMAL(noi, noj, face);
+  
+  // calculate the velocity normal to the interface
+  ghost_macro.s12 = toLocal(ghost_macro.s12, wall_normal);
+  
+  // set the temperature so that we have the right pressure
+  ghost_macro.s3 = ghost_macro.s0/pressure;
+  
+  
+  for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+    size_t gv = li*LOCAL_SIZE+ti;
+    if (gv < NV) {
+      uv = QUAD[gv];
+      F(gi,gj,gv) = fEQ(ghost_macro, Q, uv, gv);
+    }
+  }
+
+  return;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // KERNEL: edgeMirror: mirror face information
 ////////////////////////////////////////////////////////////////////////////////
 

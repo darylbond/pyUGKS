@@ -28,6 +28,8 @@ CONSTANT        = 2
 REFLECT         = 3
 ACCOMMODATING   = 4
 PERIODIC        = 5
+INFLOW          = 6
+OUTFLOW         = 7
 
 bcIndexFromName = {
      0: ADJACENT, "0": ADJACENT, "ADJACENT": ADJACENT, "COMMON": ADJACENT,
@@ -36,6 +38,8 @@ bcIndexFromName = {
      3: REFLECT, "3": REFLECT,
      4: ACCOMMODATING, "4": ACCOMMODATING,
      5: PERIODIC, "5":PERIODIC,
+     6: INFLOW, "6":INFLOW,
+     7: OUTFLOW, "7":OUTFLOW
 }
 
 bcName = {
@@ -45,6 +49,8 @@ bcName = {
     REFLECT: "REFLECT",
     ACCOMMODATING: "ACCOMMODATING",
     PERIODIC: "PERIODIC",
+    INFLOW: "INFLOW",
+    OUTFLOW: "OUTFLOW"
     }
 
 class BoundaryCondition(object):
@@ -54,8 +60,9 @@ class BoundaryCondition(object):
     type_of_BC: specifies the boundary condition
     T: fixed wall temperature (in degrees K) that will be used if
         the boundary conditions needs such a value.
+    P: used only for outflow conditions
     """
-    __slots__ = 'type_of_BC', 'D', 'T', "U", "V", 'other_block',\
+    __slots__ = 'type_of_BC', 'D', 'T', "U", "V","P", 'other_block',\
             'other_face', 'orientation', 'label', 'UDF_U',\
             'UDF_V', 'UDF_T','UDF_D'
             
@@ -65,6 +72,7 @@ class BoundaryCondition(object):
                  T = 300.0,
                  U = 0.0,
                  V = 0.0,
+                 P = -1.0,
                  UDF_D = None,
                  UDF_U = None,
                  UDF_V = None,
@@ -79,6 +87,7 @@ class BoundaryCondition(object):
         self.T = T
         self.U = U
         self.V = V
+        self.P = P
         self.UDF_D = UDF_D
         self.UDF_U = UDF_U
         self.UDF_V = UDF_V
@@ -96,6 +105,7 @@ class BoundaryCondition(object):
         str_rep += ", T=%g" % self.T
         str_rep += ", U=%g" % self.U
         str_rep += ", V=%g" % self.V
+        str_rep += ", P=%g" % self.P
         str_rep += ", UDF_D=%s" % self.UDF_D
         str_rep += ", UDF_U=%s" % self.UDF_U
         str_rep += ", UDF_V=%s" % self.UDF_V
@@ -111,6 +121,7 @@ class BoundaryCondition(object):
                                  T=self.T,
                                  U=self.U,
                                  V=self.V,
+                                 P=self.P,
                                  UDF_D = self.UDF_D,
                                  UDF_U = self.UDF_U,
                                  UDF_V = self.UDF_V,
@@ -236,3 +247,33 @@ class AccommodatingBC(BoundaryCondition):
                                UDF_V = self.UDF_V,
                                UDF_T = self.UDF_T,
                                label=self.label)
+                               
+class InflowBC(BoundaryCondition):
+    """
+    populate the ghost cell with an equilibrium distribution with defined 
+    density and temperature, but with mean velocity normal to the wall
+    defined according to the adjacent cell
+    """
+    def __init__(self, D=1, T=1, label="INFLOW"):
+        BoundaryCondition.__init__(self, D=D, T=T, type_of_BC=INFLOW,
+                                   label=label)
+        return
+    def __str__(self):
+        return "InflowBC(D=%f, T=%f, label=\"%s\")" %(self.D, self.T, self.label)
+    def __copy__(self):
+        return InflowBC(D=self.D, T=self.T, label=self.label)
+
+class OutflowBC(BoundaryCondition):
+    """
+    populate the ghost cell with an equilibrium distribution with defined 
+    pressure. This means we calculate temperature and mean velocity normal to the wall
+    according to the adjacent cell and adjust the density accordingly
+    """
+    def __init__(self, P=1, label="OUTFLOW"):
+        BoundaryCondition.__init__(self, P=P, type_of_BC=OUTFLOW,
+                                   label=label)
+        return
+    def __str__(self):
+        return "OutflowBC(P=%f, label=\"%s\")" %(self.P, self.label)
+    def __copy__(self):
+        return OutflowBC(P=self.P, label=self.label)

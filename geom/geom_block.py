@@ -145,6 +145,20 @@ class Block(object):
                 newbc = ConstantBC(D=D, T=T, U=U, V=V, UDF_D=UDF_D, 
                                    UDF_U=UDF_U, UDF_V=UDF_V, UDF_T=UDF_T, 
                                    label=label)
+        if type_of_BC == INFLOW:
+            if flowCondition:
+                newbc = InflowBC(D=flowCondition.D,
+                                  T = flowCondition.T,
+                                   label = flowCondition.label)
+            else:
+                newbc = ConstantBC(D=D, T=T, label=label)
+                
+        if type_of_BC == OUTFLOW:
+            if flowCondition:
+                newbc = OutflowBC(P=flowCondition.P, label = flowCondition.label)
+            else:
+                newbc = ConstantBC(P=P, label=label)
+                
         if type_of_BC == REFLECT:
             newbc = ReflectBC(label=label)
         if type_of_BC == ACCOMMODATING:

@@ -17,17 +17,18 @@ class FlowCondition(object):
     V: y-component of velocity, m/s
     W: z-component of velocity, m/s
     T: average temperature, K
+    P: pressure, Pa (only used for definition of boundary condition)
     label: (optional) string label
     UDF_* : user defined functions -> ie D = (x + y)
     """
     
     flowList = []
 
-    __slots__ = 'D', 'U', 'V', 'T', 'qx', 'qy', 'tau', 'label', 'indx',\
+    __slots__ = 'D', 'U', 'V', 'T', 'P', 'qx', 'qy', 'tau', 'label', 'indx',\
     'UDF_D','UDF_U','UDF_V', 'UDF_T', 'UDF_qx', 'UDF_qy', 'UDF_tau',\
     'isUDF', 'isConst',
     
-    def __init__(self, D=1.0, U=0.0, V=0.0, T=300.0, qx=0.0, qy=0.0, tau=0.0,
+    def __init__(self, D=1.0, U=0.0, V=0.0, T=300.0, P=1e5, qx=0.0, qy=0.0, tau=0.0,
                  label="", UDF_D="", UDF_U="", UDF_V="", UDF_T="", 
                  UDF_qx="", UDF_qy="", UDF_tau=""):
         """
@@ -37,6 +38,7 @@ class FlowCondition(object):
         self.U = U
         self.V = V
         self.T = T
+        self.P = P
         self.qx = qx
         self.qy = qy
         self.tau = tau
