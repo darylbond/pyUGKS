@@ -156,14 +156,22 @@ paraBC(__global double* para_def,
     prim.s0 = WALL_N_D;
     prim.s1 = WALL_N_U;
     prim.s2 = WALL_N_V;
-    prim.s3 = WALL_N_T;
+    if ((WALL_N_P) != -1) {
+      prim.s3 = (WALL_N_P)/WALL_N_D;
+    } else {
+      prim.s3 = WALL_N_T;
+    }
     WALL_PROP(GNORTH,ci) = prim;
     
     s = PARA(GSOUTH, ci);
     prim.s0 = WALL_S_D;
     prim.s1 = WALL_S_U;
     prim.s2 = WALL_S_V;
-    prim.s3 = WALL_S_T;
+    if ((WALL_S_P) != -1) {
+      prim.s3 = (WALL_S_P)/WALL_S_D;
+    } else {
+      prim.s3 = WALL_S_T;
+    }
     WALL_PROP(GSOUTH,ci) = prim;
   }
   
@@ -173,14 +181,22 @@ paraBC(__global double* para_def,
     prim.s0 = WALL_E_D;
     prim.s1 = WALL_E_U;
     prim.s2 = WALL_E_V;
-    prim.s3 = WALL_E_T;
+    if ((WALL_E_P) != -1) {
+      prim.s3 = (WALL_E_P)/WALL_E_D;
+    } else {
+      prim.s3 = WALL_E_T;
+    }
     WALL_PROP(GEAST,ci) = prim;
     
     s = PARA(GWEST, ci);
     prim.s0 = WALL_W_D;
     prim.s1 = WALL_W_U;
     prim.s2 = WALL_W_V;
-    prim.s3 = WALL_W_T;
+    if ((WALL_W_P) != -1) {
+      prim.s3 = (WALL_W_P)/WALL_W_D;
+    } else {
+      prim.s3 = WALL_W_T;
+    }
     WALL_PROP(GWEST,ci) = prim;
   }
   

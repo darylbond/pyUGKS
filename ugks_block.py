@@ -458,7 +458,8 @@ class UGKSBlock(object):
         global_size, work_size = m_tuple(global_size,(1,1,gdata.CL_local_size))
         
         self.prg.edgeInflow(self.queue, global_size, work_size,
-                               f, face, self.normal_D, self.macro_D, self.Q_D)
+                               f, face, self.normal_D, self.macro_D, 
+                               self.Q_D, self.wall_prop_D)
         
         return
         
@@ -482,7 +483,8 @@ class UGKSBlock(object):
         global_size, work_size = m_tuple(global_size,(1,1,gdata.CL_local_size))
         
         self.prg.edgeOutflow(self.queue, global_size, work_size,
-                               f, face, self.normal_D, self.macro_D, self.Q_D)
+                               f, face, self.normal_D, self.macro_D, 
+                               self.Q_D, self.wall_prop_D)
         
         return
         

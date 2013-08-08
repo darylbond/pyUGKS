@@ -523,7 +523,8 @@ edgeInflow(__global double2* Fin,
 	   int this_face,
      __global double2* normal,
 	   __global double4* macro,
-     __global double2* gQ)
+     __global double2* gQ,
+     __global double4* wall_prop)
 {
   // set distribution functions to the equilibrium value defined by the input data
   
@@ -534,7 +535,6 @@ edgeInflow(__global double2* Fin,
   
   // extrapolate index
   size_t ei, ej, ci, noi, noj, face;
-  double density, temperature;
   
   switch (this_face) {
     case GNORTH:
@@ -543,8 +543,6 @@ edgeInflow(__global double2* Fin,
       gj += NJ - GHOST;
       ei = gi;
       ej = NJ - GHOST - 1;
-      density = WALL_N_D;
-      temperature = WALL_N_T;
       noi = gi;
       noj = gj;
       face = SOUTH;
@@ -555,8 +553,6 @@ edgeInflow(__global double2* Fin,
       gj += GHOST;
       ei = NI - GHOST - 1;
       ej = gj;
-      density = WALL_E_D;
-      temperature = WALL_E_T;
       noi = gi;
       noj = gj;
       face = WEST;
@@ -567,8 +563,6 @@ edgeInflow(__global double2* Fin,
       gj += 0;
       ei = gi;
       ej = GHOST;
-      density = WALL_S_D;
-      temperature = WALL_S_T;
       noi = ei;
       noj = ej;
       face = SOUTH;
@@ -579,18 +573,14 @@ edgeInflow(__global double2* Fin,
       gj += GHOST;
       ei = GHOST;
       ej = gj;
-      density = WALL_W_D;
-      temperature = WALL_W_T;
       noi = ei;
       noj = ej;
       face = WEST;
       break;
   }
 
-  
-  double2 uv;
+  double4 prim = WALL_PROP(this_face, ci);
   double2 Q = GQ(ei-GHOST,ej-GHOST);
-  
   double4 ghost_macro = MACRO(ei-GHOST,ej-GHOST);
   
   // the wall normal
@@ -600,14 +590,14 @@ edgeInflow(__global double2* Fin,
   ghost_macro.s12 = toLocal(ghost_macro.s12, wall_normal);
   
   // set the density and temperature
-  ghost_macro.s0 = density;
-  ghost_macro.s3 = temperature; // note that this temperature is actually 1/T
+  ghost_macro.s0 = prim.s0;
+  ghost_macro.s3 = prim.s3; // note that this temperature is actually 1/T
   
   
   for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
     size_t gv = li*LOCAL_SIZE+ti;
     if (gv < NV) {
-      uv = QUAD[gv];
+      double2 uv = QUAD[gv];
       F(gi,gj,gv) = fEQ(ghost_macro, Q, uv, gv);
     }
   }
@@ -624,7 +614,8 @@ edgeOutflow(__global double2* Fin,
 	   int this_face,
      __global double2* normal,
 	   __global double4* macro,
-     __global double2* gQ)
+     __global double2* gQ,
+     __global double4* wall_prop)
 {
   // set distribution functions to the equilibrium value defined by the input data
   
@@ -644,7 +635,6 @@ edgeOutflow(__global double2* Fin,
       gj += NJ - GHOST;
       ei = gi;
       ej = NJ - GHOST - 1;
-      pressure = WALL_N_P;
       noi = gi;
       noj = gj;
       face = SOUTH;
@@ -655,7 +645,6 @@ edgeOutflow(__global double2* Fin,
       gj += GHOST;
       ei = NI - GHOST - 1;
       ej = gj;
-      pressure = WALL_E_P;
       noi = gi;
       noj = gj;
       face = WEST;
@@ -666,7 +655,6 @@ edgeOutflow(__global double2* Fin,
       gj += 0;
       ei = gi;
       ej = GHOST;
-      pressure = WALL_S_P;
       noi = ei;
       noj = ej;
       face = SOUTH;
@@ -677,17 +665,14 @@ edgeOutflow(__global double2* Fin,
       gj += GHOST;
       ei = GHOST;
       ej = gj;
-      pressure = WALL_W_P;
       noi = ei;
       noj = ej;
       face = WEST;
       break;
   }
 
-  
-  double2 uv;
+  double4 prim = WALL_PROP(this_face, ci);
   double2 Q = GQ(ei-GHOST,ej-GHOST);
-  
   double4 ghost_macro = MACRO(ei-GHOST,ej-GHOST);
   
   // the wall normal
@@ -697,13 +682,13 @@ edgeOutflow(__global double2* Fin,
   ghost_macro.s12 = toLocal(ghost_macro.s12, wall_normal);
   
   // set the temperature so that we have the right pressure
-  ghost_macro.s3 = ghost_macro.s0/pressure;
+  ghost_macro.s3 = ghost_macro.s0/(prim.s0/prim.s3);
   
   
   for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
     size_t gv = li*LOCAL_SIZE+ti;
     if (gv < NV) {
-      uv = QUAD[gv];
+      double2 uv = QUAD[gv];
       F(gi,gj,gv) = fEQ(ghost_macro, Q, uv, gv);
     }
   }

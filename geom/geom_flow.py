@@ -28,7 +28,7 @@ class FlowCondition(object):
     'UDF_D','UDF_U','UDF_V', 'UDF_T', 'UDF_qx', 'UDF_qy', 'UDF_tau',\
     'isUDF', 'isConst',
     
-    def __init__(self, D=1.0, U=0.0, V=0.0, T=300.0, P=1e5, qx=0.0, qy=0.0, tau=0.0,
+    def __init__(self, D=1.0, U=0.0, V=0.0, T=300.0, P=-1, qx=0.0, qy=0.0, tau=0.0,
                  label="", UDF_D="", UDF_U="", UDF_V="", UDF_T="", 
                  UDF_qx="", UDF_qy="", UDF_tau=""):
         """
