@@ -701,8 +701,15 @@ class UGKSBlock(object):
         # the parametric value along the side of the block for each edge cell
         para = np.zeros((max(self.ni, self.nj), 4), dtype=np.float64)
         
+        lengths_north = length_H[self.ghost:(-self.ghost),-self.ghost,0]
+        lengths_south = length_H[self.ghost:(-self.ghost),self.ghost,0]
+        lengths_east = length_H[-self.ghost,self.ghost:(-self.ghost),1]
+        lengths_west = length_H[self.ghost,self.ghost:(-self.ghost),1]
+        
+        self.face_lengths = [lengths_north, lengths_east, lengths_south, lengths_west]
+        
         #NORTH
-        stencil = length_H[self.ghost:(-self.ghost),-self.ghost,0]
+        stencil = lengths_north
         total_length = np.sum(stencil)
         length = 0.0
         for i in range(len(stencil)):
@@ -711,7 +718,7 @@ class UGKSBlock(object):
             length += cell_length      
             
         #SOUTH
-        stencil = length_H[self.ghost:(-self.ghost),self.ghost,0]
+        stencil = lengths_south
         total_length = np.sum(stencil)
         length = 0.0
         for i in range(len(stencil)):
@@ -720,7 +727,7 @@ class UGKSBlock(object):
             length += cell_length     
             
         #EAST
-        stencil = length_H[-self.ghost,self.ghost:(-self.ghost),1]
+        stencil = lengths_east
         total_length = np.sum(stencil)
         length = 0.0
         for i in range(len(stencil)):
@@ -729,7 +736,7 @@ class UGKSBlock(object):
             length += cell_length   
             
         #WEST
-        stencil = length_H[self.ghost,self.ghost:(-self.ghost),1]
+        stencil = lengths_west
         total_length = np.sum(stencil)
         length = 0.0
         for i in range(len(stencil)):
@@ -1310,11 +1317,43 @@ class UGKSBlock(object):
         xdmf += '</DataItem>\n'
         xdmf += '</Attribute>\n'
         
+
+        ads = sgrp.require_group("adsorbed")
+        cover_N = self.wall_cover_H[0:self.ni,0,0]
+        cover_E = self.wall_cover_H[0:self.nj,1,0]
+        cover_S = self.wall_cover_H[0:self.ni,2,0]
+        cover_W = self.wall_cover_H[0:self.nj,3,0]
+        ads.create_dataset("cover_N",data=cover_N, compression=gdata.save_options.compression)
+        ads.create_dataset("cover_E",data=cover_E, compression=gdata.save_options.compression)
+        ads.create_dataset("cover_S",data=cover_S, compression=gdata.save_options.compression)
+        ads.create_dataset("cover_W",data=cover_W, compression=gdata.save_options.compression)
         
-        sgrp.create_dataset("cover",data=self.wall_cover_H[:,:,0], compression=gdata.save_options.compression)
-        sgrp.create_dataset("reflected",data=self.wall_cover_H[:,:,1], compression=gdata.save_options.compression)        
-        sgrp.create_dataset("adsorbed",data=self.wall_cover_H[:,:,2], compression=gdata.save_options.compression)
-        sgrp.create_dataset("desorbed",data=self.wall_cover_H[:,:,3], compression=gdata.save_options.compression)        
+        reflected_N = self.wall_cover_H[0:self.ni,0,1]
+        reflected_E = self.wall_cover_H[0:self.nj,1,1]
+        reflected_S = self.wall_cover_H[0:self.ni,2,1]
+        reflected_W = self.wall_cover_H[0:self.nj,3,1]
+        ads.create_dataset("reflected_N",data=reflected_N, compression=gdata.save_options.compression)
+        ads.create_dataset("reflected_E",data=reflected_E, compression=gdata.save_options.compression)
+        ads.create_dataset("reflected_S",data=reflected_S, compression=gdata.save_options.compression)
+        ads.create_dataset("reflected_W",data=reflected_W, compression=gdata.save_options.compression)
+        
+        adsorbed_N = self.wall_cover_H[0:self.ni,0,2]
+        adsorbed_E = self.wall_cover_H[0:self.nj,1,2]
+        adsorbed_S = self.wall_cover_H[0:self.ni,2,2]
+        adsorbed_W = self.wall_cover_H[0:self.nj,3,2]
+        ads.create_dataset("adsorbed_N",data=adsorbed_N, compression=gdata.save_options.compression)
+        ads.create_dataset("adsorbed_E",data=adsorbed_E, compression=gdata.save_options.compression)
+        ads.create_dataset("adsorbed_S",data=adsorbed_S, compression=gdata.save_options.compression)
+        ads.create_dataset("adsorbed_W",data=adsorbed_W, compression=gdata.save_options.compression)
+        
+        desorbed_N = self.wall_cover_H[0:self.ni,0,3]
+        desorbed_E = self.wall_cover_H[0:self.nj,1,3]
+        desorbed_S = self.wall_cover_H[0:self.ni,2,3]
+        desorbed_W = self.wall_cover_H[0:self.nj,3,3]
+        ads.create_dataset("desorbed_N",data=desorbed_N, compression=gdata.save_options.compression)
+        ads.create_dataset("desorbed_E",data=desorbed_E, compression=gdata.save_options.compression)
+        ads.create_dataset("desorbed_S",data=desorbed_S, compression=gdata.save_options.compression)
+        ads.create_dataset("desorbed_W",data=desorbed_W, compression=gdata.save_options.compression)     
         
             
         if all_data:
@@ -1333,6 +1372,24 @@ class UGKSBlock(object):
         
         self.updateHost()
         
-        mass = np.sum(self.area_H[self.ghost:-self.ghost,self.ghost:-self.ghost]*self.macro_H[:,:,0])
         
-        return mass
+        
+        # mass in the bulk of the flow
+        bulk_mass = np.sum(self.area_H[self.ghost:-self.ghost,self.ghost:-self.ghost]*self.macro_H[:,:,0])
+        bulk_mass *= gdata.D_ref
+        
+        
+        # mass adsorbed on the wall
+        adsorbed_mass = 0.0
+        cover_N = self.wall_cover_H[0:self.ni,0,0]
+        cover_E = self.wall_cover_H[0:self.nj,1,0]
+        cover_S = self.wall_cover_H[0:self.ni,2,0]
+        cover_W = self.wall_cover_H[0:self.nj,3,0]
+        cover = [cover_N, cover_E, cover_S, cover_W]
+        for face in range(4):
+           adsorbed_mass += np.sum(cover[face]*gdata.S_T*self.face_lengths[face]*gdata.L_ref)
+        
+#        print "bulk mass = ",bulk_mass
+#        print "adsorbed mass = ",adsorbed_mass
+        
+        return bulk_mass, adsorbed_mass

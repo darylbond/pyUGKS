@@ -906,13 +906,15 @@ class UGKSim(object):
         """
         calculate the total mass contained in this simulation
         """
-        
-        mass = 0.0
+        bulk_mass = 0.0
+        adsorbed_mass = 0.0
         
         for b in self.blocks:
-            mass += b.block_mass()
+            bulk_mass_i, adsorbed_mass_i = b.block_mass()
+            bulk_mass += bulk_mass_i
+            adsorbed_mass += adsorbed_mass_i
             
-        return mass
+        return bulk_mass, adsorbed_mass
         
     def __del__(self):
         """
