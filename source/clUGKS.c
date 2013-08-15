@@ -1003,6 +1003,11 @@ adsorbingWall_P1(__global double2* normal,
                 beta = stickingProbability(uv, T); // probability giving the amount of this discrete velocity that has a chance of sticking 
                 
                 adsorbed_flux = beta*total_flux*GAMMA_F*(1.0 - vartheta); // is adsorbed
+                
+                if (adsorbed_flux.x > total_flux.x) {
+                    adsorbed_flux = total_flux;
+                }
+                
                 reflected_flux = total_flux - adsorbed_flux; // is reflected
                 
                 
@@ -1034,27 +1039,34 @@ adsorbingWall_P1(__global double2* normal,
             barrier(CLK_LOCAL_MEM_FENCE);
         }
         
-        // we now know how much needs to be reflected and adsorbed
-        
-        reflected_flux.x = data[0].x;
-        adsorbed_flux.x  = data[0].y;
-        
-        // calculate the desorption rate based on the Langmuir isotherm
-        double gamma_b = GAMMA_F*(1.0/VARTHETA_LANGMUIR - 1.0)*data2[0];
-        
-        desorbed_flux.x  = gamma_b*vartheta;
-        
-        double dvtheta = dt*ALPHA_P*(adsorbed_flux.x - desorbed_flux.x);
-        
-        // make sure we don't get negative ratio of coverage
-        // also ensure that we only desorb what is available, not 
-        //  including what we have just adsorbed in this time step
-        if (vartheta + dvtheta < 0.0) {
-            desorbed_flux.x = vartheta/(dt*ALPHA_P);
-            dvtheta = dt*ALPHA_P*(adsorbed_flux.x - desorbed_flux.x);
-        }
-             
         if (thread_id == 0) {
+        
+            // we now know how much needs to be reflected and adsorbed
+            
+            reflected_flux.x = data[0].x;
+            adsorbed_flux.x  = data[0].y;
+            
+            // calculate the desorption rate based on the Langmuir isotherm
+            double gamma_b = GAMMA_F*(1.0/VARTHETA_LANGMUIR - 1.0)*data2[0];
+            
+            desorbed_flux.x  = gamma_b*vartheta;
+            
+            double dvtheta = dt*ALPHA_P*(adsorbed_flux.x - desorbed_flux.x);
+            
+            //printf("dvtheta = %g\n",dvtheta);
+            
+            // make sure we don't get negative ratio of coverage
+            // also ensure that we only desorb what is available, not 
+            //  including what we have just adsorbed in this time step
+            if ((vartheta + dvtheta) < 0.0) {
+                desorbed_flux.x = vartheta/(dt*ALPHA_P);
+                dvtheta = dt*ALPHA_P*(adsorbed_flux.x - desorbed_flux.x);
+                
+            }
+            
+            //printf("adsorbed = %g\ndesorbed = %g\nreflected = %g\n\n",adsorbed_flux.x,desorbed_flux.x,reflected_flux.x);
+
+        
             COVER(face, ci).s0 += dvtheta;
             COVER(face, ci).s1 = reflected_flux.x;
             COVER(face, ci).s2 = adsorbed_flux.x;
@@ -1359,7 +1371,7 @@ adsorbingWallDS_P2(__global double2* normal,
             ratio = data[0].x;
         }
         
-        COVER(face, ci).s2 = ratio;
+        //COVER(face, ci).s2 = ratio;
 
         // now adjust the reflected distribution so that we conserve mass
         // also add on any desorbing flux
@@ -1367,19 +1379,31 @@ adsorbingWallDS_P2(__global double2* normal,
         // convert from flux to density of distribution assuming that we 
         // have a Maxwellian (this is true for the desorbed particles)
         double desorbed_flux = COVER(face, ci).s3;
+        double adsorbed_flux = COVER(face, ci).s2;
+        
+        size_t account_adsorb = 0;
+        if (((desorbed_flux == 0.0) && (adsorbed_flux > 0.0)) && (reflected_flux == 0.0)) {
+            account_adsorb = 1;
+        }
+        
         wall.s0 = 2*desorbed_flux*sqrt(PI*wall.s3);
         
         for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
             size_t gv = li*LOCAL_SIZE+thread_id;
             if (gv < NV) {
                 double2 uv = interfaceVelocity(gv, face_normal);
-                int delta = (sign(uv.x)*rot + 1)/2; // (1 -> out of wall)
+                int delta = (sign(uv.x)*rot + 1)/2; // (1 -> out of wall, 0 -> into wall)
                 double2 face_dist = FLUXF(gi,gj,gv);
-                face_dist *= ((1-delta) + ratio*delta);
+                face_dist *= 1 - delta*(1 - ratio);
                 face_dist += delta*fM(wall, uv, gv);
+                face_dist -= account_adsorb*delta*face_dist;
                 FLUXF(gi,gj,gv) = face_dist;
             }
-        } 
+        }
+        
+        
+        
+        
     }
     
     return;

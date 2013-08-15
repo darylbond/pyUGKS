@@ -530,7 +530,7 @@ class UGKSim(object):
                     self.saveToFile(save_f=save.save_final_f)
                 else:
                     self.saveToFile()
-
+        
         self.queue.finish()        
         
         ##
