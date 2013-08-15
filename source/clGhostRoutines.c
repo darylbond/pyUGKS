@@ -626,7 +626,6 @@ edgeOutflow(__global double2* Fin,
   
   // extrapolate index
   size_t ei, ej, ci, noi, noj, face;
-  double pressure;
   
   switch (this_face) {
     case GNORTH:

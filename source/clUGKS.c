@@ -968,6 +968,7 @@ adsorbingWall_P1(__global double2* normal,
     }
     
     __local double2 data[LOCAL_SIZE];
+    __local double data2[LOCAL_SIZE];
 
     if (((face_id == SOUTH) && ((gi - GHOST) < ni)) 
     || ((face_id == WEST) && ((gj - GHOST) < nj))) {
@@ -984,6 +985,7 @@ adsorbingWall_P1(__global double2* normal,
         //data = [reflected flux, adsorbed flux]
         
         data[thread_id] = 0.0;
+        data2[thread_id] = 0.0;
         
         double vartheta = COVER(face, ci).s0; // the fraction of cover that this wall section has
         
@@ -1003,9 +1005,13 @@ adsorbingWall_P1(__global double2* normal,
                 adsorbed_flux = beta*total_flux*GAMMA_F*(1.0 - vartheta); // is adsorbed
                 reflected_flux = total_flux - adsorbed_flux; // is reflected
                 
+                
                 // sum of the reflected and adsorbed distributions
                 data[thread_id].x += reflected_flux.x;
                 data[thread_id].y += adsorbed_flux.x;
+                
+                // the flux that is seen by the Langmuir reaction
+                data2[thread_id] += beta*total_flux.x;
                 
                 WALL_DIST(ci, gv) = reflected_flux/uv.x;  // save the reflected distribution for later
                 
@@ -1021,6 +1027,7 @@ adsorbingWall_P1(__global double2* normal,
             if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
                 // reduce
                 data[thread_id] += data[thread_id+step];
+                data2[thread_id] += data2[thread_id+step];
             }
             step *= 2;
             grab_id *= 2;
@@ -1033,7 +1040,7 @@ adsorbingWall_P1(__global double2* normal,
         adsorbed_flux.x  = data[0].y;
         
         // calculate the desorption rate based on the Langmuir isotherm
-        double gamma_b = GAMMA_F*(1.0/VARTHETA_LANGMUIR - 1.0)*(reflected_flux.x + adsorbed_flux.x);
+        double gamma_b = GAMMA_F*(1.0/VARTHETA_LANGMUIR - 1.0)*data2[0];
         
         desorbed_flux.x  = gamma_b*vartheta;
         
