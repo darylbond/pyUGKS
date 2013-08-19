@@ -213,7 +213,7 @@ class UGKSData(object):
         # initial coverage of adsorbed molecules
         self.vartheta_initial = 0.0
         
-        # total concentration of adsorbtion sites
+        # total concentration of adsorption sites
         self.S_T = 1.0
         
         # dimensionless constant for change in vartheta
