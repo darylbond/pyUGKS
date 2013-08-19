@@ -1212,29 +1212,35 @@ adsorbingWallCL_P2(__global double2* normal,
             ratio = data[0].x;
         }
         
-        COVER(face, ci).s2 = ratio;
+        //COVER(face, ci).s2 = ratio;
 
-        // now adjust the Cercignani - Lampis distribution so that we conserve mass
+        // now adjust the reflected distribution so that we conserve mass
         // also add on any desorbing flux
+        
         // convert from flux to density of distribution assuming that we 
         // have a Maxwellian (this is true for the desorbed particles)
         double desorbed_flux = COVER(face, ci).s3;
+        double adsorbed_flux = COVER(face, ci).s2;
+        
+        size_t account_adsorb = 0;
+        if (((desorbed_flux == 0.0) && (adsorbed_flux > 0.0)) && (reflected_flux == 0.0)) {
+            account_adsorb = 1;
+        }
+        
         wall.s0 = 2*desorbed_flux*sqrt(PI*wall.s3);
+        
         for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
             size_t gv = li*LOCAL_SIZE+thread_id;
             if (gv < NV) {
                 double2 uv = interfaceVelocity(gv, face_normal);
-                int delta = (sign(uv.x)*rot + 1)/2; // (1 -> out of wall)
-                
+                int delta = (sign(uv.x)*rot + 1)/2; // (1 -> out of wall, 0 -> into wall)
                 double2 face_dist = FLUXF(gi,gj,gv);
-                
-                face_dist *= ((1-delta) + ratio*delta);
-                 
+                face_dist *= 1 - delta*(1 - ratio);
                 face_dist += delta*fM(wall, uv, gv);
-                 
+                face_dist -= account_adsorb*delta*face_dist;
                 FLUXF(gi,gj,gv) = face_dist;
             }
-        } 
+        }
     }
     
     return;
@@ -1400,10 +1406,6 @@ adsorbingWallDS_P2(__global double2* normal,
                 FLUXF(gi,gj,gv) = face_dist;
             }
         }
-        
-        
-        
-        
     }
     
     return;
