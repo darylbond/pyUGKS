@@ -119,9 +119,7 @@ class UGKSData(object):
                 'u_num','v_num','quad_type',\
                 'work_size_i','work_size_j','opt_sample_size', 'opt_run',\
                 'opt_start',\
-                'beta_n','beta_t','epsilon_0','gamma_f','gamma_b','S_T',\
-                'vartheta_initial','alpha_p','alpha_n','alpha_t','boundary_type',\
-                'vartheta_langmuir','relax_type'
+                'relax_type'
     
     def __init__(self):
         """
@@ -192,44 +190,6 @@ class UGKSData(object):
         self.relax_type = 0
         # 0 --> tau = (Kn/prim.s0)*sqrt(2.0/PI)*pow(prim.s3,1.0 - chi);
         # 1 --> tau = (5./8.)*(Kn/DD)*sqrt(PI)*pow(TT,chi - 1.0);
-        
-#==============================================================================
-#         ## wall values
-#==============================================================================
-        
-        self.boundary_type = 'diffuse' # options = 'adsorb_CL','adsorb_specular-diffuse', 'diffuse'
-        
-        # factors used in determining probability of sticking to a wall 
-        # based on molecular velocity, zero gives equal probability for
-        # all velocities
-        self.beta_n = 0.0 # normal 
-        self.beta_t = 0.0 # tangential
-        
-        # factors for forward and backward reaction rates
-        self.gamma_f = 0.0
-        self.gamma_b = 0.0
-        
-        # Langmuir isotherm
-        self.vartheta_langmuir = 0.0
-        
-        # initial coverage of adsorbed molecules
-        self.vartheta_initial = 0.0
-        
-        # total concentration of adsorption sites
-        self.S_T = 1.0
-        
-        # dimensionless constant for change in vartheta
-        # don't need to modify this, it is updated regardless of value in 
-        # init_ref_values.
-        self.alpha_p = 1.0
-        
-        # Cercignani - Lampis accomodation coefficients
-        self.alpha_n = 1.0
-        self.alpha_t = 1.0
-        
-#==============================================================================
-#         
-#==============================================================================
         
         # EXTERNAL SOURCE        
         src_loader = sl.SourceLoader()
@@ -348,8 +308,7 @@ class UGKSData(object):
         run some checks on some key variables
         """
         
-        if (self.boundary_type != 'diffuse') & (self.vartheta_langmuir == 0.0):
-            raise RuntimeError('vartheta_langmuir == 0.0, this will cause divide by zero errors in adsorbingWall_P1')
+        # check stuff here
         
         return
 

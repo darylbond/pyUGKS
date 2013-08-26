@@ -949,7 +949,7 @@ adsorbingWall_P1(__global double2* normal,
             rot = -1;
             face_id = WEST;
             T = 1.0/MACRO(gi-GHOST-1, ci).s3;
-            T = MACRO(gi-GHOST-1, ci).s0;
+            D = MACRO(gi-GHOST-1, ci).s0;
             break;
         case GSOUTH:
             ci = gi;
@@ -1417,7 +1417,7 @@ adsorbingWallDS_P2(__global double2* normal,
 
 #endif
 
-#if HAS_DIFFUSE_WALL || HAS_SPECULAR_WALL || HAS_CL_WALL
+#if ((HAS_DIFFUSE_WALL || HAS_SPECULAR_WALL) || HAS_CL_WALL)
 __kernel void
 wallFlux(__global double2* normal,
             __global double* side_length, int face,

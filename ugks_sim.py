@@ -761,7 +761,6 @@ class UGKSim(object):
         grp.create_dataset("Nb",data=len(self.blocks))
         grp.create_dataset("quad",data=gdata.quad)
         grp.create_dataset("weight",data=gdata.weight)
-        grp.create_dataset("boundary_type",data=gdata.boundary_type)
         
         if self.restart_hdf:
             grp.create_dataset("restart",data=gdata.restart)

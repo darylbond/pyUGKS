@@ -333,7 +333,9 @@ class UGKSBlock(object):
         self.wall_prop_D = self.set_buffer_size(wall_len*4*4*f64_size) # [D,U,V,T]
         
         self.wall_cover_H = np.zeros((wall_len,4,4),dtype=np.float64)
-        self.wall_cover_H[:,:,0] = gdata.vartheta_initial
+        for bci, bc in enumerate(self.bc_list):
+            self.wall_cover_H[:,bci, 0] = bc.cover_initial
+            
         self.wall_cover_D = self.set_buffer(self.wall_cover_H) # wall coverage fraction
         
         self.wall_dist_D = self.set_buffer_size(wall_len*self.Nv*2*f64_size)
@@ -1399,8 +1401,8 @@ class UGKSBlock(object):
         cover_S = self.wall_cover_H[0:self.ni,2,0]
         cover_W = self.wall_cover_H[0:self.nj,3,0]
         cover = [cover_N, cover_E, cover_S, cover_W]
-        for face in range(4):
-           adsorbed_mass += np.sum(cover[face]*gdata.S_T*self.face_lengths[face]*gdata.L_ref)
+        for face, bc in enumerate(self.bc_list):
+           adsorbed_mass += np.sum(cover[face]*bc.S_T*self.face_lengths[face]*gdata.L_ref)
         
 #        print "bulk mass = ",bulk_mass
 #        print "adsorbed mass = ",adsorbed_mass

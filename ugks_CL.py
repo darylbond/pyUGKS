@@ -143,13 +143,13 @@ def genHeader(data):
     s += '};\n'
     
     # the number of points in the look-up table
-    s += '__constant int N_ISO[4] = {'
-    for bc in bc_list:
-        if bc.type_of_BC == ADSORBING:
-            s += '%d, '%bc.adsorb.shape[0]
-        else: s += '-1, '
-    s = s[:-2] # remove comma and space
-    s += '};\n'
+#    s += '__constant int N_ISO[4] = {'
+#    for bc in bc_list:
+#        if bc.type_of_BC == ADSORBING:
+#            s += '%d, '%bc.adsorb.shape[0]
+#        else: s += '-1, '
+#    s = s[:-2] # remove comma and space
+#    s += '};\n'
     
     # define the look-up tables for adsorption isotherms
     
@@ -164,7 +164,7 @@ def genHeader(data):
                 for j in range(shape[1]):
                     s += '%0.15e, '%bc.adsorb[i,j]
                 s = s[:-2]
-                s += ',0), '
+                s += ', 0), '
             s = s[:-2] # remove comma and space
             s += '};\n'
         else: 
@@ -186,7 +186,7 @@ def genHeader(data):
                 for j in range(shape[1]):
                     s += '%d, '%tris[i,j]
                 s = s[:-2]
-                s += ',0), '
+                s += ', 0), '
             s = s[:-2] # remove comma and space
             s += '};\n'
         
@@ -200,7 +200,7 @@ def genHeader(data):
                 for j in range(shape[1]):
                     s += '%d, '%nbrs[i,j]
                 s = s[:-2]
-                s += ',0), '
+                s += ', 0), '
             s = s[:-2] # remove comma and space
             s += '};\n'
             

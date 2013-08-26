@@ -120,7 +120,7 @@ int2 get_tri(double2 xy,
             if (nbr.x == -1) {
                 // the point is outside the triangulation
                 // we have gotten as close as we can
-                outside = -1;
+                outside = 1;
                 break;
             } else if (distance_from_segment(b, c, xy) < tol) {
                 // the point is on the edge
@@ -130,7 +130,7 @@ int2 get_tri(double2 xy,
             }
         } else if (hit.y) {
             if (nbr.y == -1) {
-                outside = -1;
+                outside = 1;
                 break;
             } else if (distance_from_segment(c, a, xy) < tol) {
                 break;
@@ -139,7 +139,7 @@ int2 get_tri(double2 xy,
             }
         } else if (hit.z) {
             if (nbr.z == -1) {
-                outside = -1;
+                outside = 1;
                 break;
             }else if (distance_from_segment(a, b, xy) < tol) {
                 break;
@@ -207,16 +207,16 @@ double vartheta_langmuir(double D, double T, size_t face)
 
     int2 loc = get_tri(pt, ISO, TRI, N_TRI[face], NBR, 0);
 
-    if (loc.y) {
-        // we are outside the interpolation range, flag an error!!
-        printf("OUTSIDE RANGE\n");
-    }
+    //if (loc.y) {
+        //// we are outside the interpolation range, flag an error!!
+        //printf("OUTSIDE RANGE, P = %g, T = %g\n",pt.x, pt.y);
+    //}
 
     int3 tri = TRI[loc.x].s012;
     
     double vartheta = interpolate(pt, ISO[tri.x], ISO[tri.y], ISO[tri.z]);
     
-    printf("vartheta = %g\n",vartheta);
+    //printf("vartheta = %g\n",vartheta);
     
     return vartheta;
 }
