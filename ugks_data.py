@@ -193,7 +193,9 @@ class UGKSData(object):
         # 0 --> tau = (Kn/prim.s0)*sqrt(2.0/PI)*pow(prim.s3,1.0 - chi);
         # 1 --> tau = (5./8.)*(Kn/DD)*sqrt(PI)*pow(TT,chi - 1.0);
         
-        ## wall values
+#==============================================================================
+#         ## wall values
+#==============================================================================
         
         self.boundary_type = 'diffuse' # options = 'adsorb_CL','adsorb_specular-diffuse', 'diffuse'
         
@@ -224,6 +226,10 @@ class UGKSData(object):
         # Cercignani - Lampis accomodation coefficients
         self.alpha_n = 1.0
         self.alpha_t = 1.0
+        
+#==============================================================================
+#         
+#==============================================================================
         
         # EXTERNAL SOURCE        
         src_loader = sl.SourceLoader()
@@ -360,8 +366,6 @@ class UGKSData(object):
         self.b = 2.0/(self.gamma - 1.0)     # number of dimensions present
         self.K = self.b - 2   # number of dimensions added to simulation
         
-        self.alpha_p = self.C_ref*self.D_ref*self.t_ref/self.S_T
-        
         # Gauss-Hermite
         self.init_quad()
     
@@ -456,6 +460,14 @@ def non_dimensionalise_all():
                 bc.UDF_V = "("+bc.UDF_V +")/(" + str(gdata.C_ref) + ")"
             if bc.UDF_T:
                 bc.UDF_T = "("+bc.UDF_T +")/(" + str(gdata.T_ref) + ")"
+            
+            # adsorbing wall
+            bc.alpha_p = gdata.C_ref*gdata.D_ref*gdata.t_ref/bc.S_T
+            bc.gamma_f = bc.S_T*bc.k_f
+
+            bc.adsorb[:,0] /= gdata.D_ref*gdata.C_ref**2
+            bc.adsorb[:,1] /= gdata.T_ref
+            
         #grid
         b.grid.x /= gdata.L_ref
         b.grid.y /= gdata.L_ref

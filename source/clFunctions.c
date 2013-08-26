@@ -350,16 +350,3 @@ double2 orientation(double2 a0, double2 a1, double2 b0, double2 b1, double2 n)
   
   return m;
 }
-
-double stickingProbability(double2 uv, double T)
-{
-  // return the probability of a particle sticking to a surface
-  // given the velocity (x-> normal to surface, y -> tangential to 
-  // surface) and temperature
-  
-  double normal = 1.0 - BETA_N*exp(-uv.x*uv.x/T);
-  double tangential = 1.0 - BETA_T*(1.0 - exp(-uv.y*uv.y/T));
-  
-  return  normal*tangential;
-}
-

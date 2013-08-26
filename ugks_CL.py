@@ -7,12 +7,14 @@ Created on Wed Jun 29 09:26:45 2011
 
 # codeCL.py
 import os
-from math import pi, sqrt
+from math import pi
 import numpy as np
+from scipy.spatial import Delaunay
 
 #import source.source_CL as sl
 from ugks_data import gdata
 from geom.geom_bc_defs import *
+from geom.geom_defs import *
 
 def genHeader(data):
     """
@@ -24,8 +26,6 @@ def genHeader(data):
     weight = gdata.weight
     
     bc_list = data['bc_list']
-    
-    print gdata.platform
     
     s = ''
         
@@ -90,16 +90,188 @@ def genHeader(data):
     
     s += '#define CFL %0.15e\n\n'%gdata.CFL
     
-    # boundary factors
-    s += '#define BETA_N %0.15e\n'%gdata.beta_n
-    s += '#define BETA_T %0.15e\n'%gdata.beta_t
-    s += '#define GAMMA_F %0.15e\n'%gdata.gamma_f
-    s += '#define GAMMA_B %0.15e\n'%gdata.gamma_b
-    s += '#define ALPHA_P %0.15e\n'%gdata.alpha_p
-    s += '#define ALPHA_N %0.15e\n'%gdata.alpha_n
-    s += '#define ALPHA_T %0.15e\n'%gdata.alpha_t
-    s += '#define VARTHETA_LANGMUIR %0.15e\n'%gdata.vartheta_langmuir
-    s += '\n'
+#==============================================================================
+#     # boundary factors
+#==============================================================================
+    # put in the adsorbing boundary stuff regardless of if it is needed
+    s += '__constant double BETA_N[4] = {'
+    for bc in bc_list:
+        if bc.type_of_BC == ADSORBING:
+            s += '%0.15e, '%bc.beta_n
+        else: s += '-1, '
+    s = s[:-2] # remove comma and space
+    s += '};\n'
+    
+    s += '__constant double BETA_T[4] = {'
+    for bc in bc_list:
+        if bc.type_of_BC == ADSORBING:
+            s += '%0.15e, '%bc.beta_t
+        else: s += '-1, '
+    s = s[:-2] # remove comma and space
+    s += '};\n'
+    
+    s += '__constant double GAMMA_F[4] = {'
+    for bc in bc_list:
+        if bc.type_of_BC == ADSORBING:
+            s += '%0.15e, '%bc.gamma_f
+        else: s += '-1, '
+    s = s[:-2] # remove comma and space
+    s += '};\n'
+    
+    s += '__constant double ALPHA_P[4] = {'
+    for bc in bc_list:
+        if bc.type_of_BC == ADSORBING:
+            s += '%0.15e, '%bc.alpha_p
+        else: s += '-1, '
+    s = s[:-2] # remove comma and space
+    s += '};\n'
+    
+    s += '__constant double ALPHA_N[4] = {'
+    for bc in bc_list:
+        if bc.type_of_BC == ADSORBING:
+            s += '%0.15e, '%bc.alpha_n
+        else: s += '-1, '
+    s = s[:-2] # remove comma and space
+    s += '};\n'
+            
+    s += '__constant double ALPHA_T[4] = {'
+    for bc in bc_list:
+        if bc.type_of_BC == ADSORBING:
+            s += '%0.15e, '%bc.alpha_t
+        else: s += '-1, '
+    s = s[:-2] # remove comma and space
+    s += '};\n'
+    
+    # the number of points in the look-up table
+    s += '__constant int N_ISO[4] = {'
+    for bc in bc_list:
+        if bc.type_of_BC == ADSORBING:
+            s += '%d, '%bc.adsorb.shape[0]
+        else: s += '-1, '
+    s = s[:-2] # remove comma and space
+    s += '};\n'
+    
+    # define the look-up tables for adsorption isotherms
+    
+    for bci, bc in enumerate(bc_list):
+        if bc.type_of_BC == ADSORBING:
+            shape = bc.adsorb.shape
+            if shape[1] != 3:
+                raise RuntimeError("Passed in array for isotherm values is not an n*3 array")
+            s += '__constant double4 ISO_%s[%d] = {'%(faceName[bci], shape[0])
+            for i in range(shape[0]):
+                s += '(double4)('
+                for j in range(shape[1]):
+                    s += '%0.15e, '%bc.adsorb[i,j]
+                s = s[:-2]
+                s += ',0), '
+            s = s[:-2] # remove comma and space
+            s += '};\n'
+        else: 
+            s += '__constant double4 ISO_%s[1] = -1;\n'%(faceName[bci])
+    
+    n_tri = []
+    for bci, bc in enumerate(bc_list):
+        if bc.type_of_BC == ADSORBING:
+            
+            deln = Delaunay(bc.adsorb[:,0:2])
+            tris = deln.vertices
+            nbrs = deln.neighbors
+
+            shape = tris.shape
+
+            s += '__constant int4 TRI_%s[%d] = {'%(faceName[bci], shape[0])
+            for i in range(shape[0]):
+                s += '(int4)('
+                for j in range(shape[1]):
+                    s += '%d, '%tris[i,j]
+                s = s[:-2]
+                s += ',0), '
+            s = s[:-2] # remove comma and space
+            s += '};\n'
+        
+            n_tri.append(shape[0])
+            
+            shape = nbrs.shape
+
+            s += '__constant int4 NBR_%s[%d] = {'%(faceName[bci], shape[0])
+            for i in range(shape[0]):
+                s += '(int4)('
+                for j in range(shape[1]):
+                    s += '%d, '%nbrs[i,j]
+                s = s[:-2]
+                s += ',0), '
+            s = s[:-2] # remove comma and space
+            s += '};\n'
+            
+        else: 
+            s += '__constant int TRI_%s[1] = {-1};\n'%(faceName[bci])
+            s += '__constant int NBR_%s[1] = {-1};\n'%(faceName[bci])
+            n_tri.append(0)
+    
+    # the number of points in the look-up table
+    s += '__constant int N_TRI[4] = {%d, %d, %d, %d};\n'%(n_tri[0],n_tri[1],n_tri[2],n_tri[3])
+    
+    
+        
+    has_diffuse = False
+    has_CL = False
+    has_S = False
+    for bc in bc_list:
+        if bc.type_of_BC == DIFFUSE:
+            has_diffuse = True            
+        elif bc.type_of_BC == ADSORBING:
+            if bc.reflect_type == 'S':
+                has_S = True
+            elif bc.reflect_type == 'CL':
+                has_CL = True
+
+    s += '#define HAS_DIFFUSE_WALL %d\n'%has_diffuse
+    s += '#define HAS_CL_WALL %d\n'%has_CL
+    s += '#define HAS_SPECULAR_WALL %d\n'%has_S
+
+    wall_name = ['N','E','S','W']    
+    
+    for i, bc in enumerate(bc_list):
+        if bc.type_of_BC in [ADSORBING, DIFFUSE, CONSTANT, INFLOW, OUTFLOW]:
+            if bc.UDF_D:
+                st = bc.UDF_D
+            else:
+                st = str(bc.D)
+            s += '#define WALL_%s_D %s\n'%(wall_name[i],st)
+            if bc.UDF_U:
+                st = bc.UDF_U
+            else:
+                st = str(bc.U)
+            s += '#define WALL_%s_U %s\n'%(wall_name[i],st)
+            if bc.UDF_V:
+                st = bc.UDF_V
+            else:
+                st = str(bc.V)
+            s += '#define WALL_%s_V %s\n'%(wall_name[i],st)
+            if bc.UDF_T:
+                st = bc.UDF_T
+            else:
+                st = str(bc.T)
+            s += '#define WALL_%s_T 1.0/(%s)\n'%(wall_name[i],st)
+            
+            if bc.type_of_BC == OUTFLOW:
+                s += '#define WALL_%s_P %s\n'%(wall_name[i],bc.P)
+            else:
+                s += '#define WALL_%s_P -1\n'%wall_name[i]
+                
+        else:
+            s += '#define WALL_%s_D -1\n'%wall_name[i]
+            s += '#define WALL_%s_U -1\n'%wall_name[i]
+            s += '#define WALL_%s_V -1\n'%wall_name[i]
+            s += '#define WALL_%s_T -1\n'%wall_name[i]
+            s += '#define WALL_%s_P -1\n'%wall_name[i]
+            
+#==============================================================================
+#     
+#==============================================================================
+        
+    
     
     s += '__constant double2 QUAD[{}] = {{'.format(gdata.Nv)
     
@@ -156,68 +328,6 @@ def genHeader(data):
             s+= '\n                              '
             count = 0
     s += '};\n\n'
-    
-    # boundary codition
-    s += '__constant uint BC_flag[4] = {'
-    count = 0
-    has_accommodating = 0
-    accommodating_list = []
-    for bc in bc_list:
-        if bc.type_of_BC in  [ACCOMMODATING, CONSTANT]:
-            val = 1
-            if gdata.boundary_type == "diffuse":
-                has_accommodating = 1
-            elif gdata.boundary_type == "adsorb_CL":
-                has_accommodating = 2
-            elif gdata.boundary_type == "adsorb_specular-diffuse":
-                has_accommodating = 3
-        else:
-            val = 0
-        s += str(val)
-        accommodating_list.append(val)
-        count += 1
-        if count < 4:
-            s += ', '
-    s += '}; // flag for accommodating boundary condition\n'
-    
-    s += '#define HAS_ACCOMMODATING_WALL {}\n'.format(has_accommodating)
-
-    wall_name = ['N','E','S','W']    
-    
-    for i, bc in enumerate(bc_list):
-        if bc.type_of_BC in [ACCOMMODATING, CONSTANT, INFLOW, OUTFLOW]:
-            if bc.UDF_D:
-                st = bc.UDF_D
-            else:
-                st = str(bc.D)
-            s += '#define WALL_%s_D %s\n'%(wall_name[i],st)
-            if bc.UDF_U:
-                st = bc.UDF_U
-            else:
-                st = str(bc.U)
-            s += '#define WALL_%s_U %s\n'%(wall_name[i],st)
-            if bc.UDF_V:
-                st = bc.UDF_V
-            else:
-                st = str(bc.V)
-            s += '#define WALL_%s_V %s\n'%(wall_name[i],st)
-            if bc.UDF_T:
-                st = bc.UDF_T
-            else:
-                st = str(bc.T)
-            s += '#define WALL_%s_T 1.0/(%s)\n'%(wall_name[i],st)
-            
-            if bc.type_of_BC == OUTFLOW:
-                s += '#define WALL_%s_P %s\n'%(wall_name[i],bc.P)
-            else:
-                s += '#define WALL_%s_P -1\n'%wall_name[i]
-                
-        else:
-            s += '#define WALL_%s_D -1\n'%wall_name[i]
-            s += '#define WALL_%s_U -1\n'%wall_name[i]
-            s += '#define WALL_%s_V -1\n'%wall_name[i]
-            s += '#define WALL_%s_T -1\n'%wall_name[i]
-            s += '#define WALL_%s_P -1\n'%wall_name[i]
             
     
     return s
@@ -243,7 +353,7 @@ def genOpenCL(data):
     # CONCATENATE SOURCES
 
     # order of compilation
-    file_list = ["definitions","clFunctions.c","clKernel.c",\
+    file_list = ["definitions","clFunctions.c", "clAdsorb.c","clKernel.c",\
                 'clUGKS.c',"clGhostRoutines.c"]
     
     # the string that everything is added to

@@ -767,7 +767,7 @@ distFlux(__global double2* flux_f,
   return;
 }
 
-#if HAS_ACCOMMODATING_WALL == 1  // diffuse 
+#if HAS_DIFFUSE_WALL  // diffuse 
 // the kernel here has been split to accomodate the vagaries of GPU computing
 __kernel void
 accommodatingWallDist(__global double2* normal,
@@ -903,7 +903,7 @@ accommodatingWallDist(__global double2* normal,
 
 #endif
 
-#if HAS_ACCOMMODATING_WALL > 1  // adsorb_CL & adsorb_specular-diffuse
+#if (HAS_CL_WALL || HAS_SPECULAR_WALL)  // adsorb_CL & adsorb_specular-diffuse
 #define COVER(w, i) wall_cover[(i)*4 + (w)]
 #define WALL_DIST(i, v) wall_dist[(i)*NV + (v)]
 
@@ -930,7 +930,7 @@ adsorbingWall_P1(__global double2* normal,
     
     // mean temperature of cell next to wall, should _really_ be 
     // using temp of face_dist but this would be expensive to calculate
-    double T; 
+    double T, D;
 
     switch (face) {
         case GNORTH:
@@ -940,6 +940,7 @@ adsorbingWall_P1(__global double2* normal,
             rot = -1;
             face_id = SOUTH;
             T = 1.0/MACRO(ci, gj-GHOST-1).s3;
+            D = MACRO(ci, gj-GHOST-1).s0;
             break;
         case GEAST:
             ci = gj;
@@ -948,6 +949,7 @@ adsorbingWall_P1(__global double2* normal,
             rot = -1;
             face_id = WEST;
             T = 1.0/MACRO(gi-GHOST-1, ci).s3;
+            T = MACRO(gi-GHOST-1, ci).s0;
             break;
         case GSOUTH:
             ci = gi;
@@ -956,6 +958,7 @@ adsorbingWall_P1(__global double2* normal,
             rot = 1;
             face_id = SOUTH;
             T = 1.0/MACRO(ci, gj-GHOST).s3;
+            D = MACRO(ci, gj-GHOST).s0;
             break;
         case GWEST:
             ci = gj;
@@ -964,6 +967,7 @@ adsorbingWall_P1(__global double2* normal,
             rot = 1;
             face_id = WEST;
             T = 1.0/MACRO(gi-GHOST, ci).s3;
+            D = MACRO(gi-GHOST, ci).s0;
             break;
     }
     
@@ -1000,9 +1004,9 @@ adsorbingWall_P1(__global double2* normal,
                 
                 total_flux = -rot*uv.x*(1-delta)*face_dist; // total flux that is impinging on wall
                 
-                beta = stickingProbability(uv, T); // probability giving the amount of this discrete velocity that has a chance of sticking 
+                beta = stickingProbability(uv, T, face); // probability giving the amount of this discrete velocity that has a chance of sticking 
                 
-                adsorbed_flux = beta*total_flux*GAMMA_F*(1.0 - vartheta); // is adsorbed
+                adsorbed_flux = beta*total_flux*GAMMA_F[face]*(1.0 - vartheta); // is adsorbed
                 
                 if (adsorbed_flux.x > total_flux.x) {
                     adsorbed_flux = total_flux;
@@ -1047,11 +1051,11 @@ adsorbingWall_P1(__global double2* normal,
             adsorbed_flux.x  = data[0].y;
             
             // calculate the desorption rate based on the Langmuir isotherm
-            double gamma_b = GAMMA_F*(1.0/VARTHETA_LANGMUIR - 1.0)*data2[0];
+            double gamma_b = GAMMA_F[face]*(1.0/vartheta_langmuir(D, T, face) - 1.0)*data2[0];
             
             desorbed_flux.x  = gamma_b*vartheta;
             
-            double dvtheta = dt*ALPHA_P*(adsorbed_flux.x - desorbed_flux.x);
+            double dvtheta = dt*ALPHA_P[face]*(adsorbed_flux.x - desorbed_flux.x);
             
             //printf("dvtheta = %g\n",dvtheta);
             
@@ -1059,8 +1063,8 @@ adsorbingWall_P1(__global double2* normal,
             // also ensure that we only desorb what is available, not 
             //  including what we have just adsorbed in this time step
             if ((vartheta + dvtheta) < 0.0) {
-                desorbed_flux.x = vartheta/(dt*ALPHA_P);
-                dvtheta = dt*ALPHA_P*(adsorbed_flux.x - desorbed_flux.x);
+                desorbed_flux.x = vartheta/(dt*ALPHA_P[face]);
+                dvtheta = dt*ALPHA_P[face]*(adsorbed_flux.x - desorbed_flux.x);
                 
             }
             
@@ -1079,7 +1083,7 @@ adsorbingWall_P1(__global double2* normal,
 
 #endif
 
-#if HAS_ACCOMMODATING_WALL == 2  // adsorb_CL
+#if HAS_CL_WALL // adsorb_CL
 
 __kernel void
 adsorbingWallCL_P2(__global double2* normal,
@@ -1168,8 +1172,8 @@ adsorbingWallCL_P2(__global double2* normal,
                             int delta_in = (sign(uv_in.x)*rot + 1)/2; // (0 -> into wall)
                             
                             if ((!delta_in) && (uv_in.x != 0.0)) {
-                                CL = CercignaniLampis(uv_in, uv_out, WALL_DIST(ci, va), ALPHA_N, ALPHA_T, 1.0/wall.s3);
-                                CL.y += 0.5*ALPHA_T*(2-ALPHA_T)/wall.s3*CL.x;
+                                CL = CercignaniLampis(uv_in, uv_out, WALL_DIST(ci, va), ALPHA_N[face], ALPHA_T[face], 1.0/wall.s3);
+                                CL.y += 0.5*ALPHA_T[face]*(2-ALPHA_T[face])/wall.s3*CL.x;
                                 CL_v += CL;
                             }
                         }
@@ -1248,7 +1252,7 @@ adsorbingWallCL_P2(__global double2* normal,
 
 #endif
 
-#if HAS_ACCOMMODATING_WALL == 3  // adsorb_specular-diffuse
+#if HAS_SPECULAR_WALL // adsorb_specular-diffuse
 __kernel void
 adsorbingWallDS_P2(__global double2* normal,
                     int face,
@@ -1413,7 +1417,7 @@ adsorbingWallDS_P2(__global double2* normal,
 
 #endif
 
-#if HAS_ACCOMMODATING_WALL > 0
+#if HAS_DIFFUSE_WALL || HAS_SPECULAR_WALL || HAS_CL_WALL
 __kernel void
 wallFlux(__global double2* normal,
             __global double* side_length, int face,

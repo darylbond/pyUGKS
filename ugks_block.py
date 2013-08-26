@@ -12,6 +12,7 @@ import pyopencl.array as cl_array
 import numpy as np
 import time
 import sys
+import os
 
 from ugks_data import Block, gdata
 from ugks_CL import genOpenCL, update_source
@@ -588,7 +589,7 @@ class UGKSBlock(object):
                 is aligned with the grid"""
                 self.ghostMirror(this_face)
             
-            elif bc.type_of_BC == ACCOMMODATING:
+            elif bc.type_of_BC in [DIFFUSE, ADSORBING]:
                 # extrapolate the cell data to give CONSTANT gradient
                 self.edgeConstGrad(this_face)
                 self.has_accommodating = True
@@ -795,11 +796,12 @@ class UGKSBlock(object):
         ##
         offset_top = 0; offset_bot = 0
         global_size, work_size = size_cl((self.ni, 1, 1), (1, 1, gdata.CL_local_size))
-        if self.bc_list[0].type_of_BC == ACCOMMODATING:
+        bc_type = self.bc_list[0].type_of_BC
+        if bc_type in [DIFFUSE, ADSORBING]:
             offset_top = 1
             north_wall = np.int32(0)
             #print "north"
-            if gdata.boundary_type == 'diffuse':
+            if bc_type == DIFFUSE:
                 self.prg.accommodatingWallDist(self.queue, global_size, work_size,
                                  self.normal_D, north_wall, self.wall_prop_D, 
                                  self.flux_f_S_D, dt)
@@ -811,32 +813,35 @@ class UGKSBlock(object):
                                  self.flux_f_S_D, self.macro_D, dt)
                                  
                 cl.enqueue_barrier(self.queue)
+                
+                rtype = self.bc_list[0].reflect_type
             
-            if gdata.boundary_type == 'adsorb_CL':
-                self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
-                                 self.normal_D, north_wall, self.wall_prop_D,
-                                 self.wall_cover_D, self.wall_dist_D,
-                                 self.flux_f_S_D, self.macro_D, dt)
-                                 
-            elif gdata.boundary_type == 'adsorb_specular-diffuse':
-                self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
-                                 self.normal_D, north_wall, self.wall_prop_D,
-                                 self.wall_cover_D, self.wall_dist_D,
-                                 self.flux_f_S_D, self.macro_D, dt)
-            
-            cl.enqueue_barrier(self.queue)
+                if rtype == 'CL':
+                    self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
+                                     self.normal_D, north_wall, self.wall_prop_D,
+                                     self.wall_cover_D, self.wall_dist_D,
+                                     self.flux_f_S_D, self.macro_D, dt)
+                                     
+                else:
+                    self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
+                                     self.normal_D, north_wall, self.wall_prop_D,
+                                     self.wall_cover_D, self.wall_dist_D,
+                                     self.flux_f_S_D, self.macro_D, dt)
+                
+                cl.enqueue_barrier(self.queue)
             
             self.prg.wallFlux(self.queue, global_size, work_size,
                                  self.normal_D, self.length_D, 
                                  north_wall, self.flux_f_S_D, 
                                  self.flux_macro_S_D, dt)
             
-            
-        if self.bc_list[2].type_of_BC == ACCOMMODATING:
+         
+        bc_type = self.bc_list[2].type_of_BC
+        if bc_type in [DIFFUSE, ADSORBING]:
             offset_bot = 1
             south_wall = np.int32(2)
             #print "south"
-            if gdata.boundary_type == 'diffuse':
+            if bc_type == DIFFUSE:
                 self.prg.accommodatingWallDist(self.queue, global_size, work_size,
                                self.normal_D, south_wall, self.wall_prop_D, 
                                self.flux_f_S_D, dt)
@@ -849,17 +854,19 @@ class UGKSBlock(object):
                                  
                 cl.enqueue_barrier(self.queue)
                 
-            if gdata.boundary_type == 'adsorb_CL':
-                self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
-                                 self.normal_D, south_wall, self.wall_prop_D,
-                                 self.wall_cover_D, self.wall_dist_D,
-                                 self.flux_f_S_D, self.macro_D, dt)
-            
-            elif gdata.boundary_type == 'adsorb_specular-diffuse':
-                self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
-                                 self.normal_D, south_wall, self.wall_prop_D,
-                                 self.wall_cover_D, self.wall_dist_D,
-                                 self.flux_f_S_D, self.macro_D, dt)
+                rtype = self.bc_list[2].reflect_type
+                
+                if rtype == 'CL':
+                    self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
+                                     self.normal_D, south_wall, self.wall_prop_D,
+                                     self.wall_cover_D, self.wall_dist_D,
+                                     self.flux_f_S_D, self.macro_D, dt)
+                
+                else:
+                    self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
+                                     self.normal_D, south_wall, self.wall_prop_D,
+                                     self.wall_cover_D, self.wall_dist_D,
+                                     self.flux_f_S_D, self.macro_D, dt)
                 
             cl.enqueue_barrier(self.queue)
             
@@ -955,11 +962,12 @@ class UGKSBlock(object):
         ##
         offset_top = 0; offset_bot = 0
         global_size, work_size = size_cl((1, self.nj, 1), (1,1,gdata.CL_local_size))
-        if self.bc_list[1].type_of_BC == ACCOMMODATING:
+        bc_type = self.bc_list[1].type_of_BC
+        if bc_type in [DIFFUSE, ADSORBING]:
             offset_top = 1
             east_wall = np.int32(1)
             #print "east"
-            if gdata.boundary_type == 'diffuse':
+            if bc_type == DIFFUSE:
                 self.prg.accommodatingWallDist(self.queue, global_size, work_size,
                                self.normal_D, east_wall, self.wall_prop_D, 
                                self.flux_f_W_D, dt)
@@ -972,17 +980,19 @@ class UGKSBlock(object):
                                  
                 cl.enqueue_barrier(self.queue)
                 
-            if gdata.boundary_type == 'adsorb_CL':
-                self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
-                                 self.normal_D, east_wall, self.wall_prop_D,
-                                 self.wall_cover_D, self.wall_dist_D,
-                                 self.flux_f_W_D, self.macro_D, dt)
-                                 
-            elif gdata.boundary_type == 'adsorb_specular-diffuse':                
-                self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
-                                 self.normal_D, east_wall, self.wall_prop_D,
-                                 self.wall_cover_D, self.wall_dist_D,
-                                 self.flux_f_W_D, self.macro_D, dt)
+                rtype = self.bc_list[1].reflect_type
+                
+                if rtype == 'CL':
+                    self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
+                                     self.normal_D, east_wall, self.wall_prop_D,
+                                     self.wall_cover_D, self.wall_dist_D,
+                                     self.flux_f_W_D, self.macro_D, dt)
+                                     
+                else:                
+                    self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
+                                     self.normal_D, east_wall, self.wall_prop_D,
+                                     self.wall_cover_D, self.wall_dist_D,
+                                     self.flux_f_W_D, self.macro_D, dt)
                 
             cl.enqueue_barrier(self.queue)
             
@@ -992,11 +1002,12 @@ class UGKSBlock(object):
                                self.flux_macro_W_D, dt)
             
             
-        if self.bc_list[3].type_of_BC == ACCOMMODATING:
+        bc_type = self.bc_list[3].type_of_BC
+        if bc_type in [DIFFUSE, ADSORBING]:
             offset_bot = 1
             west_wall = np.int32(3)
             #print "west"
-            if gdata.boundary_type == 'diffuse':
+            if bc_type == DIFFUSE:
                 self.prg.accommodatingWallDist(self.queue, global_size, work_size,
                                self.normal_D, west_wall, self.wall_prop_D, 
                                self.flux_f_W_D, dt)
@@ -1009,18 +1020,20 @@ class UGKSBlock(object):
                                  
                 cl.enqueue_barrier(self.queue)
             
-            if gdata.boundary_type == 'adsorb_CL':
-                                 
-                self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
-                                 self.normal_D, west_wall, self.wall_prop_D,
-                                 self.wall_cover_D, self.wall_dist_D,
-                                 self.flux_f_W_D, self.macro_D, dt)
-            
-            elif gdata.boundary_type == 'adsorb_specular-diffuse':
-                self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
-                                 self.normal_D, west_wall, self.wall_prop_D,
-                                 self.wall_cover_D, self.wall_dist_D,
-                                 self.flux_f_W_D, self.macro_D, dt)
+                rtype = self.bc_list[1].reflect_type
+                
+                if rtype == 'CL':
+                                     
+                    self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
+                                     self.normal_D, west_wall, self.wall_prop_D,
+                                     self.wall_cover_D, self.wall_dist_D,
+                                     self.flux_f_W_D, self.macro_D, dt)
+                
+                else:
+                    self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
+                                     self.normal_D, west_wall, self.wall_prop_D,
+                                     self.wall_cover_D, self.wall_dist_D,
+                                     self.flux_f_W_D, self.macro_D, dt)
                 
             cl.enqueue_barrier(self.queue)
             

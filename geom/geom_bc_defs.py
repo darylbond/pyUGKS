@@ -21,25 +21,29 @@ This is done once per time step, before evaluating the fluxes.
    the boundary.  This works fine for a strong supersonic outflow.
 """
 
+import numpy as np
+
 ADJACENT        = 0
 COMMON          = 0
 EXTRAPOLATE_OUT = 1
 CONSTANT        = 2
 REFLECT         = 3
-ACCOMMODATING   = 4
+DIFFUSE   = 4
 PERIODIC        = 5
 INFLOW          = 6
 OUTFLOW         = 7
+ADSORBING       = 8
 
 bcIndexFromName = {
      0: ADJACENT, "0": ADJACENT, "ADJACENT": ADJACENT, "COMMON": ADJACENT,
      1: EXTRAPOLATE_OUT, "1":  EXTRAPOLATE_OUT, "EXTRAPOLATE_OUT": EXTRAPOLATE_OUT,
      2: CONSTANT, "2": CONSTANT,
      3: REFLECT, "3": REFLECT,
-     4: ACCOMMODATING, "4": ACCOMMODATING,
+     4: DIFFUSE, "4": DIFFUSE,
      5: PERIODIC, "5":PERIODIC,
      6: INFLOW, "6":INFLOW,
-     7: OUTFLOW, "7":OUTFLOW
+     7: OUTFLOW, "7":OUTFLOW,
+     8: ADSORBING, "8":ADSORBING
 }
 
 bcName = {
@@ -47,10 +51,11 @@ bcName = {
     EXTRAPOLATE_OUT: "EXTRAPOLATE_OUT",
     CONSTANT: "CONSTANT",
     REFLECT: "REFLECT",
-    ACCOMMODATING: "ACCOMMODATING",
+    DIFFUSE: "DIFFUSE",
     PERIODIC: "PERIODIC",
     INFLOW: "INFLOW",
-    OUTFLOW: "OUTFLOW"
+    OUTFLOW: "OUTFLOW",
+    ADSORBING: "ADSORBING"
     }
 
 class BoundaryCondition(object):
@@ -61,10 +66,23 @@ class BoundaryCondition(object):
     T: fixed wall temperature (in degrees K) that will be used if
         the boundary conditions needs such a value.
     P: used only for outflow conditions
+    adsorb: (N pressures) x (N temperatures) x 3 numpy array for equilibrium isotherms
+    beta_n: velocity aware adsorption probability, normal (0 = accept all, 1 = allow fast)
+    beta_t: velocity aware adsorption probability, tangential (0 = accept all, 1 = allow slow)
+    alpha_n: CercignaniLampis accommodation coefficient, normal (0 = specular, 1 = diffuse)
+    alpha_t: CercignaniLampis accommodation coefficient, tangential (0 = specular, 1 = diffuse)
+    k_f: adsorbing wall forward reaction rate, gets non-dimmed to gamma_f
+    S_T: total adsorption sites on the wall, kg/m
+    cover_initial: fraction of wall that is initially covered [0,1]
+    alpha_p: constant for conversion to non-dimensional terms, see ugks_data
+    gamma_f: see k_f
+    reflect_type: select Cercignani-Lampis or specular reflection ['S','CL']
     """
     __slots__ = 'type_of_BC', 'D', 'T', "U", "V","P", 'other_block',\
             'other_face', 'orientation', 'label', 'UDF_U',\
-            'UDF_V', 'UDF_T','UDF_D'
+            'UDF_V', 'UDF_T','UDF_D','adsorb', 'beta_n', 'beta_t', 'alpha_n', \
+            'alpha_t', 'alpha_p', 'k_f', 'S_T', 'cover_initial','gamma_f',\
+            'reflect_type'
             
     def __init__(self,
                  type_of_BC = REFLECT,
@@ -77,6 +95,15 @@ class BoundaryCondition(object):
                  UDF_U = None,
                  UDF_V = None,
                  UDF_T = None,
+                 adsorb = None,
+                 beta_n=0,
+                 beta_t=0,
+                 alpha_n=1,
+                 alpha_t=1,
+                 k_f=0,
+                 S_T=1.0,
+                 cover_initial=0,
+                 reflect_type='S',
                  other_block=-1,
                  other_face=-1,
                  orientation=0,
@@ -92,29 +119,27 @@ class BoundaryCondition(object):
         self.UDF_U = UDF_U
         self.UDF_V = UDF_V
         self.UDF_T = UDF_T
+        if adsorb != None:
+            self.adsorb = np.copy(adsorb)
+        else:
+            self.adsorb = None
+        self.beta_n=beta_n
+        self.beta_t=beta_t
+        self.alpha_n=alpha_n
+        self.alpha_t=alpha_t
+        self.k_f=k_f
+        self.gamma_f=None
+        self.S_T=S_T
+        self.cover_initial=cover_initial
+        self.reflect_type=reflect_type
+        self.alpha_p = 0
         self.other_block = other_block
         self.other_face = other_face
         self.orientation = orientation
         self.label = label
             
         return
-    def __str__(self):
-        str_rep = "BoundaryCondition("
-        str_rep += "type_of_BC=%d" % self.type_of_BC
-        str_rep += ", D=%g" % self.D
-        str_rep += ", T=%g" % self.T
-        str_rep += ", U=%g" % self.U
-        str_rep += ", V=%g" % self.V
-        str_rep += ", P=%g" % self.P
-        str_rep += ", UDF_D=%s" % self.UDF_D
-        str_rep += ", UDF_U=%s" % self.UDF_U
-        str_rep += ", UDF_V=%s" % self.UDF_V
-        str_rep += ", UDF_T=%s" % self.UDF_T
-        str_rep += ", other_block=%d" % self.other_block
-        str_rep += ", other_face=%d" % self.other_face
-        str_rep += ", orientation=%d" % self.orientation
-        str_rep += ", label=\"%s\")" % self.label
-        return str_rep
+
     def __copy__(self):
         return BoundaryCondition(type_of_BC=self.type_of_BC,
                                  D=self.D,
@@ -126,6 +151,15 @@ class BoundaryCondition(object):
                                  UDF_U = self.UDF_U,
                                  UDF_V = self.UDF_V,
                                  UDF_T = self.UDF_T,
+                                 adsorb = self.adsorb,
+                                 beta_n = self.beta_n,
+                                 beta_t = self.beta_t,
+                                 alpha_n = self.alpha_n,
+                                 alpha_t = self.alpha_t,
+                                 k_f = self.k_f,
+                                 S_T = self.S_T,
+                                 cover_initial = self.cover_initial,
+                                 reflect_type=self.reflect_type,
                                  other_block=self.other_block,
                                  other_face=self.other_face,
                                  orientation=self.orientation,
@@ -221,24 +255,25 @@ class ReflectBC(BoundaryCondition):
     def __copy__(self):
         return ReflectBC(label=self.label)
 
-class AccommodatingBC(BoundaryCondition):
+class DiffuseBC(BoundaryCondition):
     """
     define the values used to define the equilibrium distribution for the wall
     U = velocity of wall, parallel to wall, positive in direction of cell wall tangent vector
     """
     def __init__(self, D=1, T=0, U=0, V=0, UDF_D=None, 
-                 UDF_U=None, UDF_V=None, UDF_T=None, label="ACCOMMODATING"):
+                 UDF_U=None, UDF_V=None, UDF_T=None,
+                 label="DIFFUSE"):
         BoundaryCondition.__init__(self, D=D, U=U, 
                                    V=V, T=T, UDF_D=UDF_D, 
-                                   UDF_U=UDF_U, UDF_V=UDF_V, UDF_T=UDF_T, 
-                                   type_of_BC=ACCOMMODATING, label=label)
+                                   UDF_U=UDF_U, UDF_V=UDF_V, UDF_T=UDF_T,
+                                   type_of_BC=DIFFUSE, label=label)
         
         return
     def __str__(self):
-        return "AccommodatingBC(D=%g, T=%g, U=%g, V=%g, UDF_D=%s, UDF_U=%s, UDF_V=%s, UDF_T=%s, label=\"%s\")" % \
+        return "DiffuseBC(D=%g, T=%g, U=%g, V=%g, UDF_D=%s, UDF_U=%s, UDF_V=%s, UDF_T=%s, label=\"%s\")" % \
             (self.D, self.T, self.U, self.V, self.UDF_D, self.UDF_U, self.UDF_V, self.UDF_T, self.label)
     def __copy__(self):
-        return AccommodatingBC(D=self.D,
+        return DiffuseBC(D=self.D,
                                T = self.T,
                                U = self.U, 
                                V = self.V,
@@ -247,6 +282,53 @@ class AccommodatingBC(BoundaryCondition):
                                UDF_V = self.UDF_V,
                                UDF_T = self.UDF_T,
                                label=self.label)
+                               
+class AdsorbingBC(BoundaryCondition):
+    """
+    define the values used to define the equilibrium distribution for the wall
+    U = velocity of wall, parallel to wall, positive in direction of cell wall tangent vector
+    """
+    def __init__(self, D=1, T=0, U=0, V=0, UDF_D=None, 
+                 UDF_U=None, UDF_V=None, UDF_T=None, 
+                 adsorb=None,
+                 beta_n=0,
+                 beta_t=0,
+                 alpha_n=1,
+                 alpha_t=1,
+                 k_f=0,
+                 S_T=1.0,
+                 cover_initial=0,
+                 reflect_type='S',
+                 label="ADSORBING"):
+        BoundaryCondition.__init__(self, D=D, U=U, 
+                                   V=V, T=T, UDF_D=UDF_D, 
+                                   UDF_U=UDF_U, UDF_V=UDF_V, UDF_T=UDF_T,
+                                   adsorb=adsorb, beta_n=beta_n, beta_t=beta_t,
+                                   alpha_n=alpha_n, alpha_t=alpha_t,
+                                   k_f=k_f, S_T=S_T, cover_initial=cover_initial,
+                                   reflect_type=reflect_type,
+                                   type_of_BC=ADSORBING, label=label)
+        
+        return
+    def __copy__(self):
+        return AdsorbingBC(D=self.D,
+                            T = self.T,
+                            U = self.U, 
+                            V = self.V,
+                            UDF_D = self.UDF_D,
+                            UDF_U = self.UDF_U, 
+                            UDF_V = self.UDF_V,
+                            UDF_T = self.UDF_T,
+                            adsorb = self.adsorb,
+                            beta_n = self.beta_n,
+                            beta_t = self.beta_t,
+                            alpha_n = self.alpha_n,
+                            alpha_t = self.alpha_t,
+                            k_f = self.k_f,
+                            S_T = self.S_T,
+                            cover_initial = self.cover_initial,
+                            reflect_type=self.reflect_type,
+                            label=self.label)
                                
 class InflowBC(BoundaryCondition):
     """

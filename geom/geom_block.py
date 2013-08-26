@@ -89,9 +89,28 @@ class Block(object):
     # The boundary conditions affect two cells into the mesh.
     nmin = 2
 
-    def set_BC(self, face_name, type_of_BC, D = 0.0, U = 0.0, 
-               V = 0.0, T=0.0,UDF_D=None, UDF_U=None, UDF_V=None, 
-               UDF_T=None, label="", flowCondition = None, other_block = None,
+    def set_BC(self, face_name, 
+               type_of_BC, 
+               D = 0.0, 
+               U = 0.0, 
+               V = 0.0, 
+               T=0.0,
+               UDF_D=None, 
+               UDF_U=None, 
+               UDF_V=None, 
+               UDF_T=None, 
+               adsorb = None,
+               beta_n=0,
+               beta_t=0,
+               alpha_n=1,
+               alpha_t=1,
+               k_f=0,
+               S_T=1.0,
+               cover_initial=0,
+               reflect_type='S', 
+               label="", 
+               flowCondition=None, 
+               other_block = None,
                other_face = None):
         """
         Sets a boundary condition on a particular face of the block.
@@ -161,9 +180,10 @@ class Block(object):
                 
         if type_of_BC == REFLECT:
             newbc = ReflectBC(label=label)
-        if type_of_BC == ACCOMMODATING:
+        
+        if type_of_BC == DIFFUSE:
             if flowCondition:
-                newbc = AccommodatingBC(D=flowCondition.D,
+                newbc = DiffuseBC(D=flowCondition.D,
                                   T = flowCondition.T,
                                   U = flowCondition.U,
                                   V = flowCondition.V,
@@ -176,6 +196,41 @@ class Block(object):
                 newbc = AccommodatingBC(D=D, T=T, U=U, 
                                         V=V, UDF_D=UDF_D, UDF_U=UDF_U, 
                                         UDF_V=UDF_V, UDF_T=UDF_T, label=label)
+                                        
+        if type_of_BC == ADSORBING:
+            if flowCondition:
+                newbc = AdsorbingBC(D=flowCondition.D,
+                                  T = flowCondition.T,
+                                  U = flowCondition.U,
+                                  V = flowCondition.V,
+                                  UDF_D = flowCondition.UDF_D,
+                                  UDF_U = flowCondition.UDF_U,
+                                  UDF_V = flowCondition.UDF_V,
+                                  UDF_T = flowCondition.UDF_T,
+                                  adsorb=adsorb, 
+                                  beta_n=beta_n, 
+                                  beta_t=beta_t,
+                                  alpha_n=alpha_n, 
+                                  alpha_t=alpha_t,
+                                  k_f=k_f, 
+                                  S_T=S_T, 
+                                  cover_initial=cover_initial,
+                                  reflect_type=reflect_type,
+                                  label = flowCondition.label)
+            else:
+                newbc = AdsorbingBC(D=D, T=T, U=U, 
+                                      V=V, UDF_D=UDF_D, UDF_U=UDF_U, 
+                                      UDF_V=UDF_V, UDF_T=UDF_T, adsorb=adsorb, 
+                                      beta_n=beta_n, 
+                                      beta_t=beta_t,
+                                      alpha_n=alpha_n, 
+                                      alpha_t=alpha_t,
+                                      k_f=k_f, 
+                                      S_T=S_T, 
+                                      cover_initial=cover_initial, 
+                                      reflect_type=reflect_type,
+                                      label=label)
+                                        
         if type_of_BC == PERIODIC:
             newbc = PeriodicBC(other_block.blkId, other_face, label = label)
             other_block.bc_list[other_face] = PeriodicBC(self.blkId, iface, label = label)
