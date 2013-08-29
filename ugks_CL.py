@@ -10,6 +10,7 @@ import os
 from math import pi
 import numpy as np
 from scipy.spatial import Delaunay
+import matplotlib.pyplot as plt
 
 #import source.source_CL as sl
 from ugks_data import gdata
@@ -170,13 +171,24 @@ def genHeader(data):
         else: 
             s += '__constant double4 ISO_%s[1] = -1;\n'%(faceName[bci])
     
+    plotting = 0
+    
+    if plotting:
+        fig = plt.figure()
+     
     n_tri = []
     for bci, bc in enumerate(bc_list):
         if bc.type_of_BC == ADSORBING:
             
-            deln = Delaunay(bc.adsorb[:,0:2])
+            xy = bc.adsorb[:,0:2]
+            deln = Delaunay(xy)
             tris = deln.vertices
             nbrs = deln.neighbors
+            
+            if plotting:
+                ax = fig.add_subplot(1,len(bc_list),bci+1)
+                ax.tricontourf(xy[:,0], xy[:,1], tris, bc.adsorb[:,2],50)
+                ax.triplot(xy[:,0], xy[:,1], tris)
 
             shape = tris.shape
 
@@ -211,6 +223,9 @@ def genHeader(data):
     
     # the number of points in the look-up table
     s += '__constant int N_TRI[4] = {%d, %d, %d, %d};\n'%(n_tri[0],n_tri[1],n_tri[2],n_tri[3])
+    
+    if plotting:
+        plt.show()
     
     
         
