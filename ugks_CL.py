@@ -187,8 +187,9 @@ def genHeader(data):
             
             if plotting:
                 ax = fig.add_subplot(1,len(bc_list),bci+1)
-                ax.tricontourf(xy[:,0], xy[:,1], tris, bc.adsorb[:,2],50)
+                cb = ax.tricontourf(xy[:,0], xy[:,1], tris, bc.adsorb[:,2],50)
                 ax.triplot(xy[:,0], xy[:,1], tris)
+                plt.colorbar(cb)
 
             shape = tris.shape
 

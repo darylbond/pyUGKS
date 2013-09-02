@@ -421,12 +421,12 @@ def non_dimensionalise_all():
                 bc.UDF_T = "("+bc.UDF_T +")/(" + str(gdata.T_ref) + ")"
             
             # adsorbing wall
-            bc.alpha_p = gdata.C_ref*gdata.D_ref*gdata.t_ref/bc.S_T
+            bc.alpha_p = (gdata.C_ref*gdata.D_ref*gdata.t_ref)/bc.S_T
             bc.gamma_f = bc.S_T*bc.k_f
 
-            bc.adsorb[:,0] /= gdata.D_ref*gdata.C_ref**2
-            bc.adsorb[:,1] /= gdata.T_ref
-            bc.adsorb[:,2] /= bc.S_T
+            bc.adsorb[:,0] /= gdata.D_ref*gdata.C_ref**2 # pressure
+            bc.adsorb[:,1] /= gdata.T_ref # temperature
+            bc.adsorb[:,2] /= bc.S_T # coverage
             
         #grid
         b.grid.x /= gdata.L_ref
