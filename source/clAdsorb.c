@@ -291,6 +291,9 @@ adsorbingWall_P1(__global double2* normal,
     
     __local double2 data[LOCAL_SIZE];
     __local double data2[LOCAL_SIZE];
+    __local double adsorb_ratio[1];
+    
+    adsorb_ratio[0] = 0.0;
 
     if (((face_id == SOUTH) && ((gi - GHOST) < ni)) 
     || ((face_id == WEST) && ((gj - GHOST) < nj))) {
@@ -299,7 +302,7 @@ adsorbingWall_P1(__global double2* normal,
 
         double2 face_normal = NORMAL(gi,gj,face_id);
         
-        double beta;
+        double beta, dvtheta;
         double2 total_flux, reflected_flux, adsorbed_flux, desorbed_flux;
         double2 uv, face_dist;
         int delta;
@@ -368,13 +371,45 @@ adsorbingWall_P1(__global double2* normal,
             reflected_flux.x = data[0].x;
             adsorbed_flux.x  = data[0].y;
             
+            dvtheta = dt*ALPHA_P[face]*adsorbed_flux.x;
+            
+            if (dvtheta > (1 - vartheta)) {
+                // we are adsorbing too much!
+                double adsorb_final = (1 - vartheta)/(dt*ALPHA_P[face]);
+                if (reflected_flux.x > 0.0) {
+                    adsorb_ratio[0] = (adsorbed_flux.x - adsorb_final)/reflected_flux.x + 1.0;
+                } else {
+                    
+                dvtheta = dt*ALPHA_P[face]*adsorb_final;
+                printf("adsorb_i = %g, adsorb_f = %g, ratio = %g, dvtheta = %g, vartheta = %g\n",adsorbed_flux.x, adsorb_final, adsorb_ratio[0], dvtheta, vartheta);
+                adsorbed_flux.x = adsorb_final;
+                reflected_flux.x *= adsorb_ratio[0];
+            }
+        }
+        
+        // the following is a fix for when we are adsorbing too much
+        barrier(CLK_LOCAL_MEM_FENCE);
+        
+        if (adsorb_ratio[0] != 0.0) {
+            
+            for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+                size_t gv = li*LOCAL_SIZE+thread_id;
+                if (gv < NV) {
+                    WALL_DIST(ci, gv) *= adsorb_ratio[0];
+                }
+            }
+            barrier(CLK_LOCAL_MEM_FENCE);
+        }
+        
+        
+        if (thread_id == 0) {
             // calculate the desorption rate based on the Langmuir isotherm
             double veq = vartheta_langmuir(D, T, face);
             double gamma_b = GAMMA_F[face]*(1.0/veq - 1.0)*data2[0];
             
             desorbed_flux.x  = gamma_b*vartheta;
             
-            double dvtheta = dt*ALPHA_P[face]*(adsorbed_flux.x - desorbed_flux.x);
+            dvtheta -= dt*ALPHA_P[face]*desorbed_flux.x;
             
             // make sure we don't get negative ratio of coverage
             // also ensure that we only desorb what is available, not 

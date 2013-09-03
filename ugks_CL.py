@@ -169,7 +169,7 @@ def genHeader(data):
             s = s[:-2] # remove comma and space
             s += '};\n'
         else: 
-            s += '__constant double4 ISO_%s[1] = -1;\n'%(faceName[bci])
+            s += '__constant double4 ISO_%s[1] = {(double4)(-1,-1,-1,-1)};\n'%(faceName[bci])
     
     plotting = 0
     

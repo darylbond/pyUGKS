@@ -91,10 +91,11 @@ class Block(object):
 
     def set_BC(self, face_name, 
                type_of_BC, 
-               D = 0.0, 
-               U = 0.0, 
-               V = 0.0, 
+               D=0.0, 
+               U=0.0, 
+               V=0.0, 
                T=0.0,
+               P=0.0,
                UDF_D=None, 
                UDF_U=None, 
                UDF_V=None, 
@@ -167,16 +168,16 @@ class Block(object):
         if type_of_BC == INFLOW:
             if flowCondition:
                 newbc = InflowBC(D=flowCondition.D,
-                                  T = flowCondition.T,
-                                   label = flowCondition.label)
+                                  T=flowCondition.T,
+                                   label=flowCondition.label)
             else:
-                newbc = ConstantBC(D=D, T=T, label=label)
+                newbc = InflowBC(D=D, T=T, label=label)
                 
         if type_of_BC == OUTFLOW:
             if flowCondition:
                 newbc = OutflowBC(P=flowCondition.P, label = flowCondition.label)
             else:
-                newbc = ConstantBC(P=P, label=label)
+                newbc = OutflowBC(P=P, label=label)
                 
         if type_of_BC == REFLECT:
             newbc = ReflectBC(label=label)
