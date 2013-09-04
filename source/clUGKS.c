@@ -1055,7 +1055,7 @@ UGKS_update(__global double2* Fin,
        __global double2* gQ,
        __global double4* residual,
        double dt,
-       __global int* nan_check)
+       __global double* flag)
 {
     // update the macro-properties and distribution
     
@@ -1099,7 +1099,7 @@ UGKS_update(__global double2* Fin,
                           + 0.5*dt*(feq/tau+(feq_old-f_old)/tau_old))/(1.0+0.5*dt/tau);
                           
             if (any(isnan(f_new))) {
-                nan_check[0] = 1;
+                flag[0] = ERR_NAN;
             }
             
             F(gi,gj,gv) = f_new;

@@ -15,7 +15,7 @@ class SourceLoader(object):
     
     # list of source files
 
-    source = ['clFunctions.c','clAdsorb.c', 'clKernel.c', 
+    source = ['clError.c','clFunctions.c','clAdsorb.c', 'clKernel.c', 
               'clGhostRoutines.c', 'clUGKS.c']
     
     def __init__(self,source_path = source_CL_path):

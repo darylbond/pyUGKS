@@ -73,7 +73,8 @@ class UGKSim(object):
         self.initFunctions()
         
         print "\n INITIALISE TIME STEP\n"
-        self.updateTimeStep()
+        self.calcTimeStep()
+        self.updateTimeStep(limit=False)
 
         print "\n INITIALISATION COMPLETE\n"
                 
@@ -237,20 +238,38 @@ class UGKSim(object):
 
         return
         
-    def updateTimeStep(self):
+    def calcTimeStep(self):
+        """
+        calculate the maximum allowable time step for each block based on 
+        hydro-dynamic properties
+        """
+
+        for b in self.blocks:
+            b.getDT()
+
+        return
+        
+    def updateTimeStep(self, limit=True):
         """
         update the global time step
         """
         
-        dt = []
+        dt_old = gdata.dt
+        
+        dt_list = []
 
         for b in self.blocks:
-            block_dt = b.getDT()
-            dt.append(block_dt)
-
-        print "dt = %g -->"%gdata.dt,
-        gdata.dt = min(dt)
-        print "dt = %g"%gdata.dt
+            dt_list.append(b.max_dt)
+            
+        dt_new = min(dt_list)
+        
+        if dt_old != dt_new:
+            print "dt = %g -->"%gdata.dt,
+            # impose a limit on how much the time step can increase for each iteration
+            if (dt_new > (1.0+gdata.delta_dt)*dt_old) & limit:
+                dt_new = (1.0+gdata.delta_dt)*dt_old
+            gdata.dt = dt_new
+            print "dt = %g"%gdata.dt
 
         return
 
@@ -351,9 +370,26 @@ class UGKSim(object):
         
         cl.enqueue_barrier(self.queue)
 
-        for b in self.blocks:
-            b.UGKS_flux()
+        # check if the required time step has changed
+        # this may have occured due to the adsorbing wall needing a shorter
+        # time step to avoid overflow
+        dt_old = 0.0
+        count = 0
+        while (gdata.dt != dt_old) & (count < 2):
+            dt_old = gdata.dt
+            for b in self.blocks:
+                b.UGKS_flux()
             cl.enqueue_barrier(self.queue)
+            self.updateTimeStep()
+            count += 1
+            
+        if count > 1:
+            if gdata.step == 1:
+                raise RuntimeError("Overshot on first iteration, decrease time step")
+            get_dt = True
+
+        
+        for b in self.blocks:
             b.UGKS_update(get_res)
             
         cl.enqueue_barrier(self.queue)
@@ -361,6 +397,7 @@ class UGKSim(object):
         self.run_optimisation()
         
         if get_dt:
+            self.calcTimeStep()
             self.updateTimeStep()
 
         if get_res:

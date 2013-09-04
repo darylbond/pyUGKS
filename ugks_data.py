@@ -118,7 +118,7 @@ class UGKSData(object):
                 'u_min', 'v_min', 'u_mid', 'v_mid', 'u_max','v_max',\
                 'u_num','v_num','quad_type',\
                 'work_size_i','work_size_j','opt_sample_size', 'opt_run',\
-                'opt_start',\
+                'opt_start','delta_dt',\
                 'relax_type'
     
     def __init__(self):
@@ -153,6 +153,7 @@ class UGKSData(object):
         self.t0 = 0.0
         self.time = 0.0
         self.step = 0
+        self.delta_dt = 1.0 #fraction of how much the time step is allowed to change between iterations        
         
         # may be useful to change t0 if we are restarting from another job
         self.dt = 0.0

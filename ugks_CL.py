@@ -218,8 +218,8 @@ def genHeader(data):
             s += '};\n'
             
         else: 
-            s += '__constant int TRI_%s[1] = {-1};\n'%(faceName[bci])
-            s += '__constant int NBR_%s[1] = {-1};\n'%(faceName[bci])
+            s += '__constant int4 TRI_%s[1] = {(int4)(-1,-1,-1,-1)};\n'%(faceName[bci])
+            s += '__constant int4 NBR_%s[1] = {(int4)(-1,-1,-1,-1)};\n'%(faceName[bci])
             n_tri.append(0)
     
     # the number of points in the look-up table

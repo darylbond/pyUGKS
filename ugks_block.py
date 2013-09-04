@@ -50,6 +50,8 @@ class UGKSBlock(object):
     has_accommodating = False  #flag to indicate if we have any accommodating walls
     grab_timer = 0
     
+    max_dt = 0.0 # the maximum allowable time step for this block
+    
     def __init__(self, block_id, cl_ctx, cl_queue):
         """
         generate instance of the simBlock object from global data and 
@@ -301,7 +303,7 @@ class UGKSBlock(object):
         ####################
         ## DEVICE SIDE DATA
         
-        self.flag_H = np.zeros((2), dtype=np.int32)
+        self.flag_H = np.zeros((2), dtype=np.float64)
         self.flag_D = self.set_buffer(self.flag_H)
         
         ## common
@@ -355,10 +357,6 @@ class UGKSBlock(object):
         ### RESIDUAL
         self.residual_H = np.zeros((self.ni,self.nj,4),dtype=np.float64)
         self.residual_D = self.set_buffer(self.residual_H)
-        
-        ### CHECK
-        self.nan_check_H = np.zeros((2),dtype=np.int32)
-        self.nan_check_D = self.set_buffer(self.nan_check_H)
         
         ### INTERNAL DATA
         if gdata.save_options.internal_data:
@@ -752,21 +750,87 @@ class UGKSBlock(object):
         
         return
         
-    def get_flag(self):
+    def get_flag(self, prnt=False):
         """
         read the flag array back from the device
         """
         
         cl.enqueue_copy(self.queue,self.flag_H,self.flag_D)
         
-        if self.flag_H[0] != 0:
-            print "flag = ", self.flag_H
+        err_code = self.flag_H[0]
+        ad_data = self.flag_H[1]
         
-        return self.flag_H[0]
+        if err_code == 1.0:
+            raise RuntimeError("ERROR: NaN encountered")
+        elif err_code == 2.0:
+            "we are adsorbing too much in the time step, need to adjust dt"
+            self.max_dt = min(self.max_dt, ad_data)
+            print "adsorbed too much, request dt = %g --> dt = %g"%(gdata.dt, self.max_dt)
+        elif err_code == 3.0:
+            "we are desorbing too much in the time step, need to adjust dt"
+            self.max_dt = min(self.max_dt, ad_data)
+            print "desorbed too much, request dt = %g --> dt = %g"%(gdata.dt, self.max_dt)
+        elif err_code == 4.0:
+            raise RuntimeError("ERROR: pressure / temperature outside adsorption isotherm data")
+        
+        return
+        
+    def reset_flag(self):
+        """
+        reset the flag and upload to device
+        """
+        
+        self.flag_H[:] = 0
+        
+        cl.enqueue_copy(self.queue,self.flag_D, self.flag_H)
+        
+        return 
         
 #===============================================================================
 #   Unified Gas Kinetic Scheme (UGKS)
 #===============================================================================
+
+    def wall_flux(self, bc_type, wall, gsize, wsize, flux, flux_macro, dt):
+        """
+        update flux array on device
+        """
+        
+        if bc_type == DIFFUSE:
+            self.prg.accommodatingWallDist(self.queue, gsize, wsize,
+                             self.normal_D, wall, self.wall_prop_D, 
+                             flux, dt)
+        
+        else:
+            self.reset_flag()
+            self.prg.adsorbingWall_P1(self.queue, gsize, wsize,
+                             self.normal_D, wall, self.wall_prop_D,
+                             self.wall_cover_D, self.wall_dist_D,
+                             flux, self.macro_D, dt, self.flag_D)
+                             
+            cl.enqueue_barrier(self.queue)
+            self.get_flag()
+            
+            rtype = self.bc_list[0].reflect_type
+        
+            if rtype == 'CL':
+                self.prg.adsorbingWallCL_P2(self.queue, gsize, wsize,
+                                 self.normal_D, wall, self.wall_prop_D,
+                                 self.wall_cover_D, self.wall_dist_D,
+                                 flux, self.macro_D, dt)
+                                 
+            else:
+                self.prg.adsorbingWallDS_P2(self.queue, gsize, wsize,
+                                 self.normal_D, wall, self.wall_prop_D,
+                                 self.wall_cover_D, self.wall_dist_D,
+                                 flux, self.macro_D, dt)
+            
+            cl.enqueue_barrier(self.queue)
+            
+        self.prg.wallFlux(self.queue, gsize, wsize,
+                     self.normal_D, self.length_D, 
+                     wall, flux, flux_macro, dt)
+        
+        return 
     
     def UGKS_flux(self):
         """
@@ -803,39 +867,8 @@ class UGKSBlock(object):
             offset_top = 1
             north_wall = np.int32(0)
             #print "north"
-            if bc_type == DIFFUSE:
-                self.prg.accommodatingWallDist(self.queue, global_size, work_size,
-                                 self.normal_D, north_wall, self.wall_prop_D, 
-                                 self.flux_f_S_D, dt)
-            
-            else:
-                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
-                                 self.normal_D, north_wall, self.wall_prop_D,
-                                 self.wall_cover_D, self.wall_dist_D,
-                                 self.flux_f_S_D, self.macro_D, dt)
-                                 
-                cl.enqueue_barrier(self.queue)
-                
-                rtype = self.bc_list[0].reflect_type
-            
-                if rtype == 'CL':
-                    self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
-                                     self.normal_D, north_wall, self.wall_prop_D,
-                                     self.wall_cover_D, self.wall_dist_D,
-                                     self.flux_f_S_D, self.macro_D, dt)
-                                     
-                else:
-                    self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
-                                     self.normal_D, north_wall, self.wall_prop_D,
-                                     self.wall_cover_D, self.wall_dist_D,
-                                     self.flux_f_S_D, self.macro_D, dt)
-                
-                cl.enqueue_barrier(self.queue)
-            
-            self.prg.wallFlux(self.queue, global_size, work_size,
-                                 self.normal_D, self.length_D, 
-                                 north_wall, self.flux_f_S_D, 
-                                 self.flux_macro_S_D, dt)
+            self.wall_flux(bc_type, north_wall, global_size, work_size, 
+                                    self.flux_f_S_D, self.flux_macro_S_D, dt)            
             
          
         bc_type = self.bc_list[2].type_of_BC
@@ -843,39 +876,8 @@ class UGKSBlock(object):
             offset_bot = 1
             south_wall = np.int32(2)
             #print "south"
-            if bc_type == DIFFUSE:
-                self.prg.accommodatingWallDist(self.queue, global_size, work_size,
-                               self.normal_D, south_wall, self.wall_prop_D, 
-                               self.flux_f_S_D, dt)
-            
-            else:
-                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
-                                 self.normal_D, south_wall, self.wall_prop_D,
-                                 self.wall_cover_D, self.wall_dist_D,
-                                 self.flux_f_S_D, self.macro_D, dt)
-                                 
-                cl.enqueue_barrier(self.queue)
-                
-                rtype = self.bc_list[2].reflect_type
-                
-                if rtype == 'CL':
-                    self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
-                                     self.normal_D, south_wall, self.wall_prop_D,
-                                     self.wall_cover_D, self.wall_dist_D,
-                                     self.flux_f_S_D, self.macro_D, dt)
-                
-                else:
-                    self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
-                                     self.normal_D, south_wall, self.wall_prop_D,
-                                     self.wall_cover_D, self.wall_dist_D,
-                                     self.flux_f_S_D, self.macro_D, dt)
-                
-            cl.enqueue_barrier(self.queue)
-            
-            self.prg.wallFlux(self.queue, global_size, work_size,
-                               self.normal_D, self.length_D, 
-                               south_wall, self.flux_f_S_D, 
-                               self.flux_macro_S_D, dt)
+            self.wall_flux(bc_type, south_wall, global_size, work_size, 
+                                    self.flux_f_S_D, self.flux_macro_S_D, dt)          
                                
         
         ##
@@ -969,39 +971,9 @@ class UGKSBlock(object):
             offset_top = 1
             east_wall = np.int32(1)
             #print "east"
-            if bc_type == DIFFUSE:
-                self.prg.accommodatingWallDist(self.queue, global_size, work_size,
-                               self.normal_D, east_wall, self.wall_prop_D, 
-                               self.flux_f_W_D, dt)
             
-            else:
-                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
-                                 self.normal_D, east_wall, self.wall_prop_D,
-                                 self.wall_cover_D, self.wall_dist_D,
-                                 self.flux_f_W_D, self.macro_D, dt)
-                                 
-                cl.enqueue_barrier(self.queue)
-                
-                rtype = self.bc_list[1].reflect_type
-                
-                if rtype == 'CL':
-                    self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
-                                     self.normal_D, east_wall, self.wall_prop_D,
-                                     self.wall_cover_D, self.wall_dist_D,
-                                     self.flux_f_W_D, self.macro_D, dt)
-                                     
-                else:                
-                    self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
-                                     self.normal_D, east_wall, self.wall_prop_D,
-                                     self.wall_cover_D, self.wall_dist_D,
-                                     self.flux_f_W_D, self.macro_D, dt)
-                
-            cl.enqueue_barrier(self.queue)
-            
-            self.prg.wallFlux(self.queue, global_size, work_size,
-                               self.normal_D, self.length_D, 
-                               east_wall, self.flux_f_W_D, 
-                               self.flux_macro_W_D, dt)
+            self.wall_flux(bc_type, east_wall, global_size, work_size, 
+                                    self.flux_f_W_D, self.flux_macro_W_D, dt)    
             
             
         bc_type = self.bc_list[3].type_of_BC
@@ -1009,40 +981,8 @@ class UGKSBlock(object):
             offset_bot = 1
             west_wall = np.int32(3)
             #print "west"
-            if bc_type == DIFFUSE:
-                self.prg.accommodatingWallDist(self.queue, global_size, work_size,
-                               self.normal_D, west_wall, self.wall_prop_D, 
-                               self.flux_f_W_D, dt)
-           
-            else:
-                self.prg.adsorbingWall_P1(self.queue, global_size, work_size,
-                                 self.normal_D, west_wall, self.wall_prop_D,
-                                 self.wall_cover_D, self.wall_dist_D,
-                                 self.flux_f_W_D, self.macro_D, dt)
-                                 
-                cl.enqueue_barrier(self.queue)
-            
-                rtype = self.bc_list[1].reflect_type
-                
-                if rtype == 'CL':
-                                     
-                    self.prg.adsorbingWallCL_P2(self.queue, global_size, work_size,
-                                     self.normal_D, west_wall, self.wall_prop_D,
-                                     self.wall_cover_D, self.wall_dist_D,
-                                     self.flux_f_W_D, self.macro_D, dt)
-                
-                else:
-                    self.prg.adsorbingWallDS_P2(self.queue, global_size, work_size,
-                                     self.normal_D, west_wall, self.wall_prop_D,
-                                     self.wall_cover_D, self.wall_dist_D,
-                                     self.flux_f_W_D, self.macro_D, dt)
-                
-            cl.enqueue_barrier(self.queue)
-            
-            self.prg.wallFlux(self.queue, global_size, work_size,
-                               self.normal_D, self.length_D, 
-                               west_wall, self.flux_f_W_D, 
-                               self.flux_macro_W_D, dt)
+            self.wall_flux(bc_type, west_wall, global_size, work_size, 
+                                    self.flux_f_W_D, self.flux_macro_W_D, dt)
             
         ##
         # calculate the internal fluxes    
@@ -1127,8 +1067,7 @@ class UGKSBlock(object):
                              
         cl.enqueue_barrier(self.queue)                    
         
-        self.nan_check_H[:] = 0
-        cl.enqueue_copy(self.queue, self.nan_check_D, self.nan_check_H)
+        self.reset_flag()
         
         dt = np.float64(gdata.dt)
         
@@ -1136,15 +1075,9 @@ class UGKSBlock(object):
         self.prg.UGKS_update(self.queue, global_size, work_size,
                              self.f_D, self.flux_f_S_D, self.flux_f_W_D,
                              self.area_D, self.macro_D, self.Q_D, 
-                             self.residual_D, dt, self.nan_check_D)
+                             self.residual_D, dt, self.flag_D)
                              
-        cl.enqueue_barrier(self.queue)
-        cl.enqueue_copy(self.queue, self.nan_check_H, self.nan_check_D)
-        
-        if self.nan_check_H[0] == 1:
-            raise RuntimeError("NaN encountered in update")
-                             
-        
+        self.get_flag()
         
         self.host_update = 0
         self.macro_update = 0
@@ -1248,8 +1181,9 @@ class UGKSBlock(object):
         # run reduction kernel
         max_freq = cl_array.max(self.time_step_array,queue=self.queue).get()
         
+        self.max_dt = gdata.CFL/max_freq
         
-        return gdata.CFL/max_freq
+        return
         
     def save_hdf(self, h5Name, grp, step, all_data=False):
         """
