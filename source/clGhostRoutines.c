@@ -762,6 +762,62 @@ edgeMirror(__global double2* Fin,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// KERNEL: edgeBounceBack: double mirror face information
+////////////////////////////////////////////////////////////////////////////////
+
+__kernel void
+edgeBounceBack(__global double2* Fin,
+	   int this_face)
+{
+  // mirror edge
+  
+  // distribution functions global index
+  size_t gi = get_global_id(0);
+  size_t gj = get_global_id(1);
+  size_t ti = get_local_id(2);
+  
+  // mirrored index
+  size_t mi, mj;
+  
+  switch (this_face) {
+    case GNORTH:
+      gi += GHOST;
+      gj += NJ - GHOST;
+      mi = gi;
+      mj = 2*(NJ - GHOST) - gj - 1;
+      break;
+    case GEAST:
+      gi += NI - GHOST;
+      gj += GHOST;
+      mi = 2*(NI - GHOST) - gi - 1;
+      mj = gj;
+      break;
+    case GSOUTH:
+      gi += GHOST;
+      gj += 0;
+      mi = gi;
+      mj = 2*GHOST - gj - 1;
+      break;
+    case GWEST:
+      gi += 0;
+      gj += GHOST;
+      mi = 2*GHOST - gi - 1;
+      mj = gj;
+      break;
+  }
+  
+  for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+    size_t gv = li*LOCAL_SIZE+ti;
+    if (gv < NV) {
+      int mv = mirror_D[gv];
+      F(gi,gj,gv) = F(mi,mj,mv);
+    }
+  }
+  
+  return;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // KERNEL: edgeConstGrad: extrapolate face information
 ////////////////////////////////////////////////////////////////////////////////
 

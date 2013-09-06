@@ -106,9 +106,8 @@ class UGKSData(object):
                 'Nv', 'b', 'K', \
                 'T_ref', 'L_ref', 'C_ref', 't_ref', 'D_ref','P_ref',\
                 'step','CL_local_size',\
-                'quad','weight',\
-                'mirror_NS',\
-                'mirror_EW','dt_update_count','umax','vmax',\
+                'quad','weight','mirror_D',\
+                'mirror_NS','mirror_EW','dt_update_count','umax','vmax',\
                 'rootName',\
                 'device','flux_method', 'platform',\
                 'plot_options','save_options','residual_options',\
@@ -280,6 +279,7 @@ class UGKSData(object):
         
         self.mirror_NS = np.ravel(np.fliplr(index_array))
         self.mirror_EW = np.ravel(np.flipud(index_array))
+        self.mirror_D  = np.ravel(np.flipud(np.fliplr(index_array)))
         
         if 0:
             import matplotlib.pylab as plt
@@ -294,12 +294,21 @@ class UGKSData(object):
                 plt.plot(self.quad[self.mirror_NS[i],0], self.quad[self.mirror_NS[i],1],'.')
                 plt.text(self.quad[self.mirror_NS[i],0], self.quad[self.mirror_NS[i],1],str(i))    
             plt.title("NS")
+            
             plt.figure()
             
             for i in range(self.Nv):
                 plt.plot(self.quad[self.mirror_EW[i],0], self.quad[self.mirror_EW[i],1],'.')
                 plt.text(self.quad[self.mirror_EW[i],0], self.quad[self.mirror_EW[i],1],str(i))    
             plt.title("EW")
+            
+            plt.figure()
+            
+            for i in range(self.Nv):
+                plt.plot(self.quad[self.mirror_D[i],0], self.quad[self.mirror_D[i],1],'.')
+                plt.text(self.quad[self.mirror_D[i],0], self.quad[self.mirror_D[i],1],str(i))    
+            plt.title("D")
+            
             plt.show()
         
         return

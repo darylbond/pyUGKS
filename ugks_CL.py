@@ -343,6 +343,19 @@ def genHeader(data):
         if count == 10:
             s+= '\n                              '
             count = 0
+    s += '};\n'
+    
+    count = 0
+    s += '__constant size_t mirror_D[{}] = {{'.format(gdata.Nv)
+    for i in range(gdata.Nv):
+        count += 1
+        if i < gdata.Nv-1:
+            s += '{}, '.format(gdata.mirror_D[i])
+        else:
+            s += '{}'.format(gdata.mirror_D[i])
+        if count == 10:
+            s+= '\n                              '
+            count = 0
     s += '};\n\n'
             
     

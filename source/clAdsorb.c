@@ -374,46 +374,52 @@ adsorbingWall_P1(__global double2* normal,
             reflected_flux.x = data[0].x;
             adsorbed_flux.x  = data[0].y;
             
-            dvtheta = dt*ALPHA_P[face]*adsorbed_flux.x;
-            
             zero_dvtheta = 0;
-            if (dvtheta > (1 - vartheta)) {
-                // we are adsorbing too much!
-                flag[0] = ERR_ADSORB_TOO_MUCH;
-                // calculate the time step required to adsorb only half as much as is 
-                // physically possible
-                // we now use this dt so that we can check the desorbing process as well
-                dt = GOLDEN_RATIO*(1 - vartheta)/(ALPHA_P[face]*adsorbed_flux.x);
-                flag[1] = dt;
-                
+            
+            if (GAMMA_F[face] > 0.0) {
+            
                 dvtheta = dt*ALPHA_P[face]*adsorbed_flux.x;
-                zero_dvtheta = 1;
-            }
-            
-            // calculate the desorption rate based on the Langmuir isotherm
-            double2 veq = vartheta_langmuir(D, T, face);
-            
-            if (veq.y == 1) {
-                // we are outside the bounds of the defined adsorption data
-                flag[0] = ERR_CLAMPING_ADSORB_ISOTHERM;
-                return;
-            }
-            
-            double gamma_b = GAMMA_F[face]*(1.0/veq.x - 1.0)*data2[0];
-            
-            desorbed_flux.x  = gamma_b*vartheta;
-            
-            dvtheta -= dt*ALPHA_P[face]*desorbed_flux.x;
-            
-            // make sure we don't get negative ratio of coverage
-            // also ensure that we only desorb what is available, not 
-            //  including what we have just adsorbed in this time step
-            if ((vartheta + dvtheta) < 0.0) {
-                desorbed_flux.x = vartheta/(dt*ALPHA_P[face]);
-                dt = GOLDEN_RATIO*vartheta/(ALPHA_P[face]*desorbed_flux.x);
-                flag[0] = ERR_DESORB_TOO_MUCH;
-                flag[1] = dt;
-                zero_dvtheta = 1;
+                
+                if (dvtheta > (1 - vartheta)) {
+                    // we are adsorbing too much!
+                    flag[0] = ERR_ADSORB_TOO_MUCH;
+                    // calculate the time step required to adsorb only half as much as is 
+                    // physically possible
+                    // we now use this dt so that we can check the desorbing process as well
+                    dt = GOLDEN_RATIO*(1 - vartheta)/(ALPHA_P[face]*adsorbed_flux.x);
+                    flag[1] = dt;
+                    
+                    dvtheta = dt*ALPHA_P[face]*adsorbed_flux.x;
+                    zero_dvtheta = 1;
+                }
+                
+                // calculate the desorption rate based on the Langmuir isotherm
+                double2 veq = vartheta_langmuir(D, T, face);
+                
+                if (veq.y == 1) {
+                    // we are outside the bounds of the defined adsorption data
+                    flag[0] = ERR_CLAMPING_ADSORB_ISOTHERM;
+                    return;
+                }
+                
+                double gamma_b = GAMMA_F[face]*(1.0/veq.x - 1.0)*data2[0];
+                
+                desorbed_flux.x  = gamma_b*vartheta;
+                
+                dvtheta -= dt*ALPHA_P[face]*desorbed_flux.x;
+                
+                // make sure we don't get negative ratio of coverage
+                // also ensure that we only desorb what is available, not 
+                //  including what we have just adsorbed in this time step
+                if ((vartheta + dvtheta) < 0.0) {
+                    desorbed_flux.x = vartheta/(dt*ALPHA_P[face]);
+                    dt = GOLDEN_RATIO*vartheta/(ALPHA_P[face]*desorbed_flux.x);
+                    flag[0] = ERR_DESORB_TOO_MUCH;
+                    flag[1] = dt;
+                    zero_dvtheta = 1;
+                }
+            } else {
+                dvtheta = 0.0;
             }
             
             if (zero_dvtheta == 0) {

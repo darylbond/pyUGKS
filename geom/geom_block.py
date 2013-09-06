@@ -181,6 +181,9 @@ class Block(object):
                 
         if type_of_BC == REFLECT:
             newbc = ReflectBC(label=label)
+            
+        if type_of_BC == BOUNCE_BACK:
+            newbc = BounceBackBC(label=label)
         
         if type_of_BC == DIFFUSE:
             if flowCondition:

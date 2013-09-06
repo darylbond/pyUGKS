@@ -19,6 +19,9 @@ from ugks_data import gdata
 from ugks_data import Block
 from ugks_block import UGKSBlock
 
+from geom.geom_bc_defs import *
+from geom.geom_defs import *
+
 def reject_outliers(data, m=2):
     data = np.array(data)
     return data[abs(data - np.mean(data)) < m * np.std(data)]
@@ -815,6 +818,40 @@ class UGKSim(object):
             blk.create_dataset("y",data=b.y, compression=save.compression)
             blk.create_dataset("centreX",data=b.centreX, compression=save.compression)
             blk.create_dataset("centreY",data=b.centreY, compression=save.compression)
+            
+            bcg = blk.create_group('BC')
+            for face, bc in enumerate(b.bc_list):
+                bcf = bcg.create_group(faceName[face])
+                bcf.create_dataset('type_of_BC',data=bcName[bc.type_of_BC])
+                bcf.create_dataset('other_block',data=bc.other_block)
+                bcf.create_dataset('other_face',data=bc.other_face)
+                bcf.create_dataset('orientation',data=bc.orientation)
+                bcf.create_dataset('label',data=bc.label)
+                bcf.create_dataset('D',data=bc.D)
+                bcf.create_dataset('U',data=bc.U)
+                bcf.create_dataset('V',data=bc.V)
+                bcf.create_dataset('T',data=bc.T)
+                bcf.create_dataset('P',data=bc.P)
+                if bc.UDF_D:
+                    bcf.create_dataset('UDF_D',data=bc.UDF_D)
+                if bc.UDF_U:
+                    bcf.create_dataset('UDF_U',data=bc.UDF_U)
+                if bc.UDF_V:
+                    bcf.create_dataset('UDF_V',data=bc.UDF_V)
+                if bc.UDF_T:
+                    bcf.create_dataset('UDF_T',data=bc.UDF_T)
+                
+                if bc.type_of_BC == ADSORBING:
+                    bcf.create_dataset('adsorb',data=bc.adsorb)
+                    bcf.create_dataset('beta_n',data=bc.beta_n)
+                    bcf.create_dataset('beta_t',data=bc.beta_t)
+                    bcf.create_dataset('alpha_n',data=bc.alpha_t)
+                    bcf.create_dataset('alpha_t',data=bc.alpha_t)
+                    bcf.create_dataset('k_f',data=bc.k_f)
+                    bcf.create_dataset('S_T',data=bc.S_T)
+                    bcf.create_dataset('cover_initial',data=bc.cover_initial)
+                    bcf.create_dataset('reflect_type',data=bc.reflect_type)
+                
             
             # edge coords
             sz = 2*(b.ni+b.nj)

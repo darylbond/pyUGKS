@@ -509,7 +509,7 @@ class UGKSBlock(object):
         self.prg.edgeConstant(self.queue, global_size, work_size,
                                f, face, self.wall_prop_D)
     
-    def ghostMirror(self, this_face):
+    def ghostMirror(self, this_face, bb = False):
         """
         update the ghost cells to give zero gradient across the face
         """
@@ -525,7 +525,10 @@ class UGKSBlock(object):
             
         global_size, work_size = m_tuple(global_size,(1,1,gdata.CL_local_size))
         
-        self.prg.edgeMirror(self.queue, global_size, work_size, f, face)
+        if bb:
+            self.prg.edgeBounceBack(self.queue, global_size, work_size, f, face)
+        else:
+            self.prg.edgeMirror(self.queue, global_size, work_size, f, face)
                                
     def edgeConstGrad(self, this_face):
         """
@@ -588,6 +591,12 @@ class UGKSBlock(object):
                 """ NOTE: This only works for cartesian grids where the velocity space
                 is aligned with the grid"""
                 self.ghostMirror(this_face)
+            
+            elif bc.type_of_BC == BOUNCE_BACK:
+                # populate ghost cells with double mirror image of interior data
+                """ NOTE: This only works for cartesian grids where the velocity space
+                is aligned with the grid"""
+                self.ghostMirror(this_face, bb=True)
             
             elif bc.type_of_BC in [DIFFUSE, ADSORBING]:
                 # extrapolate the cell data to give CONSTANT gradient
@@ -790,12 +799,12 @@ class UGKSBlock(object):
 #   Unified Gas Kinetic Scheme (UGKS)
 #===============================================================================
 
-    def wall_flux(self, bc_type, wall, gsize, wsize, flux, flux_macro, dt):
+    def wall_flux(self, bc, wall, gsize, wsize, flux, flux_macro, dt):
         """
         update flux array on device
         """
         
-        if bc_type == DIFFUSE:
+        if bc.type_of_BC == DIFFUSE:
             self.prg.accommodatingWallDist(self.queue, gsize, wsize,
                              self.normal_D, wall, self.wall_prop_D, 
                              flux, dt)
@@ -810,7 +819,7 @@ class UGKSBlock(object):
             cl.enqueue_barrier(self.queue)
             self.get_flag()
             
-            rtype = self.bc_list[0].reflect_type
+            rtype = bc.reflect_type
         
             if rtype == 'CL':
                 self.prg.adsorbingWallCL_P2(self.queue, gsize, wsize,
@@ -862,21 +871,21 @@ class UGKSBlock(object):
         ##
         offset_top = 0; offset_bot = 0
         global_size, work_size = size_cl((self.ni, 1, 1), (1, 1, gdata.CL_local_size))
-        bc_type = self.bc_list[0].type_of_BC
-        if bc_type in [DIFFUSE, ADSORBING]:
+        bc = self.bc_list[0]
+        if bc.type_of_BC in [DIFFUSE, ADSORBING]:
             offset_top = 1
             north_wall = np.int32(0)
             #print "north"
-            self.wall_flux(bc_type, north_wall, global_size, work_size, 
+            self.wall_flux(bc, north_wall, global_size, work_size, 
                                     self.flux_f_S_D, self.flux_macro_S_D, dt)            
             
          
-        bc_type = self.bc_list[2].type_of_BC
-        if bc_type in [DIFFUSE, ADSORBING]:
+        bc = self.bc_list[2]
+        if bc.type_of_BC in [DIFFUSE, ADSORBING]:
             offset_bot = 1
             south_wall = np.int32(2)
             #print "south"
-            self.wall_flux(bc_type, south_wall, global_size, work_size, 
+            self.wall_flux(bc, south_wall, global_size, work_size, 
                                     self.flux_f_S_D, self.flux_macro_S_D, dt)          
                                
         
@@ -966,22 +975,22 @@ class UGKSBlock(object):
         ##
         offset_top = 0; offset_bot = 0
         global_size, work_size = size_cl((1, self.nj, 1), (1,1,gdata.CL_local_size))
-        bc_type = self.bc_list[1].type_of_BC
-        if bc_type in [DIFFUSE, ADSORBING]:
+        bc = self.bc_list[1]
+        if bc.type_of_BC in [DIFFUSE, ADSORBING]:
             offset_top = 1
             east_wall = np.int32(1)
             #print "east"
             
-            self.wall_flux(bc_type, east_wall, global_size, work_size, 
+            self.wall_flux(bc, east_wall, global_size, work_size, 
                                     self.flux_f_W_D, self.flux_macro_W_D, dt)    
             
             
-        bc_type = self.bc_list[3].type_of_BC
-        if bc_type in [DIFFUSE, ADSORBING]:
+        bc = self.bc_list[3]
+        if bc.type_of_BC in [DIFFUSE, ADSORBING]:
             offset_bot = 1
             west_wall = np.int32(3)
             #print "west"
-            self.wall_flux(bc_type, west_wall, global_size, work_size, 
+            self.wall_flux(bc, west_wall, global_size, work_size, 
                                     self.flux_f_W_D, self.flux_macro_W_D, dt)
             
         ##

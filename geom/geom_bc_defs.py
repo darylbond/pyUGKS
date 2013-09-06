@@ -28,11 +28,12 @@ COMMON          = 0
 EXTRAPOLATE_OUT = 1
 CONSTANT        = 2
 REFLECT         = 3
-DIFFUSE   = 4
+DIFFUSE         = 4
 PERIODIC        = 5
 INFLOW          = 6
 OUTFLOW         = 7
 ADSORBING       = 8
+BOUNCE_BACK     = 9
 
 bcIndexFromName = {
      0: ADJACENT, "0": ADJACENT, "ADJACENT": ADJACENT, "COMMON": ADJACENT,
@@ -43,7 +44,8 @@ bcIndexFromName = {
      5: PERIODIC, "5":PERIODIC,
      6: INFLOW, "6":INFLOW,
      7: OUTFLOW, "7":OUTFLOW,
-     8: ADSORBING, "8":ADSORBING
+     8: ADSORBING, "8":ADSORBING,
+     9: BOUNCE_BACK, "9":BOUNCE_BACK
 }
 
 bcName = {
@@ -55,7 +57,8 @@ bcName = {
     PERIODIC: "PERIODIC",
     INFLOW: "INFLOW",
     OUTFLOW: "OUTFLOW",
-    ADSORBING: "ADSORBING"
+    ADSORBING: "ADSORBING",
+    BOUNCE_BACK: "BOUNCE_BACK"
     }
 
 class BoundaryCondition(object):
@@ -254,6 +257,20 @@ class ReflectBC(BoundaryCondition):
         return "ReflectBC(label=\"%s\")" % self.label
     def __copy__(self):
         return ReflectBC(label=self.label)
+        
+class BounceBackBC(BoundaryCondition):
+    """
+    fill the ghost cells with data that is a double reflection of the data in the flow 
+    domain about the plane of the boundary
+    """
+    def __init__(self, label="BOUNCE_BACK"):
+        BoundaryCondition.__init__(self, type_of_BC=BOUNCE_BACK, label=label)
+        return
+        
+    def __str__(self):
+        return "BounceBackBC(label=\"%s\")" % self.label
+    def __copy__(self):
+        return BounceBackBC(label=self.label)
 
 class DiffuseBC(BoundaryCondition):
     """
