@@ -340,6 +340,9 @@ class UGKSBlock(object):
             
         self.wall_cover_D = self.set_buffer(self.wall_cover_H) # wall coverage fraction
         
+        self.wall_fluxes_H = np.zeros((wall_len,4,4),dtype=np.float64) # fluxes of mass and energy
+        self.wall_fluxes_D = self.set_buffer(self.wall_fluxes_H)
+        
         self.wall_dist_D = self.set_buffer_size(wall_len*self.Nv*2*f64_size)
         
         self.sigma_D = self.set_buffer_size(dist_size)
@@ -835,6 +838,15 @@ class UGKSBlock(object):
             
             cl.enqueue_barrier(self.queue)
             
+
+        self.prg.wallMassEnergyFluxes(self.queue, gsize, wsize,
+                     self.normal_D, self.length_D, self.area_D,
+                     wall, flux, self.wall_fluxes_D, dt)
+        
+        
+        cl.enqueue_barrier(self.queue)
+        
+            
         self.prg.wallFlux(self.queue, gsize, wsize,
                      self.normal_D, self.length_D, 
                      wall, flux, flux_macro, dt)
@@ -1138,6 +1150,7 @@ class UGKSBlock(object):
             cl.enqueue_barrier(self.queue)
             cl.enqueue_copy(self.queue,self.macro_H,self.macro_D)
             cl.enqueue_copy(self.queue,self.wall_cover_H,self.wall_cover_D)
+            cl.enqueue_copy(self.queue,self.wall_fluxes_H,self.wall_fluxes_D)
             self.macro_update = 1
             
         return
@@ -1275,43 +1288,25 @@ class UGKSBlock(object):
         xdmf += '</DataItem>\n'
         xdmf += '</Attribute>\n'
         
-
-        ads = sgrp.require_group("adsorbed")
-        cover_N = self.wall_cover_H[0:self.ni,0,0]
-        cover_E = self.wall_cover_H[0:self.nj,1,0]
-        cover_S = self.wall_cover_H[0:self.ni,2,0]
-        cover_W = self.wall_cover_H[0:self.nj,3,0]
-        ads.create_dataset("cover_N",data=cover_N, compression=gdata.save_options.compression)
-        ads.create_dataset("cover_E",data=cover_E, compression=gdata.save_options.compression)
-        ads.create_dataset("cover_S",data=cover_S, compression=gdata.save_options.compression)
-        ads.create_dataset("cover_W",data=cover_W, compression=gdata.save_options.compression)
+        wall = sgrp.require_group("wall")
         
-        reflected_N = self.wall_cover_H[0:self.ni,0,1]
-        reflected_E = self.wall_cover_H[0:self.nj,1,1]
-        reflected_S = self.wall_cover_H[0:self.ni,2,1]
-        reflected_W = self.wall_cover_H[0:self.nj,3,1]
-        ads.create_dataset("reflected_N",data=reflected_N, compression=gdata.save_options.compression)
-        ads.create_dataset("reflected_E",data=reflected_E, compression=gdata.save_options.compression)
-        ads.create_dataset("reflected_S",data=reflected_S, compression=gdata.save_options.compression)
-        ads.create_dataset("reflected_W",data=reflected_W, compression=gdata.save_options.compression)
+        faces = ["N","E","S","W"]
+        length = [self.ni, self.nj, self.ni, self.nj]
         
-        adsorbed_N = self.wall_cover_H[0:self.ni,0,2]
-        adsorbed_E = self.wall_cover_H[0:self.nj,1,2]
-        adsorbed_S = self.wall_cover_H[0:self.ni,2,2]
-        adsorbed_W = self.wall_cover_H[0:self.nj,3,2]
-        ads.create_dataset("adsorbed_N",data=adsorbed_N, compression=gdata.save_options.compression)
-        ads.create_dataset("adsorbed_E",data=adsorbed_E, compression=gdata.save_options.compression)
-        ads.create_dataset("adsorbed_S",data=adsorbed_S, compression=gdata.save_options.compression)
-        ads.create_dataset("adsorbed_W",data=adsorbed_W, compression=gdata.save_options.compression)
-        
-        desorbed_N = self.wall_cover_H[0:self.ni,0,3]
-        desorbed_E = self.wall_cover_H[0:self.nj,1,3]
-        desorbed_S = self.wall_cover_H[0:self.ni,2,3]
-        desorbed_W = self.wall_cover_H[0:self.nj,3,3]
-        ads.create_dataset("desorbed_N",data=desorbed_N, compression=gdata.save_options.compression)
-        ads.create_dataset("desorbed_E",data=desorbed_E, compression=gdata.save_options.compression)
-        ads.create_dataset("desorbed_S",data=desorbed_S, compression=gdata.save_options.compression)
-        ads.create_dataset("desorbed_W",data=desorbed_W, compression=gdata.save_options.compression)     
+        for fid,face in enumerate(faces):
+            l = length[fid]
+            
+            fgrp = wall.require_group(face)
+            
+            fgrp.create_dataset("cover",data=self.wall_cover_H[0:l,fid,0], compression=gdata.save_options.compression)
+            fgrp.create_dataset("reflected",data=self.wall_cover_H[0:l,fid,1], compression=gdata.save_options.compression)
+            fgrp.create_dataset("adsorbed",data=self.wall_cover_H[0:l,fid,2], compression=gdata.save_options.compression)
+            fgrp.create_dataset("desorbed",data=self.wall_cover_H[0:l,fid,3], compression=gdata.save_options.compression)
+            
+            fgrp.create_dataset("mass_in",data=self.wall_fluxes_H[0:l,fid,0], compression=gdata.save_options.compression)
+            fgrp.create_dataset("mass_out",data=self.wall_fluxes_H[0:l,fid,1], compression=gdata.save_options.compression)
+            fgrp.create_dataset("nrg_in",data=self.wall_fluxes_H[0:l,fid,2], compression=gdata.save_options.compression)
+            fgrp.create_dataset("nrg_out",data=self.wall_fluxes_H[0:l,fid,3], compression=gdata.save_options.compression)
         
             
         if all_data:
@@ -1330,11 +1325,9 @@ class UGKSBlock(object):
         
         self.updateHost()
         
-        
-        
         # mass in the bulk of the flow
         bulk_mass = np.sum(self.area_H[self.ghost:-self.ghost,self.ghost:-self.ghost]*self.macro_H[:,:,0])
-        bulk_mass *= gdata.D_ref
+        bulk_mass *= gdata.D_ref*gdata.L_ref**2
         
         
         # mass adsorbed on the wall

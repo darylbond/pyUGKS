@@ -187,7 +187,7 @@ class UGKSData(object):
         self.u_max = 0.0
         self.v_max = 0.0
         
-        self.relax_type = 0
+        self.relax_type = 1
         # 0 --> tau = (Kn/prim.s0)*sqrt(2.0/PI)*pow(prim.s3,1.0 - chi);
         # 1 --> tau = (5./8.)*(Kn/DD)*sqrt(PI)*pow(TT,chi - 1.0);
         

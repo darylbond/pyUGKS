@@ -6,7 +6,7 @@
  * 
  * Pattern is as follows:
  * 	perform all South boundary fluxes on odd, then even
- * 	perfrom all West boundary fluxes on odd, then even
+ * 	perform all West boundary fluxes on odd, then even
  */
  
 
@@ -1006,6 +1006,147 @@ wallFlux(__global double2* normal,
 }
 #endif
 
+#define WALL_FLUX(w, i) wall_flux[(i)*4 + (w)]
+
+#define GI (mi + GHOST)
+#define GJ (mj + GHOST)
+
+
+__kernel void
+wallMassEnergyFluxes(__global double2* normal,
+            __global double* side_length,
+            __global double* area,
+            int face,
+            __global double2* flux_f,
+            __global double4* wall_flux,
+            double dt)
+{
+    // given the flux information for each wall of each cell
+    // calculate the mass in/out and energy in/out
+    
+
+    size_t gi = get_global_id(0);
+    size_t gj = get_global_id(1);
+    size_t thread_id = get_local_id(2);
+    size_t ci;
+    
+    int face_id, rot;
+
+    switch (face) {
+        case GNORTH:
+            ci = gi;
+            gi += GHOST;
+            gj += NJ - GHOST;
+            face_id = SOUTH;
+            rot = -1;
+            break;
+        case GEAST:
+            ci = gj;
+            gi += NI - GHOST;
+            gj += GHOST;
+            face_id = WEST;
+            rot = -1;
+            break;
+        case GSOUTH:
+            ci = gi;
+            gi += GHOST;
+            gj += GHOST;
+            face_id = SOUTH;
+            rot = 1;
+            break;
+        case GWEST:
+            ci = gj;
+            gi += GHOST;
+            gj += GHOST;
+            face_id = WEST;
+            rot = 1;
+            break;
+    }
+    
+    __local double4 data_in[LOCAL_SIZE]; //[mass in, mass out, nrg in, nrg out]
+    __local double4 data_out[LOCAL_SIZE];
+
+    if (((face_id == SOUTH) && ((gi - GHOST) < ni)) 
+    || ((face_id == WEST) && ((gj - GHOST) < nj))) {
+
+        // get the interface distribution and the flux out due to this distribution
+
+        double2 face_normal = NORMAL(gi,gj,face_id);
+
+        double face_length = LENGTH(gi,gj,face_id);
+
+        // calculate the flux that is to come back into the domain given the distribution on the wall
+        data_in[thread_id] = 0.0;
+        data_out[thread_id] = 0.0;
+        
+        for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+            size_t gv = li*LOCAL_SIZE+thread_id;
+            if (gv < NV) {
+                double2 uv = interfaceVelocity(gv, face_normal);
+                
+                int delta = (sign(uv.x)*rot + 1)/2; // flag to indicate if this velocity is going out of the wall (delta = 1 -> out of wall)
+                
+                //printf("u = %g, delta = %d, face = %d, normal = [%v2g]\n",uv.x, delta, face, face_normal);
+                
+                double2 wall_dist = uv.x*face_length*dt*FLUXF(gi,gj,gv);
+                
+                double2 flux_in =  delta*wall_dist; //flux into domain
+                double2 flux_out = (1-delta)*wall_dist; // flux out of domain
+                
+                // now calculate the total mass and energy for out and in
+                
+                data_in[thread_id].s0 += uv.x*flux_in.x;
+                data_in[thread_id].s1 += uv.x*uv.x*flux_in.x;
+                data_in[thread_id].s2 += uv.x*uv.y*flux_in.x;
+                data_in[thread_id].s3 += 0.5*uv.x*(dot(uv,uv)*flux_in.x + flux_in.y);
+                
+                data_out[thread_id].s0 += uv.x*flux_out.x;
+                data_out[thread_id].s1 += uv.x*uv.x*flux_out.x;
+                data_out[thread_id].s2 += uv.x*uv.y*flux_out.x;
+                data_out[thread_id].s3 += 0.5*uv.x*(dot(uv,uv)*flux_out.x + flux_out.y);
+            }
+        }
+        
+        barrier(CLK_LOCAL_MEM_FENCE);
+        
+        // perform reduction
+        
+        int step = 1;
+        int grab_id = 2;
+        while (step < LOCAL_SIZE) {
+            if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
+                // reduce
+                data_in[thread_id] += data_in[thread_id+step];
+                data_out[thread_id] += data_out[thread_id+step];
+            }
+            step *= 2;
+            grab_id *= 2;
+            barrier(CLK_LOCAL_MEM_FENCE);
+        }
+        
+        if (thread_id == 0) {
+            double4 macro_in = data_in[0];
+            double4 macro_out = data_out[0];
+            
+            // get mean velocities
+            macro_in.s12 /= macro_in.s0;
+            macro_out.s12 /= macro_out.s0;
+            
+            // update energy
+            macro_in.s3 -= 0.5*macro_in.s0*(dot(macro_in.s12, macro_in.s12));
+            macro_out.s3 -= 0.5*macro_out.s0*(dot(macro_out.s12, macro_out.s12));
+            
+            // convert to absolute quantity
+            macro_in *= dt*face_length;
+            macro_out *= dt*face_length;
+            
+             WALL_FLUX(face, ci) = (double4)(macro_in.s0, macro_out.s0, macro_in.s3, macro_out.s3);
+        }
+    }
+
+    return;
+
+}
 
 
 

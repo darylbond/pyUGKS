@@ -293,7 +293,7 @@ adsorbingWall_P1(__global double2* normal,
     }
     
     __local double2 data[LOCAL_SIZE];
-    __local double data2[LOCAL_SIZE];
+    __local double adjusted_flux[LOCAL_SIZE];
     __local double adsorb_ratio[1];
     
     adsorb_ratio[0] = 0.0;
@@ -313,7 +313,7 @@ adsorbingWall_P1(__global double2* normal,
         //data = [reflected flux, adsorbed flux]
         
         data[thread_id] = 0.0;
-        data2[thread_id] = 0.0;
+        adjusted_flux[thread_id] = 0.0;
         
         double vartheta = COVER(face, ci).s0; // the fraction of cover that this wall section has
         
@@ -344,7 +344,7 @@ adsorbingWall_P1(__global double2* normal,
                 data[thread_id].y += adsorbed_flux.x;
                 
                 // the flux that is seen by the Langmuir reaction
-                data2[thread_id] += beta*total_flux.x;
+                adjusted_flux[thread_id] += beta*total_flux.x;
                 
                 WALL_DIST(ci, gv) = reflected_flux/uv.x;  // save the reflected distribution for later
                 
@@ -360,7 +360,7 @@ adsorbingWall_P1(__global double2* normal,
             if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
                 // reduce
                 data[thread_id] += data[thread_id+step];
-                data2[thread_id] += data2[thread_id+step];
+                adjusted_flux[thread_id] += adjusted_flux[thread_id+step];
             }
             step *= 2;
             grab_id *= 2;
@@ -402,7 +402,7 @@ adsorbingWall_P1(__global double2* normal,
                     return;
                 }
                 
-                double gamma_b = GAMMA_F[face]*(1.0/veq.x - 1.0)*data2[0];
+                double gamma_b = GAMMA_F[face]*(1.0/veq.x - 1.0)*adjusted_flux[0];
                 
                 desorbed_flux.x  = gamma_b*vartheta;
                 
