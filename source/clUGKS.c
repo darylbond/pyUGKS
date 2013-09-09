@@ -1086,8 +1086,6 @@ wallMassEnergyFluxes(__global double2* normal,
                 
                 int delta = (sign(uv.x)*rot + 1)/2; // flag to indicate if this velocity is going out of the wall (delta = 1 -> out of wall)
                 
-                //printf("u = %g, delta = %d, face = %d, normal = [%v2g]\n",uv.x, delta, face, face_normal);
-                
                 double2 wall_dist = uv.x*face_length*dt*FLUXF(gi,gj,gv);
                 
                 double2 flux_in =  (1-delta)*wall_dist; // flux into wall
