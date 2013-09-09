@@ -1090,8 +1090,8 @@ wallMassEnergyFluxes(__global double2* normal,
                 
                 double2 wall_dist = uv.x*face_length*dt*FLUXF(gi,gj,gv);
                 
-                double2 flux_in =  delta*wall_dist; //flux into domain
-                double2 flux_out = (1-delta)*wall_dist; // flux out of domain
+                double2 flux_in =  (1-delta)*wall_dist; // flux into wall
+                double2 flux_out =  delta*wall_dist; //flux out of wall
                 
                 // now calculate the total mass and energy for out and in
                 
@@ -1128,17 +1128,19 @@ wallMassEnergyFluxes(__global double2* normal,
             double4 macro_in = data_in[0];
             double4 macro_out = data_out[0];
             
-            // get mean velocities
-            macro_in.s12 /= macro_in.s0;
-            macro_out.s12 /= macro_out.s0;
-            
-            // update energy
-            macro_in.s3 -= 0.5*macro_in.s0*(dot(macro_in.s12, macro_in.s12));
-            macro_out.s3 -= 0.5*macro_out.s0*(dot(macro_out.s12, macro_out.s12));
-            
             // convert to absolute quantity
             macro_in *= dt*face_length;
             macro_out *= dt*face_length;
+            
+            // convert total energy to temperature
+            macro_in = getPrimary(macro_in);
+            macro_out = getPrimary(macro_out);
+            
+            // calculate total internal energy
+            macro_in.s3 = (macro_in.s0*B)/(2.0*macro_in.s3);
+            macro_out.s3 = (macro_out.s0*B)/(2.0*macro_out.s3);
+            
+            
             
              WALL_FLUX(face, ci) = (double4)(macro_in.s0, macro_out.s0, macro_in.s3, macro_out.s3);
         }
