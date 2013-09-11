@@ -337,13 +337,6 @@ class UGKSData(object):
         
         # Gauss-Hermite
         self.init_quad()
-    
-    def get_time(self):
-        """
-        return the time in reference, not lattice, space
-        """
-        
-        return self.time
         
     def read_conf(self):
         """

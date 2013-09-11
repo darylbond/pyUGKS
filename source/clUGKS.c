@@ -1086,22 +1086,22 @@ wallMassEnergyFluxes(__global double2* normal,
                 
                 int delta = (sign(uv.x)*rot + 1)/2; // flag to indicate if this velocity is going out of the wall (delta = 1 -> out of wall)
                 
-                double2 wall_dist = uv.x*face_length*dt*FLUXF(gi,gj,gv);
+                double2 wall_dist = FLUXF(gi,gj,gv);
                 
                 double2 flux_in =  (1-delta)*wall_dist; // flux into wall
                 double2 flux_out =  delta*wall_dist; //flux out of wall
                 
                 // now calculate the total mass and energy for out and in
                 
-                data_in[thread_id].s0 += uv.x*flux_in.x;
-                data_in[thread_id].s1 += uv.x*uv.x*flux_in.x;
-                data_in[thread_id].s2 += uv.x*uv.y*flux_in.x;
-                data_in[thread_id].s3 += 0.5*uv.x*(dot(uv,uv)*flux_in.x + flux_in.y);
+                data_in[thread_id].s0 += flux_in.x;
+                data_in[thread_id].s1 += uv.x*flux_in.x;
+                data_in[thread_id].s2 += uv.y*flux_in.x;
+                data_in[thread_id].s3 += 0.5*(dot(uv,uv)*flux_in.x + flux_in.y);
                 
-                data_out[thread_id].s0 += uv.x*flux_out.x;
-                data_out[thread_id].s1 += uv.x*uv.x*flux_out.x;
-                data_out[thread_id].s2 += uv.x*uv.y*flux_out.x;
-                data_out[thread_id].s3 += 0.5*uv.x*(dot(uv,uv)*flux_out.x + flux_out.y);
+                data_out[thread_id].s0 += flux_out.x;
+                data_out[thread_id].s1 += uv.x*flux_out.x;
+                data_out[thread_id].s2 += uv.y*flux_out.x;
+                data_out[thread_id].s3 += 0.5*(dot(uv,uv)*flux_out.x + flux_out.y);
             }
         }
         
@@ -1123,24 +1123,19 @@ wallMassEnergyFluxes(__global double2* normal,
         }
         
         if (thread_id == 0) {
-            double4 macro_in = data_in[0];
-            double4 macro_out = data_out[0];
+            double4 macro_in = -rot*data_in[0];
+            double4 macro_out = rot*data_out[0];
             
-            // convert to absolute quantity
-            macro_in *= dt*face_length;
-            macro_out *= dt*face_length;
+            // total internal energy
+            double2 mean_vel;
             
-            // convert total energy to temperature
-            macro_in = getPrimary(macro_in);
-            macro_out = getPrimary(macro_out);
+            mean_vel = macro_in.s12/macro_in.s0;
+            macro_in.s3 -= 0.5*dot(mean_vel,mean_vel)*macro_in.s0;
             
-            // calculate total internal energy
-            macro_in.s3 = (macro_in.s0*B)/(2.0*macro_in.s3);
-            macro_out.s3 = (macro_out.s0*B)/(2.0*macro_out.s3);
-            
-            
-            
-             WALL_FLUX(face, ci) = (double4)(macro_in.s0, macro_out.s0, macro_in.s3, macro_out.s3);
+            mean_vel = macro_out.s12/macro_out.s0;
+            macro_out.s3 -= 0.5*dot(mean_vel,mean_vel)*macro_out.s0;
+
+            WALL_FLUX(face, ci) = (double4)(macro_in.s0, macro_out.s0, macro_in.s3, macro_out.s3);
         }
     }
 

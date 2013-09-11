@@ -837,19 +837,16 @@ class UGKSBlock(object):
                                  flux, self.macro_D, dt)
             
             cl.enqueue_barrier(self.queue)
-            
 
-        self.prg.wallMassEnergyFluxes(self.queue, gsize, wsize,
-                     self.normal_D, self.length_D, self.area_D,
-                     wall, flux, self.wall_fluxes_D, dt)
-        
-        
-        cl.enqueue_barrier(self.queue)
-        
-            
         self.prg.wallFlux(self.queue, gsize, wsize,
                      self.normal_D, self.length_D, 
                      wall, flux, flux_macro, dt)
+                     
+        cl.enqueue_barrier(self.queue)
+                     
+        self.prg.wallMassEnergyFluxes(self.queue, gsize, wsize,
+                     self.normal_D, self.length_D, self.area_D,
+                     wall, flux, self.wall_fluxes_D, dt)
         
         return 
     

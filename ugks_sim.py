@@ -517,7 +517,7 @@ class UGKSim(object):
             # exit condition maximum time reached
             if gdata.time >= gdata.max_time:
                 print "simulation exit -> time limit reached"
-                print "step ",self.step," t = ",gdata.get_time()
+                print "step ",self.step," t = ",gdata.time
                 break
             
             if get_res:
@@ -553,7 +553,7 @@ class UGKSim(object):
             # print progress
             if ((not self.step % gdata.print_count) & (gdata.print_count > 0)) | get_res:
                 step_finished.wait()
-                print "step %d, t = %0.5f"%(self.step, gdata.get_time())
+                print "step %d, t = %0.5f"%(self.step, gdata.time)
                 if not res.get_residual:
                     sec_per_step = (time.time()-t0)/float(self.step)
                     steps_remaining_time = (gdata.max_time - gdata.time)/gdata.dt
@@ -579,7 +579,7 @@ class UGKSim(object):
         
         if self.step >= gdata.max_step:
             print "simulation exit -> step count reached"
-            print " -> step ",self.step," t = ",gdata.get_time()
+            print " -> step ",self.step," t = ",gdata.time
         
         print "wall clock time of simulation run = ",self.secToTime(time.time()-t0)
         
@@ -915,7 +915,7 @@ class UGKSim(object):
         grp = self.hdf.require_group("step_" + str(self.step))
         
         self.xdmf.write('<Grid Name="TimeSlice" GridType="Collection" CollectionType="Spatial">\n')
-        self.xdmf.write('<Time Value="%0.15f" />\n'%gdata.get_time())
+        self.xdmf.write('<Time Value="%0.15f" />\n'%gdata.time)
         
         for b in self.blocks:
             xdmf_string = b.save_hdf(self.h5name_short, grp, self.step, all_data=saveAll)
