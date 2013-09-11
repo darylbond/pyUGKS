@@ -44,7 +44,8 @@ class SaveOptions:
     """
     
     __slots__ = 'save','save_name','writeHDF','writeVTK','save_initial_f',
-    'save_final_f','internal_data','compression','save_count','h5Name'
+    'save_final_f','internal_data','compression','save_count','h5Name',
+    'initial_save_count','initial_save_cutoff_time'
     
     save = False
     save_name = ""
@@ -54,6 +55,8 @@ class SaveOptions:
     internal_data = False
     compression = 'gzip'
     save_count = 1
+    initial_save_count = None
+    initial_save_cutoff_time = None
 
 #----------------------------------------------------------------------
 class ResidualOptions:
@@ -442,6 +445,8 @@ def non_dimensionalise_all():
     gdata.dt /= gdata.t_ref
     gdata.max_time /= gdata.t_ref
     gdata.dt_plot /= gdata.t_ref
+    
+    gdata.save_options.initial_save_cutoff_time /= gdata.t_ref
     
     return
 

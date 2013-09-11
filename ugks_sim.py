@@ -38,6 +38,7 @@ class UGKSim(object):
     opt_time = []
     opt_step = 0
     opt_item = 1
+    force_time = False
     
     saved = False
     closed = False
@@ -257,22 +258,24 @@ class UGKSim(object):
         update the global time step
         """
         
-        dt_old = gdata.dt
+        if not self.force_time:
         
-        dt_list = []
-
-        for b in self.blocks:
-            dt_list.append(b.max_dt)
+            dt_old = gdata.dt
             
-        dt_new = min(dt_list)
-        
-        if dt_old != dt_new:
-            print "dt = %g -->"%gdata.dt,
-            # impose a limit on how much the time step can increase for each iteration
-            if (dt_new > (1.0+gdata.delta_dt)*dt_old) & limit:
-                dt_new = (1.0+gdata.delta_dt)*dt_old
-            gdata.dt = dt_new
-            print "dt = %g"%gdata.dt
+            dt_list = []
+    
+            for b in self.blocks:
+                dt_list.append(b.max_dt)
+                
+            dt_new = min(dt_list)
+            
+            if dt_old != dt_new:
+                print "dt = %g -->"%gdata.dt,
+                # impose a limit on how much the time step can increase for each iteration
+                if (dt_new > (1.0+gdata.delta_dt)*dt_old) & limit:
+                    dt_new = (1.0+gdata.delta_dt)*dt_old
+                gdata.dt = dt_new
+                print "dt = %g"%gdata.dt
 
         return
 
@@ -411,9 +414,6 @@ class UGKSim(object):
 
         # update time counter - lattice units
         gdata.time += gdata.dt
-
-        if (gdata.max_time - gdata.time) < gdata.dt:
-            gdata.dt = gdata.max_time - gdata.time
 
         if get_res:
             gdata.residual_options.global_residual = res
@@ -570,6 +570,16 @@ class UGKSim(object):
                     self.saveToFile(save_f=save.save_final_f)
                 else:
                     self.saveToFile()
+                    
+            if gdata.time < save.initial_save_cutoff_time:
+                if not self.step % save.initial_save_count:
+                    step_finished.wait()
+                    self.saveToFile()
+                
+            
+            if (gdata.max_time - gdata.time) < gdata.dt:
+                gdata.dt = gdata.max_time - gdata.time
+                self.force_time = True
         
         self.queue.finish()        
         
