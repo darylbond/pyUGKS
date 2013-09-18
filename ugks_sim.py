@@ -830,6 +830,7 @@ class UGKSim(object):
             blk.create_dataset("centreY",data=b.centreY, compression=save.compression)
             
             bcg = blk.create_group('BC')
+            nc = [b.ni, b.nj, b.ni, b.nj]
             for face, bc in enumerate(b.bc_list):
                 bcf = bcg.create_group(faceName[face])
                 bcf.create_dataset('type_of_BC',data=bcName[bc.type_of_BC])
@@ -859,27 +860,33 @@ class UGKSim(object):
                     bcf.create_dataset('alpha_t',data=bc.alpha_t)
                     bcf.create_dataset('k_f',data=bc.k_f)
                     bcf.create_dataset('S_T',data=bc.S_T)
+                    bcf.create_dataset('alpha_p',data=bc.alpha_p)
                     bcf.create_dataset('cover_initial',data=bc.cover_initial)
                     bcf.create_dataset('reflect_type',data=bc.reflect_type)
                 
             
-            # edge coords
-            sz = 2*(b.ni+b.nj)
-            ex = np.zeros((sz), dtype=np.float64)
-            ey = np.zeros((sz), dtype=np.float64)
+                # edge coords
+                sz = nc[face]+1
+                ex = np.zeros((sz), dtype=np.float64)
+                ey = np.zeros((sz), dtype=np.float64)
+                
+                if face == 0:
+                    ex[:] = b.x[:,-1,0]
+                    ey[:] = b.y[:,-1,0]
+                elif face == 1:
+                    ex[:] = b.x[-1,:,0]
+                    ey[:] = b.y[-1,:,0]
+                elif face == 2:
+                    ex[:] = b.x[:,0,0]
+                    ey[:] = b.y[:,0,0]
+                elif face == 3:
+                    ex[:] = b.x[0,:,0]
+                    ey[:] = b.y[0,:,0]
+                
+                bcf.create_dataset("x_edge",data=ex, compression=save.compression)
+                bcf.create_dataset("y_edge",data=ey, compression=save.compression)
             
-            ex[0:(b.ni+1)] = b.x[:,-1,0]
-            ex[(b.ni):(b.ni+b.nj+1)] = b.x[-1,::-1,0]
-            ex[(b.ni+b.nj):(2*b.ni+b.nj+1)] = b.x[::-1,0,0]
-            ex[(2*b.ni+b.nj)::] = b.x[0,0:-1,0]
             
-            ey[0:(b.ni+1)] = b.y[:,-1,0]
-            ey[(b.ni):(b.ni+b.nj+1)] = b.y[-1,::-1,0]
-            ey[(b.ni+b.nj):(2*b.ni+b.nj+1)] = b.y[::-1,0,0]
-            ey[(2*b.ni+b.nj)::] = b.y[0,0:-1,0]
-            
-            blk.create_dataset("x_edge",data=ex, compression=save.compression)
-            blk.create_dataset("y_edge",data=ey, compression=save.compression)
             
             s1 = ""
             s1 += '<Grid Name="Block_%d" GridType="Uniform">\n'%(b.id)
