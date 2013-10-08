@@ -564,7 +564,7 @@ class UGKSim(object):
                     print " --> t_final-t_now = %s"%self.secToTime(time_remaining)
             
             # save to file
-            if not self.step % save.save_count:
+            if (not self.step % save.save_count) & (self.step < gdata.max_step-1):
                 step_finished.wait()
                 if self.step == gdata.max_step:
                     self.saveToFile(save_f=save.save_final_f)
@@ -594,8 +594,6 @@ class UGKSim(object):
         print "wall clock time of simulation run = ",self.secToTime(time.time()-t0)
         
         self.saveToFile(close_file=True, save_f=save.save_final_f, save_wall_flux=save.save_final_flux)
-        
-        
 
         if res.plot_residual & res.get_residual:
             plt.ioff()
@@ -930,6 +928,7 @@ class UGKSim(object):
         print "saving to HDF5...",
         
         grp = self.hdf.require_group("step_" + str(self.step))
+        grp.create_dataset('step',data=self.step)
         
         self.xdmf.write('<Grid Name="TimeSlice" GridType="Collection" CollectionType="Spatial">\n')
         self.xdmf.write('<Time Value="%0.15f" />\n'%gdata.time)
