@@ -1152,7 +1152,7 @@ class UGKSBlock(object):
             
         return
     
-    def updateHost(self, getF = False):
+    def updateHost(self, get_f=False, get_wall_f=False):
         """
         update host data arrays
         """
@@ -1180,12 +1180,25 @@ class UGKSBlock(object):
             # get internal data, if specified
             self.getInternal()
             
-        if getF:
+        if get_f:
             f_H = np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64)
             cl.enqueue_copy(self.queue,f_H,self.f_D)
-            return f_H
             
-        return
+            
+        if get_wall_f:
+            f_S_H = np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64)
+            cl.enqueue_copy(self.queue,f_S_H,self.flux_f_S_D)
+            
+            f_W_H = np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64)
+            cl.enqueue_copy(self.queue,f_W_H,self.flux_f_W_D)
+            
+        
+        if get_f & get_wall_f:
+            return f_H, f_S_H, f_W_H
+        elif get_f:
+            return f_H
+        else:
+            return
     
     def getDT(self):
         """
@@ -1204,7 +1217,7 @@ class UGKSBlock(object):
         
         return
         
-    def save_hdf(self, h5Name, grp, step, all_data=False):
+    def save_hdf(self, h5Name, grp, step, save_f=False, save_flux=False):
         """
         save block data to hdf_file
         """
@@ -1215,10 +1228,13 @@ class UGKSBlock(object):
         sgrp.create_dataset("dt",data=gdata.dt)
         sgrp.create_dataset("time",data=gdata.time)
         
-        if all_data:
-            f_H = self.updateHost(getF = all_data)
+        
+        if save_f & save_flux:
+            f_H, f_S_H, f_W_H = self.updateHost(get_f=save_f, get_wall_f=save_flux)
+        elif save_f:
+            f_H = self.updateHost(get_f=save_f)
         else:
-            self.updateHost(getF = all_data)
+            self.updateHost()
         
         sgrp.create_dataset("rho",data=self.macro_H[:,:,0], compression=gdata.save_options.compression)
         xdmf += '<Attribute Name="rho" AttributeType="Scalar" Center="Cell">\n'
@@ -1305,11 +1321,25 @@ class UGKSBlock(object):
             fgrp.create_dataset("nrg_in",data=self.wall_fluxes_H[0:l,fid,2], compression=gdata.save_options.compression)
             fgrp.create_dataset("nrg_out",data=self.wall_fluxes_H[0:l,fid,3], compression=gdata.save_options.compression)
         
+            if save_flux:
+
+                if fid == 0: # NORTH
+                    data = f_S_H[self.ghost:self.Ni-self.ghost,self.Nj-self.ghost,:,:]
+                elif fid == 1: # EAST
+                    data = f_W_H[self.Ni-self.ghost,self.ghost:self.Nj-self.ghost,:,:]
+                elif fid == 2: # SOUTH
+                    data = f_S_H[self.ghost:self.Ni-self.ghost,self.ghost,:,:]
+                elif fid == 3: # WEST
+                    data = f_W_H[self.ghost,self.ghost:self.Nj-self.ghost,:,:]
+                
+                fgrp.create_dataset("flux",data=data, compression=gdata.save_options.compression)
+        
             
-        if all_data:
+        if save_f:
             sgrp = grp.require_group("block_" + str(self.id))
 
             sgrp.create_dataset("f",data=f_H, compression=gdata.save_options.compression)
+            
                 
         
         return xdmf

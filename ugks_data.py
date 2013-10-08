@@ -45,13 +45,14 @@ class SaveOptions:
     
     __slots__ = 'save','save_name','writeHDF','writeVTK','save_initial_f',
     'save_final_f','internal_data','compression','save_count','h5Name',
-    'initial_save_count','initial_save_cutoff_time'
+    'initial_save_count','initial_save_cutoff_time','save_final_flux'
     
     save = False
     save_name = ""
     h5Name = ""
     save_initial_f = False
     save_final_f = False
+    save_final_flux = False
     internal_data = False
     compression = 'gzip'
     save_count = 1

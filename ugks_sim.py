@@ -593,7 +593,7 @@ class UGKSim(object):
         
         print "wall clock time of simulation run = ",self.secToTime(time.time()-t0)
         
-        self.saveToFile(close_file=True, save_f=save.save_final_f)
+        self.saveToFile(close_file=True, save_f=save.save_final_f, save_wall_flux=save.save_final_flux)
         
         
 
@@ -919,7 +919,7 @@ class UGKSim(object):
         
         return
 
-    def saveHDF5(self, saveAll = False):
+    def saveHDF5(self, save_f=False, save_flux=False):
         """
         save data to a hdf5 file
         """
@@ -935,7 +935,7 @@ class UGKSim(object):
         self.xdmf.write('<Time Value="%0.15f" />\n'%gdata.time)
         
         for b in self.blocks:
-            xdmf_string = b.save_hdf(self.h5name_short, grp, self.step, all_data=saveAll)
+            xdmf_string = b.save_hdf(self.h5name_short, grp, self.step, save_f=save_f, save_flux=save_flux)
             self.xdmf.write(self.xdmf_blocks[b.id])
             self.xdmf.write(xdmf_string)
             self.xdmf.write('</Grid>\n')
@@ -976,14 +976,14 @@ class UGKSim(object):
         
         return
 
-    def saveToFile(self, close_file=False, save_f=False):
+    def saveToFile(self, close_file=False, save_f=False, save_wall_flux=False):
         """
         group saving calls together
         """
         if gdata.save_options.save & (not self.saved):
             
             print "saving step: ",self.step
-            self.saveHDF5(save_f)
+            self.saveHDF5(save_f, save_wall_flux)
             
             self.saved = True
             
