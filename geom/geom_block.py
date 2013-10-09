@@ -153,14 +153,14 @@ class Block(object):
         if type_of_BC == CONSTANT:
             if flowCondition:
                 newbc = ConstantBC(D=flowCondition.D,
-                                  T = flowCondition.T,
-                                  U = flowCondition.U,
-                                  V = flowCondition.V,
-                                  UDF_D = flowCondition.UDF_D,
-                                  UDF_U = flowCondition.UDF_U,
-                                  UDF_V = flowCondition.UDF_V,
-                                  UDF_T = flowCondition.UDF_T,
-                                   label = flowCondition.label)
+                                  T=flowCondition.T,
+                                  U=flowCondition.U,
+                                  V=flowCondition.V,
+                                  UDF_D=flowCondition.UDF_D,
+                                  UDF_U=flowCondition.UDF_U,
+                                  UDF_V=flowCondition.UDF_V,
+                                  UDF_T=flowCondition.UDF_T,
+                                   label=flowCondition.label)
             else:
                 newbc = ConstantBC(D=D, T=T, U=U, V=V, UDF_D=UDF_D, 
                                    UDF_U=UDF_U, UDF_V=UDF_V, UDF_T=UDF_T, 
@@ -340,7 +340,7 @@ class Block2D(Block):
         # (default) empty list for each block
         self.bc_list = copy.copy(bc_list)
         self.cf_list = copy.copy(cf_list)
-        self.fill_condition = fill_condition
+        self.fill_condition = copy.copy(fill_condition)
         #
         Block.blockList.append(self)
         return

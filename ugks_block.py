@@ -77,6 +77,8 @@ class UGKSBlock(object):
         # grid data
         b = Block.blockList[block_id]
         
+        self.label = b.label
+        
         if gdata.flux_method == "vanLeer":
             self.ghost = 2
         elif gdata.flux_method == "WENO5":
@@ -829,9 +831,14 @@ class UGKSBlock(object):
                                  self.normal_D, wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  flux, self.macro_D, dt)
+            elif rtype == 'D':
+                self.prg.adsorbingWallD_P2(self.queue, gsize, wsize,
+                                 self.normal_D, wall, self.wall_prop_D,
+                                 self.wall_cover_D, self.wall_dist_D,
+                                 flux, self.macro_D, dt)
                                  
             else:
-                self.prg.adsorbingWallDS_P2(self.queue, gsize, wsize,
+                self.prg.adsorbingWallS_P2(self.queue, gsize, wsize,
                                  self.normal_D, wall, self.wall_prop_D,
                                  self.wall_cover_D, self.wall_dist_D,
                                  flux, self.macro_D, dt)

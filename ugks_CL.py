@@ -233,18 +233,22 @@ def genHeader(data):
     has_diffuse = False
     has_CL = False
     has_S = False
+    has_D = False
     for bc in bc_list:
         if bc.type_of_BC == DIFFUSE:
             has_diffuse = True            
         elif bc.type_of_BC == ADSORBING:
             if bc.reflect_type == 'S':
                 has_S = True
+            elif bc.reflect_type == 'D':
+                has_D = True
             elif bc.reflect_type == 'CL':
                 has_CL = True
 
     s += '#define HAS_DIFFUSE_WALL %d\n'%has_diffuse
-    s += '#define HAS_CL_WALL %d\n'%has_CL
-    s += '#define HAS_SPECULAR_WALL %d\n'%has_S
+    s += '#define HAS_ADSORBING_CL_WALL %d\n'%has_CL
+    s += '#define HAS_ADSORBING_SPECULAR_WALL %d\n'%has_S
+    s += '#define HAS_ADSORBING_DIFFUSE_WALL %d\n'%has_D
 
     wall_name = ['N','E','S','W']    
     

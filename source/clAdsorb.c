@@ -221,7 +221,7 @@ double2 vartheta_langmuir(double D, double T, size_t face)
     return vartheta;
 }
 
-#if (HAS_CL_WALL || HAS_SPECULAR_WALL)  // adsorb_CL & adsorb_specular-diffuse
+#if (HAS_ADSORBING_CL_WALL || HAS_ADSORBING_SPECULAR_WALL || HAS_ADSORBING_DIFFUSE_WALL)  // adsorb_CL & adsorb_specular-diffuse
 #define COVER(w, i) wall_cover[(i)*4 + (w)]
 #define WALL_DIST(i, v) wall_dist[(i)*NV + (v)]
 
@@ -436,7 +436,7 @@ adsorbingWall_P1(__global double2* normal,
 
 #endif
 
-#if HAS_CL_WALL // adsorb_CL
+#if HAS_ADSORBING_CL_WALL // adsorb-CL
 
 __kernel void
 adsorbingWallCL_P2(__global double2* normal,
@@ -605,9 +605,9 @@ adsorbingWallCL_P2(__global double2* normal,
 
 #endif
 
-#if HAS_SPECULAR_WALL // adsorb_specular-diffuse
+#if HAS_ADSORBING_SPECULAR_WALL // adsorb-specular
 __kernel void
-adsorbingWallDS_P2(__global double2* normal,
+adsorbingWallS_P2(__global double2* normal,
                     int face,
                     __global double4* wall_prop,
                     __global double4* wall_cover,
@@ -723,6 +723,165 @@ adsorbingWallDS_P2(__global double2* normal,
             }
             
             // now we know how much the specular flux out of the wall is and can 
+            // compare it to 'reflected_flux'
+            
+            if (thread_id == 0) {
+                data[0].x = reflected_flux/data[0].x;
+            }
+            
+            barrier(CLK_LOCAL_MEM_FENCE);
+            
+            ratio = data[0].x;
+        }
+        
+        //COVER(face, ci).s2 = ratio;
+
+        // now adjust the reflected distribution so that we conserve mass
+        // also add on any desorbing flux
+        
+        // convert from flux to density of distribution assuming that we 
+        // have a Maxwellian (this is true for the desorbed particles)
+        double desorbed_flux = COVER(face, ci).s3;
+        double adsorbed_flux = COVER(face, ci).s2;
+        
+        size_t account_adsorb = 0;
+        if (((desorbed_flux == 0.0) && (adsorbed_flux > 0.0)) && (reflected_flux == 0.0)) {
+            account_adsorb = 1;
+        }
+        
+        wall.s0 = 2*desorbed_flux*sqrt(PI*wall.s3);
+        
+        for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+            size_t gv = li*LOCAL_SIZE+thread_id;
+            if (gv < NV) {
+                double2 uv = interfaceVelocity(gv, face_normal);
+                int delta = (sign(uv.x)*rot + 1)/2; // (1 -> out of wall, 0 -> into wall)
+                double2 face_dist = FLUXF(gi,gj,gv);
+                face_dist *= 1 - delta*(1 - ratio);
+                face_dist += delta*fM(wall, uv, gv);
+                face_dist -= account_adsorb*delta*face_dist;
+                FLUXF(gi,gj,gv) = face_dist;
+            }
+        }
+    }
+    
+    return;
+}
+
+#endif
+
+#if HAS_ADSORBING_DIFFUSE_WALL // adsorb-diffuse
+__kernel void
+adsorbingWallD_P2(__global double2* normal,
+                    int face,
+                    __global double4* wall_prop,
+                    __global double4* wall_cover,
+                    __global double2* wall_dist,
+                    __global double2* flux_f,
+                    __global double4* macro,
+                    double dt)
+{
+    // Calculate the incoming velocity distribution that is to be 
+    // reflected from the wall. 
+    
+    size_t gi = get_global_id(0);
+    size_t gj = get_global_id(1);
+    size_t thread_id = get_local_id(2);
+    size_t ci;
+    
+    int rot;
+    int face_id;
+
+    switch (face) {
+        case GNORTH:
+            ci = gi;
+            gi += GHOST;
+            gj += NJ - GHOST;
+            rot = -1;
+            face_id = SOUTH;
+            break;
+        case GEAST:
+            ci = gj;
+            gi += NI - GHOST;
+            gj += GHOST;
+            rot = -1;
+            face_id = WEST;
+            break;
+        case GSOUTH:
+            ci = gi;
+            gi += GHOST;
+            gj += GHOST;
+            rot = 1;
+            face_id = SOUTH;
+            break;
+        case GWEST:
+            ci = gj;
+            gi += GHOST;
+            gj += GHOST;
+            rot = 1;
+            face_id = WEST;
+            break;
+    }
+    
+    __local double2 data[LOCAL_SIZE];
+
+    if (((face_id == SOUTH) && ((gi - GHOST) < ni)) 
+    || ((face_id == WEST) && ((gj - GHOST) < nj))) {
+
+        // read the updated wall coverage
+
+        double2 face_normal = NORMAL(gi,gj,face_id);
+        
+        double4 wall = WALL_PROP(face, ci);
+        wall.s12 = toLocal(wall.s12, face_normal);
+        
+        double reflected_flux = COVER(face, ci).s1;
+        
+        data[thread_id] = 0.0;
+        
+        // now calculate the specularly reflected distribution
+        // NOTE: this only works for axis aligned boundaries
+        double ratio = 1.0;
+        if (reflected_flux > 0.0) {
+            double2 diffuse;
+            
+            for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+                size_t gv = li*LOCAL_SIZE+thread_id;
+                if (gv < NV) {
+                    double2 uv_out = interfaceVelocity(gv, face_normal); // velocities out of wall
+                    int delta = (sign(uv_out.x)*rot + 1)/2; // (1 -> out of wall)
+                    
+                    // calculate the distribution for this velocity
+                    diffuse = 0.0;
+                    if (delta) {
+                        diffuse = fM(wall, uv_out, gv);
+                    }
+                    
+                    double2 face_dist = FLUXF(gi,gj,gv);
+                    FLUXF(gi,gj,gv) = delta*diffuse + (1-delta)*face_dist;
+                    
+                    data[thread_id] += rot*uv_out.x*diffuse;
+                }
+            }
+            
+            
+            barrier(CLK_LOCAL_MEM_FENCE);
+            
+
+            // perform reduction
+            int step = 1;
+            int grab_id = 2;
+            while (step < LOCAL_SIZE) {
+                if (!(thread_id%grab_id)) { // assume LOCAL_SIZE is a power of two
+                    // reduce
+                    data[thread_id] += data[thread_id+step];
+                }
+                step *= 2;
+                grab_id *= 2;
+                barrier(CLK_LOCAL_MEM_FENCE);
+            }
+            
+            // now we know how much the diffuse flux out of the wall is and can 
             // compare it to 'reflected_flux'
             
             if (thread_id == 0) {

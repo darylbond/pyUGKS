@@ -5,6 +5,8 @@ Created on Mon Jun 27 10:29:46 2011
 @author: uqdbond1
 """
 
+import copy
+
 #LB_flow.py
 
 class FlowCondition(object):
@@ -34,22 +36,22 @@ class FlowCondition(object):
         """
         Create a FlowCondition.
         """
-        self.D = D
-        self.U = U
-        self.V = V
-        self.T = T
-        self.P = P
-        self.qx = qx
-        self.qy = qy
-        self.tau = tau
+        self.D = copy.deepcopy(D)
+        self.U = copy.deepcopy(U)
+        self.V = copy.deepcopy(V)
+        self.T = copy.deepcopy(T)
+        self.P = copy.deepcopy(P)
+        self.qx = copy.deepcopy(qx)
+        self.qy = copy.deepcopy(qy)
+        self.tau = copy.deepcopy(tau)
         
-        self.UDF_D = UDF_D
-        self.UDF_U = UDF_U
-        self.UDF_V = UDF_V
-        self.UDF_T = UDF_T
-        self.UDF_qx = UDF_qx
-        self.UDF_qy = UDF_qy
-        self.UDF_tau = UDF_tau
+        self.UDF_D = copy.deepcopy(UDF_D)
+        self.UDF_U = copy.deepcopy(UDF_U)
+        self.UDF_V = copy.deepcopy(UDF_V)
+        self.UDF_T = copy.deepcopy(UDF_T)
+        self.UDF_qx = copy.deepcopy(UDF_qx)
+        self.UDF_qy = copy.deepcopy(UDF_qy)
+        self.UDF_tau = copy.deepcopy(UDF_tau)
         
         if (not UDF_D) | (not UDF_U) | (not UDF_V) | (not UDF_T):
             self.isUDF = True
@@ -62,6 +64,24 @@ class FlowCondition(object):
         FlowCondition.flowList.append(self)
 
         return
+        
+    def __copy__(self):
+        return FlowCondition(D=self.D, 
+                             U=self.U,
+                             V=self.V,
+                             T=self.T,
+                             P=self.P,
+                             qx=self.qx,
+                             qy=self.qy,
+                             tau=self.tau,
+                             label=self.label,
+                             UDF_D=self.UDF_D,
+                             UDF_U=self.UDF_U,
+                             UDF_V=self.UDF_V,
+                             UDF_T=self.UDF_T,
+                             UDF_qx=self.UDF_qx,
+                             UDF_qy=self.UDF_qy,
+                             UDF_tau=self.UDF_tau)
 
     def __str__(self):
         """

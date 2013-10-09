@@ -903,7 +903,7 @@ accommodatingWallDist(__global double2* normal,
 
 #endif
 
-#if ((HAS_DIFFUSE_WALL || HAS_SPECULAR_WALL) || HAS_CL_WALL)
+#if (HAS_DIFFUSE_WALL || HAS_ADSORBING_CL_WALL || HAS_ADSORBING_SPECULAR_WALL || HAS_ADSORBING_DIFFUSE_WALL)
 __kernel void
 wallFlux(__global double2* normal,
             __global double* side_length, int face,
@@ -1072,8 +1072,6 @@ wallMassEnergyFluxes(__global double2* normal,
         // get the interface distribution and the flux out due to this distribution
 
         double2 face_normal = NORMAL(gi,gj,face_id);
-
-        double face_length = LENGTH(gi,gj,face_id);
 
         // calculate the flux that is to come back into the domain given the distribution on the wall
         data_in[thread_id] = 0.0;

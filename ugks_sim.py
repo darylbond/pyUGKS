@@ -817,6 +817,7 @@ class UGKSim(object):
         self.xdmf_blocks = []
         for b in self.blocks:
             blk = grp.create_group("block_"+str(b.id))
+            blk.create_dataset("label",data=b.label)
             blk.create_dataset("Ni",data=b.Ni)
             blk.create_dataset("Nj",data=b.Nj)
             blk.create_dataset("ni",data=b.ni)

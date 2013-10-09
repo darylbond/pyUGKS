@@ -22,6 +22,7 @@ This is done once per time step, before evaluating the fluxes.
 """
 
 import numpy as np
+import copy
 
 ADJACENT        = 0
 COMMON          = 0
@@ -89,11 +90,11 @@ class BoundaryCondition(object):
             
     def __init__(self,
                  type_of_BC = REFLECT,
-                 D = 1.0,
-                 T = 300.0,
+                 D = 0.0,
+                 T = 0.0,
                  U = 0.0,
                  V = 0.0,
-                 P = -1.0,
+                 P = 0.0,
                  UDF_D = None,
                  UDF_U = None,
                  UDF_V = None,
@@ -112,34 +113,34 @@ class BoundaryCondition(object):
                  orientation=0,
                  label=""):
                      
-        self.type_of_BC = type_of_BC
-        self.D = D
-        self.T = T
-        self.U = U
-        self.V = V
-        self.P = P
-        self.UDF_D = UDF_D
-        self.UDF_U = UDF_U
-        self.UDF_V = UDF_V
-        self.UDF_T = UDF_T
+        self.type_of_BC = copy.copy(type_of_BC)
+        self.D = copy.copy(D)
+        self.T = copy.copy(T)
+        self.U = copy.copy(U)
+        self.V = copy.copy(V)
+        self.P = copy.copy(P)
+        self.UDF_D = copy.copy(UDF_D)
+        self.UDF_U = copy.copy(UDF_U)
+        self.UDF_V = copy.copy(UDF_V)
+        self.UDF_T = copy.copy(UDF_T)
         if adsorb != None:
             self.adsorb = np.copy(adsorb)
         else:
             self.adsorb = None
-        self.beta_n=beta_n
-        self.beta_t=beta_t
-        self.alpha_n=alpha_n
-        self.alpha_t=alpha_t
-        self.k_f=k_f
+        self.beta_n=copy.copy(beta_n)
+        self.beta_t=copy.copy(beta_t)
+        self.alpha_n=copy.copy(alpha_n)
+        self.alpha_t=copy.copy(alpha_t)
+        self.k_f=copy.copy(k_f)
         self.gamma_f=None
-        self.S_T=S_T
-        self.cover_initial=cover_initial
-        self.reflect_type=reflect_type
+        self.S_T=copy.copy(S_T)
+        self.cover_initial=copy.copy(cover_initial)
+        self.reflect_type=copy.copy(reflect_type)
         self.alpha_p = 0
-        self.other_block = other_block
-        self.other_face = other_face
-        self.orientation = orientation
-        self.label = label
+        self.other_block = copy.copy(other_block)
+        self.other_face = copy.copy(other_face)
+        self.orientation = copy.copy(orientation)
+        self.label = copy.copy(label)
             
         return
 
@@ -229,7 +230,7 @@ class ConstantBC(BoundaryCondition):
     """
     def __init__(self, D=0, T=0, U=0, V=0, UDF_D=None,
                  UDF_U=None, UDF_V=None, UDF_T=None, label="CONSTANT"):
-        BoundaryCondition.__init__(self, U=U, V=V, T=T, 
+        BoundaryCondition.__init__(self,D=D, U=U, V=V, T=T, 
                                    UDF_D=UDF_D, UDF_U=UDF_U, UDF_V=UDF_V, UDF_T=UDF_T, 
                                    type_of_BC=CONSTANT, label=label)
         return
