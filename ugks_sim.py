@@ -258,6 +258,8 @@ class UGKSim(object):
         update the global time step
         """
         
+        
+        
         if not self.force_time:
         
             dt_old = gdata.dt

@@ -121,7 +121,7 @@ class UGKSData(object):
                 'u_min', 'v_min', 'u_mid', 'v_mid', 'u_max','v_max',\
                 'u_num','v_num','quad_type',\
                 'work_size_i','work_size_j','opt_sample_size', 'opt_run',\
-                'opt_start','delta_dt',\
+                'opt_start','delta_dt','suggest_dt',\
                 'relax_type'
     
     def __init__(self):
@@ -160,6 +160,7 @@ class UGKSData(object):
         
         # may be useful to change t0 if we are restarting from another job
         self.dt = 0.0
+        self.suggest_dt = False
         self.print_count = 20
         self.max_time = 1.0e-3
         self.max_step = 1
@@ -444,6 +445,7 @@ def non_dimensionalise_all():
     # global data items
     gdata.t0 /= gdata.t_ref
     gdata.dt /= gdata.t_ref
+    gdata.suggest_dt /= gdata.t_ref
     gdata.max_time /= gdata.t_ref
     gdata.dt_plot /= gdata.t_ref
     

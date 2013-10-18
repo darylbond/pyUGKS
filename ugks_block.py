@@ -1222,6 +1222,9 @@ class UGKSBlock(object):
         
         self.max_dt = gdata.CFL/max_freq
         
+        if gdata.suggest_dt:
+            self.max_dt = min(gdata.suggest_dt, self.max_dt)
+        
         return
         
     def save_hdf(self, h5Name, grp, step, save_f=False, save_flux=False):
