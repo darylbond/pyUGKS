@@ -34,6 +34,89 @@ void flipud(int* i, int* j, int Ni, int Nj)
     (*j) = Nj - (*j);
 }
 
+/////////////////////////////////////////
+// getSwapIndex
+/////////////////////////////////////////
+    
+void getSwapIndex(int this_face, int* iB, int* jB, int that_face, int NIB, int NJB, int v) 
+{
+    //get the corresponding index to i, j for ghost cell information swapping
+    // achieves this through rotation of matrix A (this block) and then shifting of matrix A
+    //    to align the ghost cells with the corresponding cells of matrix B (other block)
+    // NOTE: "v" is used to distinguish between when we are looking for vertex indices or cell indices
+    //         vertex -> v=1
+    //         cell   -> v=0
+  
+  int adjust_flip, adjust_rot;
+  if (v == 0) {
+    adjust_flip = -1;
+    adjust_rot = 0;
+  } else {
+    adjust_flip = 0;
+    adjust_rot = 1;
+  }
+	
+  if (this_face == GEAST) {
+          if (that_face == GEAST) {
+            fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+            (*iB) += NIB - 2*GHOST;
+          } else if (that_face == GWEST) {
+            (*iB) -= NI - 2*GHOST;
+          } else if (that_face == GNORTH) {
+            rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
+            (*jB) += NJB - 2*GHOST;
+          } else if (that_face == GSOUTH) {
+            rot90(iB,jB,1,NIB+adjust_rot,NJB+adjust_rot);
+            flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+            (*jB) -= NJ - 2*GHOST;
+          }
+        } else if (this_face == GWEST) {
+          if (that_face == GWEST) {
+            fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+            (*iB) -= NI - 2*GHOST;
+          } else if (that_face == GEAST) {
+            (*iB) += NIB - 2*GHOST;
+          } else if(that_face == GNORTH) {
+            rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
+            fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+            (*jB) += NJB - 2*GHOST;
+          } else if (that_face == GSOUTH) {
+            rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
+            (*jB) -= NJ - 2*GHOST;
+          }
+        } else if (this_face == GNORTH) {
+          if (that_face == GNORTH) {
+            flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+            (*jB) += NJB - 2*GHOST;
+          } else if (that_face == GSOUTH) {
+            (*jB) -= NJ - 2*GHOST;
+          } else if (that_face == GEAST) {
+            rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
+            (*iB) += NIB - 2*GHOST;
+          } else if (that_face == GWEST) {
+            rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
+            fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+            (*iB) -= NI - 2*GHOST;
+          } 
+        } else if (this_face == GSOUTH) {
+          if (that_face == GSOUTH) {
+            flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+            (*jB) -= NJ - 2*GHOST;
+          } else if (that_face == GNORTH) {
+            (*jB) += NJB - 2*GHOST;
+          } else if (that_face == GEAST) {
+            rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
+            flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+            (*iB) += NIB - 2*GHOST;
+          } else if (that_face == GWEST) {
+            rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
+            (*iB) -= NI - 2*GHOST;
+          }
+        }
+  
+  
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // KERNEL: xyExchange: block coords communication
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,6 +210,8 @@ xyExchange(__global double2* xyA,
   B1 = XYB(B1i,B1j);
   B2 = XYB(B2i,B2j);
   
+  int misalign = (A1.x != B1.x) || (A1.y != B1.y) || (A2.x != B2.x) || (A2.y != B2.y);
+  
   int iB, jB;
   
   for (int ii=0; ii<2; ++ii) {
@@ -135,74 +220,16 @@ xyExchange(__global double2* xyA,
       jB = gj + jj;
   
       // now align vertices on the edge
-      if (all(isnotequal(A1,B1)) & all(isnotequal(A2,B2))) {
+      if (misalign) {
         // we are not aligned
         if ((this_face == GEAST) || (this_face == GWEST)) {
           flipud(&iB,&jB,NI,NJ);
-          //printf("1: ii = %i, jj = %i, (gi,gj) = (%i, %i), (iB,jB) = (%i, %i)\n",ii, jj, gi+ii,gj+jj,iB,jB);
         } else if ((this_face == GNORTH) || (this_face == GSOUTH)) {
           fliplr(&iB,&jB,NI,NJ);  // CHECK
         }
       }
       
-      if (this_face == GEAST) {
-          if (that_face == GEAST) {
-            fliplr(&iB,&jB,NI,NJ);
-            iB += NIB - 2*GHOST;
-            //printf("2: ii = %i, jj = %i, (gi,gj) = (%i, %i), (iB,jB) = (%i, %i)\n",ii, jj, gi+ii,gj+jj,iB,jB);
-          } else if (that_face == GWEST) {
-            iB -= NI - 2*GHOST;
-          } else if (that_face == GNORTH) {
-            rot90(&iB,&jB,1,NI+1,NJ+1);
-            jB += NJB - 2*GHOST;
-          } else if (that_face == GSOUTH) {
-            rot90(&iB,&jB,1,NIB+1,NJB+1);
-            flipud(&iB,&jB,NI,NJ);
-            jB -= NJ - 2*GHOST;
-          }
-        } else if (this_face == GWEST) {
-          if (that_face == GWEST) {
-            fliplr(&iB,&jB,NI,NJ);
-            iB -= NI - 2*GHOST;
-          } else if (that_face == GEAST) {
-            iB += NIB - 2*GHOST;
-          } else if(that_face == GNORTH) {
-            rot90(&iB,&jB,1,NI+1,NJ+1);
-            fliplr(&iB,&jB,NI,NJ);
-            jB += NJB - 2*GHOST;
-          } else if (that_face == GSOUTH) {
-            rot90(&iB,&jB,3,NI+1,NJ+1);
-            jB -= NJ - 2*GHOST;
-          }
-        } else if (this_face == GNORTH) {
-          if (that_face == GNORTH) {
-            flipud(&iB,&jB,NI,NJ);
-            jB += NJB - 2*GHOST;
-          } else if (that_face == GSOUTH) {
-            jB -= NJ - 2*GHOST;
-          } else if (that_face == GEAST) {
-            rot90(&iB,&jB,1,NI+1,NJ+1);
-            iB += NIB - 2*GHOST;
-          } else if (that_face == GWEST) {
-            rot90(&iB,&jB,1,NI+1,NJ+1);
-            fliplr(&iB,&jB,NI,NJ);
-            iB -= NI - 2*GHOST;
-          } 
-        } else if (this_face == GSOUTH) {
-          if (that_face == GSOUTH) {
-            flipud(&iB,&jB,NI,NJ);
-            jB -= NJ - 2*GHOST;
-          } else if (that_face == GNORTH) {
-            jB += NJB - 2*GHOST;
-          } else if (that_face == GEAST) {
-            rot90(&iB,&jB,3,NI+1,NJ+1);
-            flipud(&iB,&jB,NI,NJ);
-            iB += NIB - 2*GHOST;
-          } else if (that_face == GWEST) {
-            rot90(&iB,&jB,1,NI+1,NJ+1);
-            iB -= NI - 2*GHOST;
-          }
-        }
+      getSwapIndex(this_face, &iB, &jB, that_face, NIB, NJB, 1);
         
       XYA(gi+ii,gj+jj) = XYB(iB,jB);
     }
@@ -411,19 +438,25 @@ edgeExchange(__global double2* fA_,
   B1 = XYB(B1i,B1j);
   B2 = XYB(B2i,B2j);
   
-  int iB, jB;
+  int misalign = (A1.x != B1.x) || (A1.y != B1.y) || (A2.x != B2.x) || (A2.y != B2.y);
   
+  int iB = gi;
+  int jB = gj;
   
+  // now align vertices on the edge
+  if (misalign) {
+    // we are not aligned
+    if ((this_face == GEAST) || (this_face == GWEST)) {
+      flipud(&iB,&jB,NI-1,NJ-1);
+    } else if ((this_face == GNORTH) || (this_face == GSOUTH)) {
+      fliplr(&iB,&jB,NI-1,NJ-1);  // CHECK
+    }
+  }
   
-  
-  
-  
-  
-  getSwapIndex(this_face, &iB, &jB, that_face, NIB, NJB);
+  getSwapIndex(this_face, &iB, &jB, that_face, NIB, NJB, 0);
   
   // figure out if we have to negate x, y directions
-  
-  double2 ori = orientation(a0, a1, b0, b1, (double2)(1,1));
+  double2 ori = orientation(A1, A2, B1, B2, (double2)(1,1));
   
   size_t gv1, gv2;
   for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
@@ -432,15 +465,14 @@ edgeExchange(__global double2* fA_,
       
       // THIS NEEDS VERIFICATION FOR ALL CASES
       if ((ori.x == 1) && (ori.y == -1)) {
-        //gv2 = mirror_NS[gv1];
+        gv2 = mirror_NS[gv1];
       } else if ((ori.x == -1) && (ori.y == -1)) {
         gv2 = mirror_NS[mirror_EW[gv1]];
       } else if ((ori.x == -1) && (ori.y == 1)) {
-        //gv2 = mirror_EW[gv1];
+        gv2 = mirror_EW[gv1];
       } else {
         gv2 = gv1;
       }
-      
       fA(gi,gj,gv1) = fB(iB,jB,gv2);
     }
   }

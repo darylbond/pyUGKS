@@ -76,6 +76,9 @@ class UGKSim(object):
         print "\n INITIALISE DISTRIBUTION FUNCTIONS\n"
         self.initFunctions()
         
+        print "\n INITIALISE GHOST CELLS\n"
+        self.updateAllBC()
+        
         print "\n INITIALISE TIME STEP\n"
         self.calcTimeStep()
         self.updateTimeStep(limit=False)
