@@ -193,14 +193,14 @@ class UGKSBlock(object):
     def initGeom(self):
         
          # coordinate data, with ghost cells
-        xy_H = np.ones((self.Ni+1,self.Nj+1,2),dtype=np.float64)*np.nan # x, y
+        self.xy_H = np.ones((self.Ni+1,self.Nj+1,2),dtype=np.float64)*np.nan # x, y
         
         # initialise coordinate data
         start = np.array([self.ghost, self.ghost])
         stop = start + np.array([self.x.shape[0], self.x.shape[1]])
         
-        xy_H[start[0]:stop[0],start[1]:stop[1],0] = self.x[0:(self.ni+1),0:(self.nj+1),0]
-        xy_H[start[0]:stop[0],start[1]:stop[1],1] = self.y[0:(self.ni+1),0:(self.nj+1),0]
+        self.xy_H[start[0]:stop[0],start[1]:stop[1],0] = self.x[0:(self.ni+1),0:(self.nj+1),0]
+        self.xy_H[start[0]:stop[0],start[1]:stop[1],1] = self.y[0:(self.ni+1),0:(self.nj+1),0]
         
         # cell centres
         centre_H = -1.0*np.ones((self.Ni,self.Nj,2),dtype=np.float64) # cell centres, x, y
@@ -219,7 +219,7 @@ class UGKSBlock(object):
         
         ###
         # coordinate data, with ghost cells
-        self.xy_D = self.set_buffer(xy_H) # x, y
+        self.xy_D = self.set_buffer(self.xy_H) # x, y
         
         # cell centres
         self.centre_D = self.set_buffer(centre_H) # cell centres, x, y
@@ -629,7 +629,7 @@ class UGKSBlock(object):
         faceB = np.int32(other_face)
 
         # turn other_block index into a pointer to an object
-        other_block = self.blockList[other_block]        
+        other_block = self.blockList[other_block]
         
         NiB = np.int32(other_block.Ni)
         NjB = np.int32(other_block.Nj)
@@ -642,7 +642,7 @@ class UGKSBlock(object):
         self.prg.xyExchange(self.queue, global_size, None,
                                self.xy_D, faceA,
                                other_block.xy_D,
-                               NiB, NjB, faceB)
+                               NiB, NjB, faceB).wait()
     
     def ghostXYExtrapolate(self, this_face):
         """
@@ -657,7 +657,7 @@ class UGKSBlock(object):
             global_size = (self.ghost, self.nj)
         
         self.prg.xyExtrapolate(self.queue, global_size, None,
-                               self.xy_D, face)
+                               self.xy_D, face).wait()
             
     def updateGeom(self):
         """
@@ -684,6 +684,10 @@ class UGKSBlock(object):
         
         # once all vertex positions are updated, we can caclulate geometric 
         #  properties of the cells
+        
+        cl.enqueue_barrier(self.queue)
+        
+        cl.enqueue_copy(self.queue, self.xy_H, self.xy_D)
         
         self.prg.cellGeom(self.queue, (self.Ni, self.Nj), None,
                           self.xy_D, self.area_D, self.centre_D,

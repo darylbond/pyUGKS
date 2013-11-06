@@ -507,13 +507,13 @@ class UGKSim(object):
             
             if gdata.exit:
                 print "simulation exit -> interrupted"
-                print "step ",self.step," t = ",gdata.get_time()
+                print "step ",self.step," t = ",gdata.time
                 break
             
             # exit condition: sim has generated a NaN
             if foundNaN:
                 print "simulation exit -> NaN encountered"
-                print "step ",self.step," t = ",gdata.get_time()
+                print "step ",self.step," t = ",gdata.time
                 break
             
             # exit condition maximum time reached
@@ -827,6 +827,7 @@ class UGKSim(object):
             blk.create_dataset("ghost",data=b.ghost)
             blk.create_dataset("x",data=b.x, compression=save.compression)
             blk.create_dataset("y",data=b.y, compression=save.compression)
+            blk.create_dataset("xy",data=b.xy_H, compression=save.compression)
             blk.create_dataset("centreX",data=b.centreX, compression=save.compression)
             blk.create_dataset("centreY",data=b.centreY, compression=save.compression)
             

@@ -87,7 +87,9 @@ def genHeader(data):
     s += '#define gam {}\n'.format(gdata.gamma)
     s += '#define B {}\n'.format(gdata.b)
     s += '#define K {} // total number of extra degrees of freedom accounted for\n'.format(gdata.K)
-    s += '#define chi {}\n\n'.format(gdata.chi)
+    s += '#define chi {}\n'.format(gdata.chi)
+    s += '#define alpha_ref {}\n'.format(gdata.alpha_ref)
+    s += '#define omega_ref {}\n\n'.format(gdata.omega_ref)
     
     s += '#define CFL %0.15e\n\n'%gdata.CFL
     

@@ -2,11 +2,10 @@
 // rot90
 /////////////////////////////////////////
 
-void rot90(int* i, int* j, int n)
+void rot90(int* i, int* j, int n, int Ni, int Nj)
 {
     //rotate a matrix index [i,j] by 90deg CCW n times
-    int Ni = NI;
-    int Nj = NJ;
+    // NOTE: N is equal to number of elements
     for (int a = 0; a < n; a++) {
         int temp = (*i);
         (*i) = Nj - (*j) - 1;
@@ -16,92 +15,23 @@ void rot90(int* i, int* j, int n)
         Nj = temp;
     }
 }
-    
+
 /////////////////////////////////////////
-// getSwapIndex
+// flip
 /////////////////////////////////////////
-    
-void getSwapIndex(int faceA, int* i, int* j, int faceB, int NIB, int NJB) 
+
+void fliplr(int* i, int* j, int Ni, int Nj)
 {
-    //get the corresponding index to i, j for ghost cell information swapping
-    // achieves this through rotation of matrix A (this block) and then shifting of matrix A
-    //    to align the ghost cells with the corresponding cells of matrix B (other block)
-    
-  if (faceA == GNORTH) {
-        if (faceB == GNORTH) {
-            rot90(i,j,2);
-            (*j) = (*j) + NJB - 2*GHOST;
-	}
-	else if (faceB == GEAST) {
-	  rot90(i,j,1);
-	  (*i) = (*i) + NIB - 2*GHOST;
-	}
-        else if (faceB == GSOUTH) {
-            rot90(i,j,0);
-            (*j) = (*j) - NJ + 2*GHOST;
-	}
-        else if (faceB == GWEST) {
-            rot90(i,j,3);
-            (*i) = (*i) - NI + 2*GHOST;
-	}
-    }
-    
-    else if (faceA == GEAST) {
-        if (faceB == GNORTH) {
-            rot90(i,j,3);
-            (*j) = (*j) + NJB - 2*GHOST;
-	}
-        else if (faceB == GEAST) {
-            rot90(i,j,2);
-            (*i) = (*i) + NIB - 2*GHOST;
-	}
-        else if (faceB == GSOUTH) {
-            rot90(i,j,1);
-            (*j) = (*j) - NJ + 2*GHOST;
-	}
-        else if (faceB == GWEST) {
-            rot90(i,j,0);
-            (*i) = (*i) - NI + 2*GHOST;
-	}
-    }
-            
-    else if (faceA == GSOUTH) {
-        if (faceB == GNORTH) {
-            rot90(i,j,0);
-            (*j) = (*j) + NJB - 2*GHOST;
-	}
-        else if (faceB == GEAST) {
-            rot90(i,j,3);
-            (*i) = (*i) + NIB - 2*GHOST;
-	}
-        else if (faceB == GSOUTH) {
-            rot90(i,j,2);
-            (*j) = (*j) - NJ + 2*GHOST;
-	}
-        else if (faceB == GWEST) {
-            rot90(i,j,1);
-            (*i) = (*i) - NI + 2*GHOST;
-	}
-    }
-        
-    else if (faceA == GWEST) {
-        if (faceB == GNORTH) {
-            rot90(i,j,1);
-            (*j) = (*j) + NJB - 2*GHOST;
-	}
-        else if (faceB == GEAST) {
-            rot90(i,j,0);
-            (*i) = (*i) + NIB - 2*GHOST;
-	}
-        else if (faceB == GSOUTH) {
-            rot90(i,j,3);
-            (*j) = (*j) - NJ + 2*GHOST;
-	}
-        else if (faceB == GWEST) {
-            rot90(i,j,2);
-            (*i) = (*i) - NI + 2*GHOST;
-	}
-    }
+    //flip a matrix left to right
+    // NOTE: N is equal to number of elements minus one
+    (*i) = Ni - (*i);
+}
+
+void flipud(int* i, int* j, int Ni, int Nj)
+{
+    //flip a matrix left to right
+    // NOTE: N is equal to number of elements minus one
+    (*j) = Nj - (*j);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,71 +52,162 @@ xyExchange(__global double2* xyA,
   size_t gi = get_global_id(0);
   size_t gj = get_global_id(1);
   
-  int ci, cj, di, dj;
+  int A1i, A1j, A2i, A2j; // first and second coordinate indices
+  int B1i, B1j, B2i, B2j;
   
+  // get the top/bottom or left/right node indexes of this cells face
   switch (this_face) {
     case GNORTH:
       gi += GHOST;
       gj += NJ - GHOST + 1;
-      ci = GHOST;
-      cj = NJ - GHOST;
-      di = NI- GHOST;
-      dj = NJ - GHOST;
+      A1i = GHOST;
+      A1j = NJ - GHOST;
+      A2i = NI- GHOST;
+      A2j = NJ - GHOST;
       break;
     case GEAST:
       gi += NI - GHOST + 1;
       gj += GHOST;
-      ci = NI - GHOST;
-      cj = GHOST;
-      di = NI - GHOST;
-      dj = NJ - GHOST;
+      A1i = NI - GHOST;
+      A1j = GHOST;
+      A2i = NI - GHOST;
+      A2j = NJ - GHOST;
       break;
     case GSOUTH:
       gi += GHOST;
       gj += 0;
-      ci = GHOST;
-      cj = GHOST;
-      di = NI - GHOST;
-      dj = GHOST;
+      A1i = GHOST;
+      A1j = GHOST;
+      A2i = NI - GHOST;
+      A2j = GHOST;
       break;
     case GWEST:
       gi += 0;
       gj += GHOST;
-      ci = GHOST;
-      cj = GHOST;
-      di = GHOST;
-      dj = NJ - GHOST;
+      A1i = GHOST;
+      A1j = GHOST;
+      A2i = GHOST;
+      A2j = NJ - GHOST;
       break;
   }
   
-  double2 a0, a1, b0, b1;
+  // get the top/bottom or left/right node indexes of the other cells face
+  switch (that_face) {
+    case GNORTH:
+      B1i = GHOST;
+      B1j = NJB - GHOST;
+      B2i = NIB- GHOST;
+      B2j = NJB - GHOST;
+      break;
+    case GEAST:
+      B1i = NIB - GHOST;
+      B1j = GHOST;
+      B2i = NIB - GHOST;
+      B2j = NJB - GHOST;
+      break;
+    case GSOUTH:
+      B1i = GHOST;
+      B1j = GHOST;
+      B2i = NIB - GHOST;
+      B2j = GHOST;
+      break;
+    case GWEST:
+      B1i = GHOST;
+      B1j = GHOST;
+      B2i = GHOST;
+      B2j = NJB - GHOST;
+      break;
+  }
   
-  a0 = XYA(ci,cj);
-  a1 = XYA(di,dj);
+  double2 A1, A2, B1, B2; // first and second coordinates of the corner vertices of the given faces for block A and B
   
-  getSwapIndex(this_face, &ci, &cj, that_face, NIB, NJB);
-  getSwapIndex(this_face, &di, &dj, that_face, NIB, NJB);
+  A1 = XYA(A1i,A1j);
+  A2 = XYA(A2i,A2j);
   
-  b0 = XYB(ci,cj);
-  b1 = XYB(di,dj);
+  B1 = XYB(B1i,B1j);
+  B2 = XYB(B2i,B2j);
   
-  //printf("(%i, %i) a = [%v2g], b = [%v2g], c = [%v2g], d = [%v2g]\n",gi, gj, a,b,c,d);
+  int iB, jB;
   
-  int iB = gi;
-  int jB = gj;
+  for (int ii=0; ii<2; ++ii) {
+    for (int jj=0; jj<2; ++jj) {
+      iB = gi + ii;
+      jB = gj + jj;
   
-  getSwapIndex(this_face, &iB, &jB, that_face, NIB, NJB);
-  
-  XYA(gi,gj) = transform(a0, a1, b0, b1, XYB(iB,jB));
-  XYA(gi+1,gj) = transform(a0, a1, b0, b1, XYB(iB+1,jB));
-  XYA(gi+1,gj+1) = transform(a0, a1, b0, b1, XYB(iB+1,jB+1));
-  XYA(gi,gj+1) = transform(a0, a1, b0, b1, XYB(iB,jB+1));
-  
-  //XYA(gi,gj) = XYB(iB,jB);
-  //XYA(gi+1,gj) = XYB(iB+1,jB);
-  //XYA(gi+1,gj+1) = XYB(iB+1,jB+1);
-  //XYA(gi,gj+1) = XYB(iB,jB+1);
+      // now align vertices on the edge
+      if (all(isnotequal(A1,B1)) & all(isnotequal(A2,B2))) {
+        // we are not aligned
+        if ((this_face == GEAST) || (this_face == GWEST)) {
+          flipud(&iB,&jB,NI,NJ);
+          //printf("1: ii = %i, jj = %i, (gi,gj) = (%i, %i), (iB,jB) = (%i, %i)\n",ii, jj, gi+ii,gj+jj,iB,jB);
+        } else if ((this_face == GNORTH) || (this_face == GSOUTH)) {
+          fliplr(&iB,&jB,NI,NJ);  // CHECK
+        }
+      }
       
+      if (this_face == GEAST) {
+          if (that_face == GEAST) {
+            fliplr(&iB,&jB,NI,NJ);
+            iB += NIB - 2*GHOST;
+            //printf("2: ii = %i, jj = %i, (gi,gj) = (%i, %i), (iB,jB) = (%i, %i)\n",ii, jj, gi+ii,gj+jj,iB,jB);
+          } else if (that_face == GWEST) {
+            iB -= NI - 2*GHOST;
+          } else if (that_face == GNORTH) {
+            rot90(&iB,&jB,1,NI+1,NJ+1);
+            jB += NJB - 2*GHOST;
+          } else if (that_face == GSOUTH) {
+            rot90(&iB,&jB,1,NIB+1,NJB+1);
+            flipud(&iB,&jB,NI,NJ);
+            jB -= NJ - 2*GHOST;
+          }
+        } else if (this_face == GWEST) {
+          if (that_face == GWEST) {
+            fliplr(&iB,&jB,NI,NJ);
+            iB -= NI - 2*GHOST;
+          } else if (that_face == GEAST) {
+            iB += NIB - 2*GHOST;
+          } else if(that_face == GNORTH) {
+            rot90(&iB,&jB,1,NI+1,NJ+1);
+            fliplr(&iB,&jB,NI,NJ);
+            jB += NJB - 2*GHOST;
+          } else if (that_face == GSOUTH) {
+            rot90(&iB,&jB,3,NI+1,NJ+1);
+            jB -= NJ - 2*GHOST;
+          }
+        } else if (this_face == GNORTH) {
+          if (that_face == GNORTH) {
+            flipud(&iB,&jB,NI,NJ);
+            jB += NJB - 2*GHOST;
+          } else if (that_face == GSOUTH) {
+            jB -= NJ - 2*GHOST;
+          } else if (that_face == GEAST) {
+            rot90(&iB,&jB,1,NI+1,NJ+1);
+            iB += NIB - 2*GHOST;
+          } else if (that_face == GWEST) {
+            rot90(&iB,&jB,1,NI+1,NJ+1);
+            fliplr(&iB,&jB,NI,NJ);
+            iB -= NI - 2*GHOST;
+          } 
+        } else if (this_face == GSOUTH) {
+          if (that_face == GSOUTH) {
+            flipud(&iB,&jB,NI,NJ);
+            jB -= NJ - 2*GHOST;
+          } else if (that_face == GNORTH) {
+            jB += NJB - 2*GHOST;
+          } else if (that_face == GEAST) {
+            rot90(&iB,&jB,3,NI+1,NJ+1);
+            flipud(&iB,&jB,NI,NJ);
+            iB += NIB - 2*GHOST;
+          } else if (that_face == GWEST) {
+            rot90(&iB,&jB,1,NI+1,NJ+1);
+            iB -= NI - 2*GHOST;
+          }
+        }
+        
+      XYA(gi+ii,gj+jj) = XYB(iB,jB);
+    }
+  }
+
   return;
 }
 
@@ -314,56 +335,89 @@ edgeExchange(__global double2* fA_,
   size_t gj = get_global_id(1);
   size_t ti = get_local_id(2);
   
-  int ci, cj, di, dj;
-
+  int A1i, A1j, A2i, A2j; // first and second coordinate indices
+  int B1i, B1j, B2i, B2j;
+  
+   // get the top/bottom or left/right node indexes of this cells face
   switch (this_face) {
     case GNORTH:
       gi += GHOST;
       gj += NJ - GHOST;
-      ci = GHOST;
-      cj = NJ - GHOST;
-      di = NI- GHOST;
-      dj = NJ - GHOST;
+      A1i = GHOST;
+      A1j = NJ - GHOST;
+      A2i = NI- GHOST;
+      A2j = NJ - GHOST;
       break;
     case GEAST:
       gi += NI - GHOST;
       gj += GHOST;
-      ci = NI - GHOST;
-      cj = GHOST;
-      di = NI - GHOST;
-      dj = NJ - GHOST;
+      A1i = NI - GHOST;
+      A1j = GHOST;
+      A2i = NI - GHOST;
+      A2j = NJ - GHOST;
       break;
     case GSOUTH:
       gi += GHOST;
       gj += 0;
-      ci = GHOST;
-      cj = GHOST;
-      di = NI - GHOST;
-      dj = GHOST;
+      A1i = GHOST;
+      A1j = GHOST;
+      A2i = NI - GHOST;
+      A2j = GHOST;
       break;
     case GWEST:
       gi += 0;
       gj += GHOST;
-      ci = GHOST;
-      cj = GHOST;
-      di = GHOST;
-      dj = NJ - GHOST;
+      A1i = GHOST;
+      A1j = GHOST;
+      A2i = GHOST;
+      A2j = NJ - GHOST;
       break;
   }
   
-  double2 a0, a1, b0, b1;
+  // get the top/bottom or left/right node indexes of the other cells face
+  switch (that_face) {
+    case GNORTH:
+      B1i = GHOST;
+      B1j = NJB - GHOST;
+      B2i = NIB- GHOST;
+      B2j = NJB - GHOST;
+      break;
+    case GEAST:
+      B1i = NIB - GHOST;
+      B1j = GHOST;
+      B2i = NIB - GHOST;
+      B2j = NJB - GHOST;
+      break;
+    case GSOUTH:
+      B1i = GHOST;
+      B1j = GHOST;
+      B2i = NIB - GHOST;
+      B2j = GHOST;
+      break;
+    case GWEST:
+      B1i = GHOST;
+      B1j = GHOST;
+      B2i = GHOST;
+      B2j = NJB - GHOST;
+      break;
+  }
   
-  a0 = XYA(ci,cj);
-  a1 = XYA(di,dj);
   
-  getSwapIndex(this_face, &ci, &cj, that_face, NIB, NJB);
-  getSwapIndex(this_face, &di, &dj, that_face, NIB, NJB);
+  double2 A1, A2, B1, B2; // first and second coordinates of the corner vertices of the given faces for block A and B
   
-  b0 = XYB(ci,cj);
-  b1 = XYB(di,dj);
+  A1 = XYA(A1i,A1j);
+  A2 = XYA(A2i,A2j);
   
-  int iB = gi;
-  int jB = gj;
+  B1 = XYB(B1i,B1j);
+  B2 = XYB(B2i,B2j);
+  
+  int iB, jB;
+  
+  
+  
+  
+  
+  
   
   getSwapIndex(this_face, &iB, &jB, that_face, NIB, NJB);
   

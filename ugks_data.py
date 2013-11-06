@@ -57,7 +57,7 @@ class SaveOptions:
     compression = 'gzip'
     save_count = 1
     initial_save_count = None
-    initial_save_cutoff_time = None
+    initial_save_cutoff_time = 0.0
 
 #----------------------------------------------------------------------
 class ResidualOptions:
@@ -122,7 +122,7 @@ class UGKSData(object):
                 'u_num','v_num','quad_type',\
                 'work_size_i','work_size_j','opt_sample_size', 'opt_run',\
                 'opt_start','delta_dt','suggest_dt',\
-                'relax_type'
+                'relax_type','alpha_ref','omega_ref'
     
     def __init__(self):
         """
@@ -169,6 +169,8 @@ class UGKSData(object):
         self.check_err_count = -1
         
         # gas data
+        self.alpha_ref = 1.0 # VSS coefficient, value of 1 gives HS
+        self.omega_ref = 0.5 # VHS coefficient, value of 0.5 gives HS
         self.chi = 0.81  # power law constant determining relationship between temperature and viscosity
         self.R = 287.0  # gas constant, J/kgK
         self.gamma = 5.0/3.0    #ratio of specific heats
@@ -398,6 +400,8 @@ def non_dimensionalise_all():
         f.tau /= gdata.t_ref
         
         # user defined functions
+        if f.UDF_D:
+            f.UDF_D = "("+f.UDF_D +")/(" + str(gdata.D_ref) + ")"
         if f.UDF_U:
             f.UDF_U = "("+f.UDF_U +")/(" + str(gdata.C_ref) + ")"
         if f.UDF_V:
@@ -436,6 +440,7 @@ def non_dimensionalise_all():
                 bc.adsorb[:,0] /= gdata.D_ref*gdata.C_ref**2 # pressure
                 bc.adsorb[:,1] /= gdata.T_ref # temperature
                 bc.adsorb[:,2] /= bc.S_T # coverage
+                
             
         #grid
         b.grid.x /= gdata.L_ref

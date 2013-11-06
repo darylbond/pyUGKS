@@ -917,7 +917,7 @@ adsorbingWallD_P2(__global double2* normal,
                 int delta = (sign(uv.x)*rot + 1)/2; // (1 -> out of wall, 0 -> into wall)
                 double2 face_dist = FLUXF(gi,gj,gv);
                 face_dist *= 1 - delta*(1 - ratio);
-                face_dist += delta*fM(wall, uv, gv);
+                face_dist += delta*fM(wall, uv, gv);  // don't multiply by uv.x as we do that later, this is just the distribution at the interface
                 face_dist -= account_adsorb*delta*face_dist;
                 FLUXF(gi,gj,gv) = face_dist;
             }
