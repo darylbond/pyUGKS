@@ -36,6 +36,12 @@ OUTFLOW         = 7
 ADSORBING       = 8
 BOUNCE_BACK     = 9
 
+# flip distribution functions
+NO_FLIP = 0
+FLIP_NS = 1
+FLIP_D  = 2
+FLIP_EW = 3
+
 bcIndexFromName = {
      0: ADJACENT, "0": ADJACENT, "ADJACENT": ADJACENT, "COMMON": ADJACENT,
      1: EXTRAPOLATE_OUT, "1":  EXTRAPOLATE_OUT, "EXTRAPOLATE_OUT": EXTRAPOLATE_OUT,
@@ -86,7 +92,7 @@ class BoundaryCondition(object):
             'other_face', 'orientation', 'label', 'UDF_U',\
             'UDF_V', 'UDF_T','UDF_D','adsorb', 'beta_n', 'beta_t', 'alpha_n', \
             'alpha_t', 'alpha_p', 'k_f', 'S_T', 'cover_initial','gamma_f',\
-            'reflect_type'
+            'reflect_type','flip_distribution'
             
     def __init__(self,
                  type_of_BC = REFLECT,
@@ -111,6 +117,7 @@ class BoundaryCondition(object):
                  other_block=-1,
                  other_face=-1,
                  orientation=0,
+                 flip_distribution=NO_FLIP,
                  label=""):
                      
         self.type_of_BC = copy.copy(type_of_BC)
@@ -140,6 +147,7 @@ class BoundaryCondition(object):
         self.other_block = copy.copy(other_block)
         self.other_face = copy.copy(other_face)
         self.orientation = copy.copy(orientation)
+        self.flip_distribution = copy.copy(flip_distribution)
         self.label = copy.copy(label)
             
         return
@@ -193,18 +201,18 @@ class PeriodicBC(BoundaryCondition):
     """
     This boundary joins (i.e. is adjacent to) a boundary of another block.
     """
-    def __init__(self, other_block=-1, other_face=-1, orientation=0, label="PERIODIC"):
+    def __init__(self, other_block=-1, other_face=-1, flip_distribution=NO_FLIP, label="PERIODIC"):
         BoundaryCondition.__init__(self, type_of_BC=ADJACENT, other_block=other_block,
-                                   other_face=other_face, orientation=orientation,
+                                   other_face=other_face, flip_distribution=flip_distribution,
                                    label=label)
         return
     def __str__(self):
-        return "PeriodicBC(other_block=%d, other_face=%d, orientation=%d, label=\"%s\")" % \
-            (self.other_block, self.other_face, self.orientation, self.label)
+        return "PeriodicBC(other_block=%d, other_face=%d, flip_distribution=%d, label=\"%s\")" % \
+            (self.other_block, self.other_face, self.flip_distribution, self.label)
     def __copy__(self):
         return PeriodicBC(other_block=self.other_block,
                           other_face=self.other_face,
-                          orientation=self.orientation,
+                          flip_distribution=self.flip_distribution,
                           label=self.label)
 
 class ExtrapolateOutBC(BoundaryCondition):

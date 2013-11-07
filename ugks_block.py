@@ -394,13 +394,11 @@ class UGKSBlock(object):
         print("global buffers initialised") 
 
 
-    def ghostExchange(self, this_face, other_block, other_face):
+    def ghostExchange(self, this_face, other_block, other_face, flip=NO_FLIP):
         """
         perform ghost cell updating
 
         transfer data from "other" block to this blocks ghost cells        
-        
-        NOTE: assuming orientation flag is always zero (correct layout of grids)
         """
         
         faceA = np.int32(this_face)
@@ -422,9 +420,18 @@ class UGKSBlock(object):
             
         global_size, work_size = m_tuple(global_size,(1,1,gdata.CL_local_size))
         
+#        print "BLOCK ",self.id
+#        print this_f
+#        print that_f
+        
+        flip = np.int32(flip)
+        
         self.prg.edgeExchange(self.queue, global_size, work_size,
                                this_f, self.xy_D, faceA,
-                               that_f, other_block.xy_D, NiB, NjB, faceB)
+                               that_f, other_block.xy_D, NiB, NjB, faceB, flip).wait()
+                               
+        
+        return
 
     def ghostExtrapolate(self, this_face):
         """
@@ -580,7 +587,7 @@ class UGKSBlock(object):
             
             if bc.type_of_BC in [ADJACENT, PERIODIC]:
                 # exchange ghost cell information with adjacent cell
-                self.ghostExchange(this_face, bc.other_block, bc.other_face)
+                self.ghostExchange(this_face, bc.other_block, bc.other_face, bc.flip_distribution)
                 
             elif bc.type_of_BC == EXTRAPOLATE_OUT:
                 # extrapolate the cell data to give ZERO gradient

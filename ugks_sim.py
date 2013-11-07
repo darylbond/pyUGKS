@@ -372,9 +372,6 @@ class UGKSim(object):
         
         if get_res:
             res = 0.0
-
-        # make sure all ghost cells are up to date
-        self.updateAllBC()
         
         if gdata.opt_run:
             self.start_timer()
@@ -429,6 +426,9 @@ class UGKSim(object):
         gdata.step = self.step
         
         self.queue.flush()
+        
+        # make sure all ghost cells are up to date
+        self.updateAllBC()
 
         return cl.enqueue_barrier(self.queue)
         
@@ -461,6 +461,7 @@ class UGKSim(object):
         # save files?
         if save.save:
             self.saveToFile(save_f=save.save_initial_f)
+            self.saved = False
         
         while self.step < gdata.max_step:
             
@@ -569,12 +570,13 @@ class UGKSim(object):
                     print " --> t_final-t_now = %s"%self.secToTime(time_remaining)
             
             # save to file
-            if (not self.step % save.save_count) & (self.step < gdata.max_step-1):
+            if (not self.step % save.save_count) & (self.step <= gdata.max_step-1):
                 step_finished.wait()
+                print "saving"
                 if self.step == gdata.max_step:
                     self.saveToFile(save_f=save.save_final_f)
                 else:
-                    self.saveToFile()
+                    self.saveToFile(save_f=save.save_f_always)
                     
             if gdata.time < save.initial_save_cutoff_time:
                 if not self.step % save.initial_save_count:

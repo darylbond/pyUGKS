@@ -10,3 +10,11 @@
 #define ERR_DESORB_TOO_MUCH 3
 #define ERR_CLAMPING_ADSORB_ISOTHERM 4
 
+// VARIOUS
+
+#define NO_FLIP 0
+#define FLIP_NS 1
+#define FLIP_D 2
+#define FLIP_EW 3
+
+

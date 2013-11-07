@@ -306,48 +306,15 @@ double2 WENO5(double2* S, double dx)
 }
 #endif
 
-double2 transform(double2 a0, double2 a1, double2 b0, double2 b1, double2 n)
+int equal2(double2 a, double2 b, double tol) 
 {
-  // given [a,b] and [c,d] generate an affine map that maps
-  // a -> c and b ->d and apply this mapping to n, return 
-  // the resulting mapped value
+  // check if a and b are within tol of each other
   
-  double2 m;
+  double2 c = fabs(a - b);
   
-  double d1 = fabs(a0.x - a1.x)*fabs(a0.x - a1.x) + fabs(a0.y - a1.y)*fabs(a0.y - a1.y);
-  double d2 = ((a0.x - a1.x)*(a0.x - a1.x) + (a0.y - a1.y)*(a0.y - a1.y))*
-                (fabs(b0.x - b1.x)*fabs(b0.x - b1.x) + fabs(b0.y - b1.y)*fabs(b0.y - b1.y));
-  
-  m.x = a0.x - ((-(a1.x*((b0.x - b1.x)*(b0.x - n.x) + (b0.y - b1.y)*(b0.y - n.y))) + 
-        a0.x*(b0.x*b0.x + b1.x*n.x - b0.x*(b1.x + n.x) + (b0.y - b1.y)*(b0.y - n.y)) + 
-        (a0.y - a1.y)*(b0.y*b1.x - b0.x*b1.y - b0.y*n.x + b1.y*n.x + b0.x*n.y - b1.x*n.y))*d1)/d2;
-  
-  m.y = a0.y - ((a0.y*(b0.x*b0.x + b1.x*n.x - b0.x*(b1.x + n.x) + (b0.y - b1.y)*(b0.y - n.y)) - 
-        a1.y*(b0.x*b0.x + b1.x*n.x - b0.x*(b1.x + n.x) + (b0.y - b1.y)*(b0.y - n.y)) + 
-        (a0.x - a1.x)*(b0.x*b1.y - b1.y*n.x + b0.y*(-b1.x + n.x) - b0.x*n.y + b1.x*n.y))*d1)/d2;
-  
-  return m;
-}
-
-double2 orientation(double2 a0, double2 a1, double2 b0, double2 b1, double2 n)
-{
-  // given [a,b] and [c,d] generate an affine map that maps
-  // a -> c and b ->d and apply this mapping to n, return 
-  // the resulting mapped value
-  
-  double2 m;
-  
-  double d1 = sqrt((fabs(a0.x - a1.x)*fabs(a0.x - a1.x) + 
-      fabs(a0.y - a1.y)*fabs(a0.y - a1.y))/(fabs(b0.x - b1.x)*fabs(b0.x - b1.x) 
-      + fabs(b0.y - b1.y)*fabs(b0.y - b1.y)));
-      
-  double d2 = (a0.x - a1.x)*(a0.x - a1.x) + (a0.y - a1.y)*(a0.y - a1.y);
-  
-  m.x = ((((a0.x - a1.x)*(b0.x - b1.x) + (a0.y - a1.y)*(b0.y - b1.y))*n.x + 
-      (-((a0.y - a1.y)*(b0.x - b1.x)) + (a0.x - a1.x)*(b0.y - b1.y))*n.y)*d1)/d2;
-     
-  m.y = ((((a0.y - a1.y)*(b0.x - b1.x) - (a0.x - a1.x)*(b0.y - b1.y))*n.x + 
-      ((a0.x - a1.x)*(b0.x - b1.x) + (a0.y - a1.y)*(b0.y - b1.y))*n.y)*d1)/d2;
-  
-  return m;
+  if ((c.x <= tol) && (c.y <= tol)) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
