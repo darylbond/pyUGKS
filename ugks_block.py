@@ -428,7 +428,7 @@ class UGKSBlock(object):
         
         self.prg.edgeExchange(self.queue, global_size, work_size,
                                this_f, self.xy_D, faceA,
-                               that_f, other_block.xy_D, NiB, NjB, faceB, flip).wait()
+                               that_f, other_block.xy_D, NiB, NjB, faceB, flip)
                                
         
         return
@@ -649,7 +649,7 @@ class UGKSBlock(object):
         self.prg.xyExchange(self.queue, global_size, None,
                                self.xy_D, faceA,
                                other_block.xy_D,
-                               NiB, NjB, faceB).wait()
+                               NiB, NjB, faceB)
     
     def ghostXYExtrapolate(self, this_face):
         """
@@ -664,7 +664,7 @@ class UGKSBlock(object):
             global_size = (self.ghost, self.nj)
         
         self.prg.xyExtrapolate(self.queue, global_size, None,
-                               self.xy_D, face).wait()
+                               self.xy_D, face)
             
     def updateGeom(self):
         """
