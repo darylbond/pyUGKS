@@ -22,6 +22,10 @@ double relaxTime(double4 prim)
   double tau = mu_ref*2*pow(prim.s3,1-chi)/prim.s0;
   #endif
   
+  #if RELAX_TYPE == 3
+  double tau = Kinf*pow(prim.s3,1.0-chi)/prim.s0;
+  #endif
+  
   return tau;
 }
 

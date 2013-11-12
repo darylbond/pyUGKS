@@ -540,11 +540,11 @@ class UGKSim(object):
                         print "residual drop = ",res_drop
                         if np.all(res_drop >= res.res_drop):
                             print "simulation exit -> residual reduction limit reached"
-                            print "step ",self.step," t = ",gdata.get_time()
+                            print "step ",self.step," t = ",gdata.time
                             break
                     if np.all(res.global_residual <= res.min_residual):
                         print "simulation exit -> minimum residual reached"
-                        print "step ",self.step," t = ",gdata.get_time()
+                        print "step ",self.step," t = ",gdata.time
                         break
                 if (len(self.time_history_residual) >= res.slope_sample) & (self.step >= res.slope_start):
                     # fit a line to the last three data points
@@ -553,7 +553,7 @@ class UGKSim(object):
                     print "residual slope = ",slope
                     if np.any(slope < res.min_slope):
                         print "simulation exit -> residual stabilised"
-                        print "step ",self.step," t = ",gdata.get_time()
+                        print "step ",self.step," t = ",gdata.time
                         break
             
             # print progress

@@ -123,7 +123,7 @@ class UGKSData(object):
                 'u_num','v_num','quad_type',\
                 'work_size_i','work_size_j','opt_sample_size', 'opt_run',\
                 'opt_start','delta_dt','suggest_dt',\
-                'relax_type','alpha_ref','omega_ref'
+                'relax_type','alpha_ref','omega_ref','Kinf'
     
     def __init__(self):
         """
@@ -177,6 +177,7 @@ class UGKSData(object):
         self.gamma = 5.0/3.0    #ratio of specific heats
         self.Pr = 0.72      # ratio momentum to thermal diffusivity
         self.Kn = 0.0001    # Knudsen number, ratio mean free path to reference length
+        self.Kinf = 0.07 # relaxation time parameter, this value for argon at STP, length scale of 1e-6m
         
         
         # Reference Quantities -> for non-dimensionalising
