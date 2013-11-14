@@ -1018,7 +1018,7 @@ wallMassEnergyFluxes(__global double2* normal,
             __global double* area,
             int face,
             __global double2* flux_f,
-            __global double4* wall_flux,
+            __global double8* wall_flux,
             double dt)
 {
     // given the flux information for each wall of each cell
@@ -1132,8 +1132,9 @@ wallMassEnergyFluxes(__global double2* normal,
             
             mean_vel = macro_out.s12/macro_out.s0;
             macro_out.s3 -= 0.5*dot(mean_vel,mean_vel)*macro_out.s0;
-
-            WALL_FLUX(face, ci) = (double4)(macro_in.s0, macro_out.s0, macro_in.s3, macro_out.s3);
+            
+            // density, momentum x, momentum y, energy
+            WALL_FLUX(face, ci) = (double8)(macro_in.s0, macro_out.s0, macro_in.s1, macro_out.s1, macro_in.s2, macro_out.s2, macro_in.s3, macro_out.s3);
         }
     }
 

@@ -342,7 +342,7 @@ class UGKSBlock(object):
             
         self.wall_cover_D = self.set_buffer(self.wall_cover_H) # wall coverage fraction
         
-        self.wall_fluxes_H = np.zeros((wall_len,4,4),dtype=np.float64) # fluxes of mass and energy
+        self.wall_fluxes_H = np.zeros((wall_len,4,8),dtype=np.float64) # fluxes of mass and energy
         self.wall_fluxes_D = self.set_buffer(self.wall_fluxes_H)
         
         self.wall_dist_D = self.set_buffer_size(wall_len*self.Nv*2*f64_size)
@@ -1334,13 +1334,21 @@ class UGKSBlock(object):
             
             fgrp.create_dataset("cover",data=self.wall_cover_H[0:l,fid,0], compression=gdata.save_options.compression)
             fgrp.create_dataset("reflected",data=self.wall_cover_H[0:l,fid,1], compression=gdata.save_options.compression)
+            
             fgrp.create_dataset("adsorbed",data=self.wall_cover_H[0:l,fid,2], compression=gdata.save_options.compression)
             fgrp.create_dataset("desorbed",data=self.wall_cover_H[0:l,fid,3], compression=gdata.save_options.compression)
             
             fgrp.create_dataset("mass_in",data=self.wall_fluxes_H[0:l,fid,0], compression=gdata.save_options.compression)
             fgrp.create_dataset("mass_out",data=self.wall_fluxes_H[0:l,fid,1], compression=gdata.save_options.compression)
-            fgrp.create_dataset("nrg_in",data=self.wall_fluxes_H[0:l,fid,2], compression=gdata.save_options.compression)
-            fgrp.create_dataset("nrg_out",data=self.wall_fluxes_H[0:l,fid,3], compression=gdata.save_options.compression)
+            
+            fgrp.create_dataset("mom_n_in",data=self.wall_fluxes_H[0:l,fid,2], compression=gdata.save_options.compression)
+            fgrp.create_dataset("mom_n_out",data=self.wall_fluxes_H[0:l,fid,3], compression=gdata.save_options.compression)
+            
+            fgrp.create_dataset("mom_t_in",data=self.wall_fluxes_H[0:l,fid,4], compression=gdata.save_options.compression)
+            fgrp.create_dataset("mom_t_out",data=self.wall_fluxes_H[0:l,fid,5], compression=gdata.save_options.compression)
+            
+            fgrp.create_dataset("nrg_in",data=self.wall_fluxes_H[0:l,fid,6], compression=gdata.save_options.compression)
+            fgrp.create_dataset("nrg_out",data=self.wall_fluxes_H[0:l,fid,7], compression=gdata.save_options.compression)
         
             if save_flux:
 
