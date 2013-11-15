@@ -112,7 +112,8 @@ class Block(object):
                label="", 
                flowCondition=None, 
                other_block = None,
-               other_face = None):
+               other_face = None,
+               flip_distribution=NO_FLIP):
         """
         Sets a boundary condition on a particular face of the block.
 
@@ -236,8 +237,8 @@ class Block(object):
                                       label=label)
                                         
         if type_of_BC == PERIODIC:
-            newbc = PeriodicBC(other_block.blkId, other_face, label = label)
-            other_block.bc_list[other_face] = PeriodicBC(self.blkId, iface, label = label)
+            newbc = PeriodicBC(other_block.blkId, other_face, flip_distribution=flip_distribution, label=label)
+            other_block.bc_list[other_face] = PeriodicBC(self.blkId, iface, flip_distribution=flip_distribution, label=label)
         try:
             self.bc_list[iface] = newbc
         except:
