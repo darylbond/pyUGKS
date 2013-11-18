@@ -787,6 +787,12 @@ class UGKSBlock(object):
         
         if err_code == 1.0:
             raise RuntimeError("ERROR: NaN encountered")
+        elif err_code == 1.1:
+            raise RuntimeError("ERROR: NaN encountered in fluxes")
+        elif err_code == 1.2:
+            raise RuntimeError("ERROR: NaN encountered in relaxation")
+        elif err_code == 1.3:
+            raise RuntimeError("ERROR: NaN encountered in macro update")
         elif err_code == 2.0:
             "we are adsorbing too much in the time step, need to adjust dt"
             self.max_dt = min(self.max_dt, ad_data)
@@ -1095,11 +1101,14 @@ class UGKSBlock(object):
                    
         cl.enqueue_barrier(self.queue)
         
+        
         # update the macro buffer
         global_size, work_size = size_cl((self.ni, self.nj),(gdata.work_size_i, gdata.work_size_j))
         self.prg.updateMacro(self.queue, global_size, work_size,
                              self.flux_macro_S_D, self.flux_macro_W_D, self.area_D,
                              self.macro_D, self.residual_D)
+        
+                     
                              
         cl.enqueue_barrier(self.queue)                    
         

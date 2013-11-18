@@ -75,7 +75,6 @@ def genHeader(data):
     s += '#define FLUX_METHOD {}\n'.format(flux_method)
     s += '#define STENCIL_LENGTH {}\n'.format(stencil_length)
     s += '#define MID_STENCIL {}\n'.format(mid_stencil)
-    s += '#define RELAX_TYPE {}\n'.format(gdata.relax_type)
     s += '\n'
     
     s += '#define PI %0.15e\n'%pi
@@ -83,14 +82,11 @@ def genHeader(data):
     s += '#define Pr {}\n'.format(gdata.Pr)
     s += '#define umax {}\n'.format(gdata.umax)
     s += '#define vmax {}\n'.format(gdata.vmax)
-    s += '#define Kn {}\n'.format(gdata.Kn)
-    s += "#define Kinf %0.15e\n"%gdata.Kinf
+    s += "#define mu_ref %0.15e\n"%gdata.mu_ref
     s += '#define gam {}\n'.format(gdata.gamma)
     s += '#define B {}\n'.format(gdata.b)
     s += '#define K {} // total number of extra degrees of freedom accounted for\n'.format(gdata.K)
-    s += '#define chi {}\n'.format(gdata.chi)
-    s += '#define alpha_ref {}\n'.format(gdata.alpha_ref)
-    s += '#define omega_ref {}\n\n'.format(gdata.omega_ref)
+    s += '#define OMEGA {}\n'.format(gdata.omega)
     
     s += '#define CFL %0.15e\n\n'%gdata.CFL
     

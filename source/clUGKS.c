@@ -1230,12 +1230,19 @@ UGKS_update(__global double2* Fin,
             // update the distribution function
             
             double2 f_old = F(gi,gj,gv);
-            double2 f_new = (f_old + (FLUXFS(gi,gj,gv) - FLUXFS(gi,gj+1,gv) + FLUXFW(gi,gj,gv) - FLUXFW(gi+1,gj,gv))/A
-                          + 0.5*dt*(feq/tau+(feq_old-f_old)/tau_old))/(1.0+0.5*dt/tau);
+            double2 fluxes = (FLUXFS(gi,gj,gv) - FLUXFS(gi,gj+1,gv) + FLUXFW(gi,gj,gv) - FLUXFW(gi+1,gj,gv))/A;
+            double2 relax = feq/tau+(feq_old-f_old)/tau_old;
                           
-            if (any(isnan(f_new))) {
+            double2 f_new = (f_old + fluxes + 0.5*dt*relax)/(1.0+0.5*dt/tau);
+            
+            if (any(isnan(f_new)))
                 flag[0] = ERR_NAN;
-            }
+                
+            //if (any(isnan(fluxes)))
+                //flag[0] = ERR_NAN_FLUXES;
+                
+            //if (any(isnan(relax)))
+                //flag[0] = ERR_NAN_RELAX;
             
             F(gi,gj,gv) = f_new;
         }

@@ -107,7 +107,7 @@ class UGKSData(object):
     __slots__ = 'title',\
                 't0', 'dt', 'CFL', 'time',\
                 'print_count', 'max_time', 'max_step', 'dt_plot', \
-                'chi', 'R', 'gamma', 'Pr', 'Kn', \
+                'omega', 'R', 'gamma', 'Pr',  \
                 'Nv', 'b', 'K', \
                 'T_ref', 'L_ref', 'C_ref', 't_ref', 'D_ref','P_ref',\
                 'step','CL_local_size',\
@@ -123,7 +123,7 @@ class UGKSData(object):
                 'u_num','v_num','quad_type',\
                 'work_size_i','work_size_j','opt_sample_size', 'opt_run',\
                 'opt_start','delta_dt','suggest_dt',\
-                'relax_type','alpha_ref','omega_ref','Kinf'
+                'mu_ref'
     
     def __init__(self):
         """
@@ -169,21 +169,18 @@ class UGKSData(object):
         self.dt_update_count = 1
         self.check_err_count = -1
         
+        # Reference Quantities -> for non-dimensionalising
+        self.L_ref = 1.0        # length, m
+        self.D_ref = 1.0        # density, kg/m^3
+        self.T_ref = 273.0       # temperature, K
+        
         # gas data
-        self.alpha_ref = 1.0 # VSS coefficient, value of 1 gives HS
-        self.omega_ref = 0.5 # VHS coefficient, value of 0.5 gives HS
-        self.chi = 0.81  # power law constant determining relationship between temperature and viscosity
+        self.omega = 0.81  # power law constant determining relationship between temperature and viscosity
         self.R = 287.0  # gas constant, J/kgK
         self.gamma = 5.0/3.0    #ratio of specific heats
         self.Pr = 0.72      # ratio momentum to thermal diffusivity
-        self.Kn = 0.0001    # Knudsen number, ratio mean free path to reference length
-        self.Kinf = 0.07 # relaxation time parameter, this value for argon at STP, length scale of 1e-6m
+        self.mu_ref = 1.0 # reference viscosity, dimensionless
         
-        
-        # Reference Quantities -> for non-dimensionalising
-        self.L_ref = 0.0        # length, m
-        self.D_ref = 0.0        # density, kg/m^3
-        self.T_ref = 273.0       # temperature, K
         
         self.Nv = 0
         self.quad_type = None
@@ -195,10 +192,6 @@ class UGKSData(object):
         self.v_mid = 0.0
         self.u_max = 0.0
         self.v_max = 0.0
-        
-        self.relax_type = 1
-        # 0 --> tau = (Kn/prim.s0)*sqrt(2.0/PI)*pow(prim.s3,1.0 - chi);
-        # 1 --> tau = (5./8.)*(Kn/DD)*sqrt(PI)*pow(TT,chi - 1.0);
         
         # EXTERNAL SOURCE        
         src_loader = sl.SourceLoader()
