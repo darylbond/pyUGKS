@@ -84,7 +84,7 @@ class ResidualOptions:
     residual_count = -1
     min_residual = 1e-50
     min_slope = 1e-3
-    slope_start = 10
+    slope_start = 0
     residual_start = 1
     slope_sample = 3
     non_linear_output = False

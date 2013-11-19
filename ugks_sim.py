@@ -547,11 +547,9 @@ class UGKSim(object):
                         print "step ",self.step," t = ",gdata.time
                         break
                 if (len(self.time_history_residual) >= res.slope_sample) & (self.step >= res.slope_start):
-                    # fit a line to the last three data points
-                    slope = np.polyfit(np.log(self.time_history_residual_N[-3::]), np.log(self.time_history_residual[-3::]), 1)
-                    slope = np.abs(slope[0])
+                    slope = self.get_residual_slope()
                     print "residual slope = ",slope
-                    if np.any(slope < res.min_slope):
+                    if np.all(slope < res.min_slope):
                         print "simulation exit -> residual stabilised"
                         print "step ",self.step," t = ",gdata.time
                         break
@@ -692,6 +690,7 @@ class UGKSim(object):
 #            self.residual_plot_limits = False
 
         plt.ylim(gdata.residual_options.min_residual,np.max(self.time_history_residual))
+        plt.xlim(np.min(self.time_history_residual_N),gdata.max_step)
         
         self.line_residual_0.set_xdata(self.time_history_residual_N)
         data = self.line_residual_0.get_ydata()
@@ -720,6 +719,35 @@ class UGKSim(object):
         #print "done"
 
         return
+    
+    def get_residual_slope(self):
+        """
+        calculate the slope of the residual
+        """
+        # first normalize
+        
+        res = np.array(self.time_history_residual)
+        
+        for i in range(4):
+            maxi = np.max(res[:,i])
+            mini = np.min(res[:,i])
+            res[:,i] = (res[:,i] - mini)/(maxi - mini) + 1.0      
+        
+        # how many sample points
+        N = gdata.residual_options.slope_sample
+        
+        if len(self.time_history_residual_N) >= N:
+        
+            # the log values
+            res = np.log10(res[-N::])
+            res_x = np.log10(self.time_history_residual_N[-N::])
+
+            slope = np.polyfit(res_x, res, 1)
+            slope = np.abs(slope[0])
+        else:
+            slope = [1,1,1,1]
+        
+        return slope
 
     def secToTime(self,seconds):
         """
