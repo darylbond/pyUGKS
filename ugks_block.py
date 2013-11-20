@@ -313,6 +313,8 @@ class UGKSBlock(object):
         f64_size = np.dtype(np.float64).itemsize
         dist_size = self.Ni*self.Nj*self.Nv*2*f64_size
         macro_size = self.Ni*self.Nj*4*f64_size
+        
+        print dist_size
 
         if restart_hdf:
             self.f_D = self.set_buffer(f_H)
@@ -1144,6 +1146,11 @@ class UGKSBlock(object):
             sum_avg = np.sum(np.sum(np.abs(self.macro_H), axis=0),axis=0)
             
             self.residual = np.sqrt(self.ni*self.nj*sum_res)/(sum_avg+sys.float_info.min)
+            
+            # remove any zero residuals
+            for i, r in enumerate(self.residual):
+                if r <= 0.0:
+                    self.residual[i] = 1.0
         
         return
         
