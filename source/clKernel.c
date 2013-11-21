@@ -138,7 +138,7 @@ cellGeom(__global double2* xy,
 // KERNEL: paraBC
 /////////////////////////////////////////
 __kernel void
-paraBC(__global double* para_def,
+paraBC(__global double4* para_def,
        __global double4* wall_prop,
        double t)
 {
@@ -147,12 +147,14 @@ paraBC(__global double* para_def,
   
   size_t ci = get_global_id(0); // the cell index
   
-  double s;
+  double s, x, y;
   double4 prim;
   
   // NORTH & SOUTH FACE
   if (ci < ni) {
-    s = PARA(GNORTH, ci);
+    s = PARA(GNORTH, ci).s0;
+    x = PARA(GNORTH, ci).s1;
+    y = PARA(GNORTH, ci).s2;
     prim.s0 = WALL_N_D;
     prim.s1 = WALL_N_U;
     prim.s2 = WALL_N_V;
@@ -163,7 +165,9 @@ paraBC(__global double* para_def,
     }
     WALL_PROP(GNORTH,ci) = prim;
     
-    s = PARA(GSOUTH, ci);
+    s = PARA(GSOUTH, ci).s0;
+    x = PARA(GSOUTH, ci).s1;
+    y = PARA(GSOUTH, ci).s2;
     prim.s0 = WALL_S_D;
     prim.s1 = WALL_S_U;
     prim.s2 = WALL_S_V;
@@ -177,7 +181,9 @@ paraBC(__global double* para_def,
   
   // EAST & WEST FACES
   if (ci < nj) {
-    s = PARA(GEAST, ci);
+    s = PARA(GEAST, ci).s0;
+    x = PARA(GEAST, ci).s1;
+    y = PARA(GEAST, ci).s2;
     prim.s0 = WALL_E_D;
     prim.s1 = WALL_E_U;
     prim.s2 = WALL_E_V;
@@ -188,7 +194,9 @@ paraBC(__global double* para_def,
     }
     WALL_PROP(GEAST,ci) = prim;
     
-    s = PARA(GWEST, ci);
+    s = PARA(GWEST, ci).s0;
+    x = PARA(GWEST, ci).s1;
+    y = PARA(GWEST, ci).s2;
     prim.s0 = WALL_W_D;
     prim.s1 = WALL_W_U;
     prim.s2 = WALL_W_V;
@@ -200,8 +208,10 @@ paraBC(__global double* para_def,
     WALL_PROP(GWEST,ci) = prim;
   }
   
-  // do something with s to stop a warning
+  // do something with s, x, y to stop a warning
   s += 1;
+  x += 1;
+  y += 1;
   
   return;
 }

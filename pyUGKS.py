@@ -10,7 +10,7 @@
 import os
 
 os.environ["PYOPENCL_COMPILER_OUTPUT"]="1"
-os.environ["PYOPENCL_NO_CACHE"]="1"
+#os.environ["PYOPENCL_NO_CACHE"]="1"
 
 #local
 
@@ -22,7 +22,7 @@ from ugks_sim import UGKSim
 #==============================================================================
 
 class UGKS(object):
-    def __init__(self, jobName, svg=False, vtk=False, add_str=""):
+    def __init__(self, jobName, svg=False, svg_only=False, vtk=False, add_str=""):
         """
         UGKS object
         """
@@ -33,12 +33,13 @@ class UGKS(object):
         # Step 1: Initialise the global data
         print "\n LOAD SIMULATION FILE\n"
         global_preparation(jobName, add_str)
-
-        self.sim = UGKSim()
         
         if svg:
             gdata.sketch.write_svg_file(gdata, FlowCondition.flowList,
             Block.blockList, faceList2D)
+
+        if not svg_only:
+            self.sim = UGKSim()
 
         return
 

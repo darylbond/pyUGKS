@@ -313,8 +313,6 @@ class UGKSBlock(object):
         f64_size = np.dtype(np.float64).itemsize
         dist_size = self.Ni*self.Nj*self.Nv*2*f64_size
         macro_size = self.Ni*self.Nj*4*f64_size
-        
-        print dist_size
 
         if restart_hdf:
             self.f_D = self.set_buffer(f_H)
@@ -727,7 +725,7 @@ class UGKSBlock(object):
         self.total_area = np.sum(self.area_H[self.ghost:-self.ghost, self.ghost:-self.ghost])
         
         # the parametric value along the side of the block for each edge cell
-        para = np.zeros((max(self.ni, self.nj), 4), dtype=np.float64)
+        para = np.zeros((max(self.ni, self.nj), 4, 4), dtype=np.float64)
         
         lengths_north = length_H[self.ghost:(-self.ghost),-self.ghost,0]
         lengths_south = length_H[self.ghost:(-self.ghost),self.ghost,0]
@@ -736,13 +734,20 @@ class UGKSBlock(object):
         
         self.face_lengths = [lengths_north, lengths_east, lengths_south, lengths_west]
         
+        x_north = self.x[:,-1,0]; y_north = self.y[:,-1,0]
+        x_south = self.x[:,0,0];  y_south = self.y[:,0,0]
+        x_east = self.x[-1,:,0];  y_east = self.y[-1,:,0]
+        x_west = self.x[1,:,0];   y_west = self.y[1,:,0] 
+        
         #NORTH
         stencil = lengths_north
         total_length = np.sum(stencil)
         length = 0.0
         for i in range(len(stencil)):
             cell_length = stencil[i]
-            para[i,0] = (length + cell_length/2.0)/total_length
+            para[i,0,0] = (length + cell_length/2.0)/total_length
+            para[i,0,1] = (x_north[i] + x_north[i+1])/2.0
+            para[i,0,2] = (y_north[i] + y_north[i+1])/2.0
             length += cell_length      
             
         #SOUTH
@@ -751,7 +756,9 @@ class UGKSBlock(object):
         length = 0.0
         for i in range(len(stencil)):
             cell_length = stencil[i]
-            para[i,2] = (length + cell_length/2.0)/total_length
+            para[i,2,0] = (length + cell_length/2.0)/total_length
+            para[i,2,1] = (x_south[i] + x_south[i+1])/2.0
+            para[i,2,2] = (y_south[i] + y_south[i+1])/2.0
             length += cell_length     
             
         #EAST
@@ -760,7 +767,9 @@ class UGKSBlock(object):
         length = 0.0
         for i in range(len(stencil)):
             cell_length = stencil[i]
-            para[i,1] = (length + cell_length/2.0)/total_length
+            para[i,1,0] = (length + cell_length/2.0)/total_length
+            para[i,1,1] = (x_east[i] + x_east[i+1])/2.0
+            para[i,1,2] = (y_east[i] + y_east[i+1])/2.0
             length += cell_length   
             
         #WEST
@@ -769,7 +778,9 @@ class UGKSBlock(object):
         length = 0.0
         for i in range(len(stencil)):
             cell_length = stencil[i]
-            para[i,3] = (length + cell_length/2.0)/total_length
+            para[i,3,0] = (length + cell_length/2.0)/total_length
+            para[i,3,1] = (x_west[i] + x_west[i+1])/2.0
+            para[i,3,2] = (y_west[i] + y_west[i+1])/2.0
             length += cell_length   
         
         para_H = para

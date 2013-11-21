@@ -48,6 +48,8 @@ class UGKSim(object):
         """
         initialise class
         """
+        
+        self.runtime_variables()
 
         ## OpenCL initialisation
         print "\n INITIALISE OPENCL\n"
@@ -98,6 +100,14 @@ class UGKSim(object):
         self.saveToFile(save_f=gdata.save_options.save_initial_f)
 
         return
+        
+    def runtime_variables(self):
+        """
+        """
+        self.res_slope_N = []
+        self.res_slope = [[],[],[],[]]
+        self.time_history_residual = []
+        self.time_history_residual_N = []
         
     def set_opt_list(self):
         """
@@ -803,18 +813,11 @@ class UGKSim(object):
             gdata.step = self.restart_hdf['global_data/final_step'][()]
             gdata.time = self.restart_hdf['step_%d/block_0/time'%gdata.step][()]
             
-            if gdata.residual_options.plot_residual & gdata.residual_options.get_residual:
+            if gdata.residual_options.get_residual:
                 self.time_history_residual_N = self.restart_hdf['global_data/residual_xy'][:,0].tolist()
                 self.time_history_residual = self.restart_hdf['global_data/residual_xy'][:,1:5].tolist()
         else:
             self.restart_hdf = None
-            
-        if gdata.residual_options.plot_residual & gdata.residual_options.get_residual:
-            self.res_slope_N = []
-            self.res_slope = [[],[],[],[]]
-            self.time_history_residual = []
-            self.time_history_residual_N = []
-            
         
         return
 
