@@ -394,7 +394,7 @@ class UGKSBlock(object):
         print("global buffers initialised") 
 
 
-    def ghostExchange(self, this_face, other_block, other_face, flip=NO_FLIP):
+    def ghostExchange(self, this_face, other_block, other_face, ori=1, flip=NO_FLIP):
         """
         perform ghost cell updating
 
@@ -425,10 +425,11 @@ class UGKSBlock(object):
 #        print that_f
         
         flip = np.int32(flip)
+        ori = np.int32(ori)
         
         self.prg.edgeExchange(self.queue, global_size, work_size,
                                this_f, self.xy_D, faceA,
-                               that_f, other_block.xy_D, NiB, NjB, faceB, flip)
+                               that_f, other_block.xy_D, NiB, NjB, faceB, ori, flip)
                                
         
         return
@@ -587,7 +588,7 @@ class UGKSBlock(object):
             
             if bc.type_of_BC in [ADJACENT, PERIODIC]:
                 # exchange ghost cell information with adjacent cell
-                self.ghostExchange(this_face, bc.other_block, bc.other_face, bc.flip_distribution)
+                self.ghostExchange(this_face, bc.other_block, bc.other_face, bc.orientation, bc.flip_distribution)
                 
             elif bc.type_of_BC == EXTRAPOLATE_OUT:
                 # extrapolate the cell data to give ZERO gradient
@@ -623,7 +624,7 @@ class UGKSBlock(object):
             
             #print "block {}, face {}: b.c. updated".format(self.id, this_face)            
     
-    def ghostXYExchange(self, this_face, other_block, other_face):
+    def ghostXYExchange(self, this_face, other_block, other_face, ori=1):
         """
         perform ghost cell grid coordinates updating
 
@@ -645,11 +646,13 @@ class UGKSBlock(object):
             global_size = (self.ni, self.ghost-1)
         else:
             global_size = (self.ghost-1, self.nj)
+            
+        ori = np.int32(ori)
         
         self.prg.xyExchange(self.queue, global_size, None,
                                self.xy_D, faceA,
                                other_block.xy_D,
-                               NiB, NjB, faceB)
+                               NiB, NjB, faceB, ori)
     
     def ghostXYExtrapolate(self, this_face):
         """
@@ -678,7 +681,7 @@ class UGKSBlock(object):
             
             if bc.type_of_BC == ADJACENT:
                 # exchange ghost cell information with adjacent cell
-                self.ghostXYExchange(this_face, bc.other_block, bc.other_face)
+                self.ghostXYExchange(this_face, bc.other_block, bc.other_face, bc.orientation)
                 
             else:
                 # maintain edge cell spacing and propogate as needed

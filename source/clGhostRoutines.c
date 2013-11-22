@@ -128,7 +128,8 @@ __kernel void
 xyExchange(__global double2* xyA,
 	   int this_face,
 	   __global double2* xyB,
-	   int NIB, int NJB, int that_face)
+	   int NIB, int NJB, int that_face,
+     int ori)
 {
   // update ghost cells
   
@@ -220,7 +221,7 @@ xyExchange(__global double2* xyA,
       jB = gj + jj;
   
       // now align vertices on the edge
-      if (misalign) {
+      if (misalign && ori) {
         // we are not aligned
         if ((this_face == GEAST) || (this_face == GWEST)) {
           flipud(&iB,&jB,NI,NJ);
@@ -353,7 +354,8 @@ edgeExchange(__global double2* fA_,
              int this_face,
              __global double2* fB_,
              __global double2* xyB,
-             int NIB, int NJB, int that_face, int flip)
+             int NIB, int NJB, int that_face, 
+             int flip, int ori)
 {
   // update ghost cells
   
@@ -444,7 +446,7 @@ edgeExchange(__global double2* fA_,
   int jB = gj;
   
   // now align vertices on the edge
-  if (misalign) {
+  if (misalign && ori) {
     // we are not aligned
     if ((this_face == GEAST) || (this_face == GWEST)) {
       flipud(&iB,&jB,NI-1,NJ-1);
@@ -467,7 +469,7 @@ edgeExchange(__global double2* fA_,
       } else if (flip == FLIP_NS) {
         gv2 = mirror_NS[gv1];
       } else if (flip == FLIP_D) {
-        gv2 = mirror_NS[mirror_EW[gv1]];
+        gv2 = mirror_D[gv1];
       } else if (flip == FLIP_EW) {
         gv2 = mirror_EW[gv1];
       }

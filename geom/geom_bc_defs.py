@@ -42,6 +42,10 @@ FLIP_NS = 1
 FLIP_D  = 2
 FLIP_EW = 3
 
+# block relative orientation
+HOLD_ORIENTATION = 0
+
+
 bcIndexFromName = {
      0: ADJACENT, "0": ADJACENT, "ADJACENT": ADJACENT, "COMMON": ADJACENT,
      1: EXTRAPOLATE_OUT, "1":  EXTRAPOLATE_OUT, "EXTRAPOLATE_OUT": EXTRAPOLATE_OUT,
@@ -116,7 +120,7 @@ class BoundaryCondition(object):
                  reflect_type='S',
                  other_block=-1,
                  other_face=-1,
-                 orientation=0,
+                 orientation=1,
                  flip_distribution=NO_FLIP,
                  label=""):
                      
@@ -201,17 +205,19 @@ class PeriodicBC(BoundaryCondition):
     """
     This boundary joins (i.e. is adjacent to) a boundary of another block.
     """
-    def __init__(self, other_block=-1, other_face=-1, flip_distribution=NO_FLIP, label="PERIODIC"):
+    def __init__(self, other_block=-1, other_face=-1,orientation=1, flip_distribution=NO_FLIP, label="PERIODIC"):
         BoundaryCondition.__init__(self, type_of_BC=ADJACENT, other_block=other_block,
-                                   other_face=other_face, flip_distribution=flip_distribution,
+                                   other_face=other_face, orientation=orientation,
+                                   flip_distribution=flip_distribution,
                                    label=label)
         return
     def __str__(self):
-        return "PeriodicBC(other_block=%d, other_face=%d, flip_distribution=%d, label=\"%s\")" % \
-            (self.other_block, self.other_face, self.flip_distribution, self.label)
+        return "PeriodicBC(other_block=%d, other_face=%d, label=\"%s\")" % \
+            (self.other_block, self.other_face, self.label)
     def __copy__(self):
         return PeriodicBC(other_block=self.other_block,
                           other_face=self.other_face,
+                          orientation=self.orientation,
                           flip_distribution=self.flip_distribution,
                           label=self.label)
 
