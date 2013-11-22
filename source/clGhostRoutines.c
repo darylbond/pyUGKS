@@ -355,7 +355,7 @@ edgeExchange(__global double2* fA_,
              __global double2* fB_,
              __global double2* xyB,
              int NIB, int NJB, int that_face, 
-             int flip, int ori)
+             int ori, int flip)
 {
   // update ghost cells
   
