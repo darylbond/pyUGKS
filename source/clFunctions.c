@@ -321,3 +321,16 @@ int equal2(double2 a, double2 b, double tol)
     return 0;
   }
 }
+
+int equal(double a, double b, double tol) 
+{
+  // check if a and b are within tol of each other
+  
+  double c = fabs(a - b);
+  
+  if (c <= tol)  {
+    return 1;
+  } else {
+    return 0;
+  }
+}

@@ -210,7 +210,7 @@ xyExchange(__global double2* xyA,
   B1 = XYB(B1i,B1j);
   B2 = XYB(B2i,B2j);
   
-  int misalign = (A1.x != B1.x) || (A1.y != B1.y) || (A2.x != B2.x) || (A2.y != B2.y);
+  int misalign = (!equal(A1.x,B1.x,1e-6)) || (!equal(A1.y,B1.y,1e-6)) || (!equal(A2.x,B2.x,1e-6)) || (!equal(A2.y,B2.y,1e-6));
   
   int iB, jB;
   
@@ -438,7 +438,7 @@ edgeExchange(__global double2* fA_,
   B1 = XYB(B1i,B1j);
   B2 = XYB(B2i,B2j);
   
-  int misalign = (A1.x != B1.x) || (A1.y != B1.y) || (A2.x != B2.x) || (A2.y != B2.y);
+  int misalign = (!equal(A1.x,B1.x,1e-6)) || (!equal(A1.y,B1.y,1e-6)) || (!equal(A2.x,B2.x,1e-6)) || (!equal(A2.y,B2.y,1e-6));
   
   int iB = gi;
   int jB = gj;
