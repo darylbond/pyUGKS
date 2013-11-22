@@ -232,7 +232,7 @@ xyExchange(__global double2* xyA,
       
       getSwapIndex(this_face, &iB, &jB, that_face, NIB, NJB, 1);
         
-      XYA(gi+ii,gj+jj) = XYB(iB,jB);
+      XYA(gi+ii,gj+jj) = transform(A1, A2, B1, B2, XYB(iB,jB));
     }
   }
 
