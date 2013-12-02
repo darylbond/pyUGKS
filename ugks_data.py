@@ -378,6 +378,49 @@ def newton_coeff(i, n):
     else:
         return 64.0/45.0
 
+def clean_str(s):
+    """
+    replace all instances of doubled up operators with the correct operator
+    """
+    
+    new = []
+    l = 0
+    for ss in s:
+        if ss == " ":
+            # ignore whitespace
+            continue
+        if l == 0:
+            new.append(ss)
+            l += 1
+        elif l > 0:
+            if ss not in ['+','-']:
+                new.append(ss)
+                l += 1
+                continue
+            
+            a = new[-1]
+            if a == "+":
+                if ss == "+":
+                    new.append(ss)
+                    l += 1
+                    continue
+                elif ss == "-":
+                    new[-1] = "-"
+
+            elif a == "-":
+                if ss == "+":
+                    new.append(ss)
+                    l += 1
+                    continue
+                elif a == "-":
+                    new[-1] = "+"
+            else:
+                new.append(ss)
+                l += 1
+                continue
+    
+    return "".join(new)
+
 def non_dimensionalise_all():
     """
     take all input and NON-DIMENSIONALISE it in preparation for simulation
@@ -420,12 +463,16 @@ def non_dimensionalise_all():
             
             if bc.UDF_D:
                 bc.UDF_D = "("+bc.UDF_D +")/(" + str(gdata.D_ref) + ")"
+                bc.UDF_D = clean_str(bc.UDF_D)
             if bc.UDF_U:
                 bc.UDF_U = "("+bc.UDF_U +")/(" + str(gdata.C_ref) + ")"
+                bc.UDF_U = clean_str(bc.UDF_U)
             if bc.UDF_V:
                 bc.UDF_V = "("+bc.UDF_V +")/(" + str(gdata.C_ref) + ")"
+                bc.UDF_V = clean_str(bc.UDF_V)
             if bc.UDF_T:
                 bc.UDF_T = "("+bc.UDF_T +")/(" + str(gdata.T_ref) + ")"
+                bc.UDF_T = clean_str(bc.UDF_T)
             
             # adsorbing wall
             if bc.type_of_BC == ADSORBING:
