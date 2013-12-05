@@ -123,7 +123,7 @@ class UGKSData(object):
                 'u_num','v_num','quad_type',\
                 'work_size_i','work_size_j','opt_sample_size', 'opt_run',\
                 'opt_start','delta_dt','suggest_dt',\
-                'mu_ref'
+                'mu_ref','Kn_eff'
     
     def __init__(self):
         """
@@ -180,7 +180,7 @@ class UGKSData(object):
         self.gamma = 5.0/3.0    #ratio of specific heats
         self.Pr = 0.72      # ratio momentum to thermal diffusivity
         self.mu_ref = 1.0 # reference viscosity, dimensionless
-        
+        self.Kn_eff = -1.0 # effective Knudsen number
         
         self.Nv = 0
         self.quad_type = None
