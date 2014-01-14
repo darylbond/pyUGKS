@@ -43,7 +43,14 @@ FLIP_D  = 2
 FLIP_EW = 3
 
 # block relative orientation
-HOLD_ORIENTATION = 0
+NO_TRANSFORM = 0
+TRANSFORM = 1
+MIRROR = 2
+
+HOLD = 0  # let the code do what it wants
+NO_HOLD = 1 # do not alter anything!
+
+
 
 
 bcIndexFromName = {
@@ -96,7 +103,7 @@ class BoundaryCondition(object):
             'other_face', 'orientation', 'label', 'UDF_U',\
             'UDF_V', 'UDF_T','UDF_D','adsorb', 'beta_n', 'beta_t', 'alpha_n', \
             'alpha_t', 'alpha_p', 'k_f', 'S_T', 'cover_initial','gamma_f',\
-            'reflect_type','flip_distribution'
+            'reflect_type','flip_distribution','transform'
             
     def __init__(self,
                  type_of_BC = REFLECT,
@@ -120,8 +127,9 @@ class BoundaryCondition(object):
                  reflect_type='S',
                  other_block=-1,
                  other_face=-1,
-                 orientation=1,
+                 orientation=NO_HOLD,
                  flip_distribution=NO_FLIP,
+                 transform=TRANSFORM,
                  label=""):
                      
         self.type_of_BC = copy.copy(type_of_BC)
@@ -152,6 +160,7 @@ class BoundaryCondition(object):
         self.other_face = copy.copy(other_face)
         self.orientation = copy.copy(orientation)
         self.flip_distribution = copy.copy(flip_distribution)
+        self.transform = copy.copy(transform)
         self.label = copy.copy(label)
             
         return
@@ -179,6 +188,7 @@ class BoundaryCondition(object):
                                  other_block=self.other_block,
                                  other_face=self.other_face,
                                  orientation=self.orientation,
+                                 transform=self.transform,
                                  label=self.label)
     
 class AdjacentBC(BoundaryCondition):
@@ -188,10 +198,10 @@ class AdjacentBC(BoundaryCondition):
     This condition is usually not set manually but is set as part of the
     connect_blocks() function.
     """
-    def __init__(self, other_block=-1, other_face=-1, orientation=0, label="ADJACENT"):
+    def __init__(self, other_block=-1, other_face=-1, orientation=NO_HOLD, transform=TRANSFORM, label="ADJACENT"):
         BoundaryCondition.__init__(self, type_of_BC=ADJACENT, other_block=other_block,
                                    other_face=other_face, orientation=orientation,
-                                   label=label)
+                                   transform=transform, label=label)
         return
     def __str__(self):
         return "AdjacentBC(other_block=%d, other_face=%d, orientation=%d, label=\"%s\")" % \
@@ -200,15 +210,16 @@ class AdjacentBC(BoundaryCondition):
         return AdjacentBC(other_block=self.other_block,
                           other_face=self.other_face,
                           orientation=self.orientation,
+                          transform=self.transform,
                           label=self.label)
 class PeriodicBC(BoundaryCondition):
     """
     This boundary joins (i.e. is adjacent to) a boundary of another block.
     """
-    def __init__(self, other_block=-1, other_face=-1,orientation=1, flip_distribution=NO_FLIP, label="PERIODIC"):
+    def __init__(self, other_block=-1, other_face=-1,orientation=NO_HOLD, flip_distribution=NO_FLIP, transform=TRANSFORM, label="PERIODIC"):
         BoundaryCondition.__init__(self, type_of_BC=ADJACENT, other_block=other_block,
                                    other_face=other_face, orientation=orientation,
-                                   flip_distribution=flip_distribution,
+                                   flip_distribution=flip_distribution, transform=transform,
                                    label=label)
         return
     def __str__(self):
@@ -219,6 +230,7 @@ class PeriodicBC(BoundaryCondition):
                           other_face=self.other_face,
                           orientation=self.orientation,
                           flip_distribution=self.flip_distribution,
+                          transform=self.transform,
                           label=self.label)
 
 class ExtrapolateOutBC(BoundaryCondition):

@@ -624,7 +624,7 @@ class UGKSBlock(object):
             
             #print "block {}, face {}: b.c. updated".format(self.id, this_face)            
     
-    def ghostXYExchange(self, this_face, other_block, other_face, ori=1):
+    def ghostXYExchange(self, this_face, other_block, other_face, ori=1, transform=1):
         """
         perform ghost cell grid coordinates updating
 
@@ -648,11 +648,12 @@ class UGKSBlock(object):
             global_size = (self.ghost-1, self.nj)
             
         ori = np.int32(ori)
+        transform = np.int32(transform)
         
         self.prg.xyExchange(self.queue, global_size, None,
                                self.xy_D, faceA,
                                other_block.xy_D,
-                               NiB, NjB, faceB, ori)
+                               NiB, NjB, faceB, ori, transform)
     
     def ghostXYExtrapolate(self, this_face):
         """
@@ -681,7 +682,7 @@ class UGKSBlock(object):
             
             if bc.type_of_BC == ADJACENT:
                 # exchange ghost cell information with adjacent cell
-                self.ghostXYExchange(this_face, bc.other_block, bc.other_face, bc.orientation)
+                self.ghostXYExchange(this_face, bc.other_block, bc.other_face, bc.orientation, bc.transform)
                 
             else:
                 # maintain edge cell spacing and propogate as needed

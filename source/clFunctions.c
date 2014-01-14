@@ -357,3 +357,32 @@ double2 transform(double2 a0, double2 a1, double2 b0, double2 b1, double2 n)
   
   return m;
 }
+
+double2 mirror2D(double2 a, double2 b, double2 p)
+{
+  // given two points that make up a line segment, find the 
+  // mirror image of point p about the line segment
+  
+  // first find the point on the line segment that is
+  // the closest to the point p
+  
+  double l2 = (b.x-a.x)*(b.x-a.x) + (b.y-a.y)*(b.y-a.y); // |b-a|^2
+  if (l2 == 0.0) {
+    // the line segment is a point
+    return p;
+  }
+  
+  // find the projection of p onto the, possibly extended, line segment
+  double t = dot(p-a,b-a)/l2;
+  double2 r = a + t * (b - a);
+  
+  // now that we know the projection point, find the vector from the 
+  // projection to the original point
+  
+  double2 p2r = r - p;
+  
+  // the mirored point is then 
+  double2 m = r + p2r;
+
+  return m;
+}

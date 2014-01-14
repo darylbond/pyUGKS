@@ -123,13 +123,21 @@ void getSwapIndex(int this_face, int* iB, int* jB, int that_face, int NIB, int N
     
 #define XYA(i,j) xyA[(i)*NY + (j)]
 #define XYB(i,j) xyB[(i)*(NJB+1) + (j)]
+
+#define NO_TRANSFORM 0
+#define TRANSFORM 1
+#define MIRROR 2
+
+#define HOLD 0
+#define NO_HOLD 1
+
     
 __kernel void
 xyExchange(__global double2* xyA,
 	   int this_face,
 	   __global double2* xyB,
 	   int NIB, int NJB, int that_face,
-     int ori)
+     int ori, int affine)
 {
   // update ghost cells
   
@@ -211,7 +219,7 @@ xyExchange(__global double2* xyA,
   B1 = XYB(B1i,B1j);
   B2 = XYB(B2i,B2j);
   
-  int misalign = (!equal(A1.x,B1.x,1e-6)) || (!equal(A1.y,B1.y,1e-6)) || (!equal(A2.x,B2.x,1e-6)) || (!equal(A2.y,B2.y,1e-6));
+  int misalign = (!equal(A1.x,B1.x,1e-12)) || (!equal(A1.y,B1.y,1e-12)) || (!equal(A2.x,B2.x,1e-12)) || (!equal(A2.y,B2.y,1e-12));
   
   int iB, jB;
   
@@ -231,8 +239,18 @@ xyExchange(__global double2* xyA,
       }
       
       getSwapIndex(this_face, &iB, &jB, that_face, NIB, NJB, 1);
-        
-      XYA(gi+ii,gj+jj) = transform(A1, A2, B1, B2, XYB(iB,jB));
+      
+      switch (affine) {
+        case NO_TRANSFORM:
+          XYA(gi+ii,gj+jj) = XYB(iB,jB);
+          break;
+        case MIRROR:
+          XYA(gi+ii,gj+jj) = mirror2D(A1, A2, XYB(iB,jB));
+          break;
+        default:
+          XYA(gi+ii,gj+jj) = transform(A1, A2, B1, B2, XYB(iB,jB));
+      }
+
     }
   }
 
