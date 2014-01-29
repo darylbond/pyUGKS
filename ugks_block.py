@@ -104,6 +104,16 @@ class UGKSBlock(object):
         # boundary conditions
         self.bc_list = b.bc_list
         
+        # check if we have time dependent BCs
+        self.time_dependent_BC = False
+        for bc in self.bc_list:
+            for udf in [bc.UDF_D, bc.UDF_T, bc.UDF_U, bc.UDF_V]:
+                if udf != None:
+                    if 't' in udf:
+                        self.time_dependent_BC = True
+                        break
+                    
+        
         # fill conditions
         self.fill_condition = b.fill_condition
         
@@ -334,7 +344,8 @@ class UGKSBlock(object):
         
         # wall properties
         wall_len = max(self.ni, self.nj)
-        self.wall_prop_D = self.set_buffer_size(wall_len*4*4*f64_size) # [D,U,V,T]
+        self.wall_prop_H = np.zeros((wall_len,4,4),dtype=np.float64)
+        self.wall_prop_D = self.set_buffer(self.wall_prop_H) # [D,U,V,T]
         
         self.wall_cover_H = np.zeros((wall_len,4,4),dtype=np.float64)
         for bci, bc in enumerate(self.bc_list):
@@ -388,7 +399,7 @@ class UGKSBlock(object):
                             
        
         # also update the boundary conditions
-        self.parametricBC()
+        self.parametricBC(force=True)
         
         
         print("global buffers initialised") 
@@ -562,7 +573,7 @@ class UGKSBlock(object):
         self.prg.edgeConstGrad(self.queue, global_size, work_size,
                                f, face)
     
-    def parametricBC(self):
+    def parametricBC(self, force=False):
         """
         update the parametric boundary conditions
         """
@@ -570,11 +581,13 @@ class UGKSBlock(object):
         global_size, work_size = m_tuple((max(self.ni,self.nj),1),(1,1))
         
         t = np.float64(gdata.time)
+
+        if force | self.time_dependent_BC:        
         
-        self.prg.paraBC(self.queue, global_size, work_size, self.para_D,
-                        self.wall_prop_D, t)
-        
-        cl.enqueue_barrier(self.queue)
+            self.prg.paraBC(self.queue, global_size, work_size, self.para_D,
+                            self.wall_prop_D, t)
+            
+            cl.enqueue_barrier(self.queue)
         
         return
     
@@ -1197,6 +1210,7 @@ class UGKSBlock(object):
             cl.enqueue_copy(self.queue,self.macro_H,self.macro_D)
             cl.enqueue_copy(self.queue,self.wall_cover_H,self.wall_cover_D)
             cl.enqueue_copy(self.queue,self.wall_fluxes_H,self.wall_fluxes_D)
+            cl.enqueue_copy(self.queue,self.wall_prop_H, self.wall_prop_D)
             self.macro_update = 1
             
         return
@@ -1362,6 +1376,12 @@ class UGKSBlock(object):
             l = length[fid]
             
             fgrp = wall.require_group(face)
+            
+            # wall parametric BC
+            fgrp.create_dataset("rho",data=self.wall_prop_H[0:l,fid,0], compression=gdata.save_options.compression)
+            fgrp.create_dataset("U",data=self.wall_prop_H[0:l,fid,1], compression=gdata.save_options.compression)
+            fgrp.create_dataset("V",data=self.wall_prop_H[0:l,fid,2], compression=gdata.save_options.compression)
+            fgrp.create_dataset("T",data=1.0/self.wall_prop_H[0:l,fid,3], compression=gdata.save_options.compression)
             
             fgrp.create_dataset("cover",data=self.wall_cover_H[0:l,fid,0], compression=gdata.save_options.compression)
             fgrp.create_dataset("reflected",data=self.wall_cover_H[0:l,fid,1], compression=gdata.save_options.compression)

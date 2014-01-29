@@ -14,6 +14,8 @@ geometry and flow details.
 # System
 import os
 import numpy as np
+import scipy
+from scipy.special import *
 
 #local
 from pygeom.pygeom import *

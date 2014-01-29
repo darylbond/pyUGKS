@@ -387,6 +387,10 @@ class UGKSim(object):
             self.start_timer()
         
         cl.enqueue_barrier(self.queue)
+        
+        # update the parametric boundary conditions that have a time component
+        for b in self.blocks:
+            b.parametricBC()
 
         # check if the required time step has changed
         # this may have occured due to the adsorbing wall needing a shorter
