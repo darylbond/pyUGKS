@@ -1269,7 +1269,7 @@ class UGKSBlock(object):
         """
         
         self.prg.clFindDT(self.queue, (self.ni, self.nj), None,
-                          self.xy_D, self.area_D, self.macro_D, self.time_step_D)
+                          self.xy_D, self.area_D, self.macro_D, self.time_step_D, np.float64(gdata.Kn_eff))
                           
         cl.enqueue_barrier(self.queue)
         

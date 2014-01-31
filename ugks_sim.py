@@ -95,6 +95,7 @@ class UGKSim(object):
         self.saved = False
         self.closed = False
         self.HDF_init = False
+        self.clock_time_stop_seconds = gdata.clock_time_stop[0]*60**2 + gdata.clock_time_stop[1]*60
         
         # save to file
         self.saveToFile(save_f=gdata.save_options.save_initial_f)
@@ -524,6 +525,10 @@ class UGKSim(object):
             # CONDITIONALS
             ###
             
+            if not self.step % gdata.run_stop_script_count:
+                print "step ",self.step
+                exec gdata.stop_script
+            
             if gdata.exit:
                 print "simulation exit -> interrupted"
                 print "step ",self.step," t = ",gdata.time
@@ -540,6 +545,12 @@ class UGKSim(object):
                 print "simulation exit -> time limit reached"
                 print "step ",self.step," t = ",gdata.time
                 break
+            
+            if (time.time()-t0) >= self.clock_time_stop_seconds:
+                print "simulation exit -> clock time limit reached"
+                print "step ",self.step," t = ",gdata.time
+                break
+            
             
             if get_res:
                 self.time_history_residual.append(res.global_residual)

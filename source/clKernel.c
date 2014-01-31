@@ -222,7 +222,8 @@ paraBC(__global double4* para_def,
 /////////////////////////////////////////
 __kernel void
 clFindDT(__global double2* xy, __global double* area,
-         __global double4* macro, __global double* time_step) 
+         __global double4* macro, __global double* time_step,
+         double Kn) 
 {
   // calculate the time step parameter for this cell
   
@@ -282,8 +283,23 @@ clFindDT(__global double2* xy, __global double* area,
   
   double sos = soundSpeed(GL(mi,mj));
   
-  double u = max(umax, fabs(UV.x)) + sos;
-  double v = max(vmax, fabs(UV.y)) + sos;
+  double U = fabs(UV.x);
+  double V = fabs(UV.y);
+  
+  double lo_u = min(umax, fabs(UV.x) + sos);
+  double lo_v = min(vmax, fabs(UV.y) + sos);
+  
+  double hi_u = max(umax, fabs(UV.x) + sos);
+  double hi_v = max(vmax, fabs(UV.y) + sos);
+  
+  // this is used to adjust the time step based on continuum/rarefied conditions
+  // completely arbitrary
+  double sigma = 10; // how fast we transition, small = slow, large = fast
+  double offset = 1e-3; // the 'mid-point' of the transition
+  double scale = (erf(sigma*(Kn - offset))+1)/2.0;
+  
+  double u = scale*(hi_u - lo_u) + lo_u;
+  double v = scale*(hi_v - lo_v) + lo_v;
   
   TSTEP(mi,mj) = (dx*u + dy*v)/AREA(mi+GHOST,mj+GHOST);
     

@@ -125,7 +125,8 @@ class UGKSData(object):
                 'u_num','v_num','quad_type',\
                 'work_size_i','work_size_j','opt_sample_size', 'opt_run',\
                 'opt_start','delta_dt','suggest_dt',\
-                'mu_ref','Kn_eff'
+                'mu_ref','Kn_eff', 'stop_script','run_stop_script_count',\
+                'clock_time_stop'
     
     def __init__(self):
         """
@@ -159,7 +160,10 @@ class UGKSData(object):
         self.t0 = 0.0
         self.time = 0.0
         self.step = 0
-        self.delta_dt = 1.0 #fraction of how much the time step is allowed to change between iterations        
+        self.delta_dt = 1.0 #fraction of how much the time step is allowed to change between iterations
+        self.run_stop_script_count = 1
+        self.stop_script = '' # script to run for checking a stop condition, use gdata.exit = True to force exit
+        self.clock_time_stop = (1,0) #(hrs, mins)
         
         # may be useful to change t0 if we are restarting from another job
         self.dt = 0.0
