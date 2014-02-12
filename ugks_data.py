@@ -161,9 +161,9 @@ class UGKSData(object):
         self.time = 0.0
         self.step = 0
         self.delta_dt = 1.0 #fraction of how much the time step is allowed to change between iterations
-        self.run_stop_script_count = 1
+        self.run_stop_script_count = -1
         self.stop_script = '' # script to run for checking a stop condition, use gdata.exit = True to force exit
-        self.clock_time_stop = (1,0) #(hrs, mins)
+        self.clock_time_stop = (1e6,0) #(hrs, mins)
         
         # may be useful to change t0 if we are restarting from another job
         self.dt = 0.0

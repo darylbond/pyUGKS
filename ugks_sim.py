@@ -524,10 +524,10 @@ class UGKSim(object):
             ###
             # CONDITIONALS
             ###
-            
-            if not self.step % gdata.run_stop_script_count:
-                print "step ",self.step
-                exec gdata.stop_script
+            if (gdata.run_stop_script_count != -1):
+                if not self.step % gdata.run_stop_script_count:
+                    print "step ",self.step
+                    exec gdata.stop_script
             
             if gdata.exit:
                 print "simulation exit -> interrupted"
