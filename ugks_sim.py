@@ -104,25 +104,8 @@ class UGKSim(object):
         self.saveToFile(save_f=gdata.save_options.save_initial_f)
         
         # pics
-        if not self.picName:
-            save = gdata.save_options
-            
-            # file
-            (dirName,firstName) = os.path.split(gdata.rootName)
-            
-            # file name
-            if save.save_name != "":
-                name = save.save_name
-            else:
-                name = firstName
-                
-            
-            picPath = os.path.join(gdata.rootName,"IMG/"+name)
-            if not os.access(picPath, os.F_OK):
-                os.makedirs(picPath)
-            
-            self.picName = os.path.join(picPath,name)
-            self.monitorName = os.path.join(gdata.rootName, "IMG", firstName)
+        self.initPicOutput()
+        
 
         return
         
@@ -1133,6 +1116,62 @@ class UGKSim(object):
             adsorbed_mass += adsorbed_mass_i
             
         return bulk_mass, adsorbed_mass
+    
+    def initPicOutput(self):
+        """
+        initialise pic output stuff
+        """
+    
+        if not self.picName:
+            save = gdata.save_options
+            
+            # file
+            (dirName,firstName) = os.path.split(gdata.rootName)
+            
+            # file name
+            if save.save_name != "":
+                name = save.save_name
+            else:
+                name = firstName
+                
+            
+            picPath = os.path.join(gdata.rootName,"IMG/"+name)
+            if not os.access(picPath, os.F_OK):
+                os.makedirs(picPath)
+            
+            self.picName = os.path.join(picPath,name)
+            self.monitorName = os.path.join(gdata.rootName, "IMG", firstName)
+
+            min_x = max_x = 0.0
+            min_y = max_y = 0.0
+
+            for b, block in enumerate(self.blocks):
+                x = block.x[:,:,0]
+                y = block.y[:,:,0]
+                
+                if b == 0:
+                    min_x = np.min(x)
+                    max_x = np.max(x)
+                    min_y = np.min(y)
+                    max_y = np.max(y)
+                else:
+                    min_x = min(min_x, np.min(x))
+                    max_x = max(max_x, np.max(x))
+                    min_y = min(min_y, np.min(y))
+                    max_y = max(max_y, np.max(y))
+                    
+            self.picLimits = [[min_x, max_x], [min_y, max_y]]
+            
+            ar = (max_x - min_x)/(max_y - min_y)
+            
+            max_fig_size = 20
+            
+            if ar > 1: 
+                self.picSize = (max_fig_size, max_fig_size/ar)
+            else:
+                self.picSize = (ar*max_fig_size, max_fig_size)
+                
+            return
         
     def plot_step(self):
         """
@@ -1173,17 +1212,20 @@ class UGKSim(object):
             
             max_z = max(max_z, np.max(z))
             min_z = min(min_z, np.min(z))
-            
-        max_size = 12
+                    
         
-        fig = plt.figure(figsize=(max_size, max_size), dpi=300)
+        fig = plt.figure(figsize=(self.picSize[0], self.picSize[1]), dpi=300)
         ax = fig.add_subplot(111)
         
         for i in range(len(X)):
-            
             ax.pcolormesh(X[i], Y[i], Z[i], vmin=min_z, vmax=max_z)
-            
+        
+        ax.set_xlim(self.picLimits[0])
+        ax.set_ylim(self.picLimits[1])
+        
         ax.set_aspect('equal')
+        
+        plt.tight_layout()
             
             
         name = self.picName+"_%s_step_%0.5i.png"%(save.pic_type, self.pic_counter)
