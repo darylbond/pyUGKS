@@ -47,7 +47,8 @@ class SaveOptions:
     
     __slots__ = 'save','save_name','writeHDF','writeVTK','save_initial_f',
     'save_final_f','internal_data','compression','save_count','h5Name',
-    'initial_save_count','initial_save_cutoff_time','save_final_flux','save_f_always'
+    'initial_save_count','initial_save_cutoff_time','save_final_flux','save_f_always',
+    'save_pic','pic_type'
     
     save = False
     save_name = ""
@@ -61,6 +62,9 @@ class SaveOptions:
     save_count = 1
     initial_save_count = None
     initial_save_cutoff_time = 0.0
+    
+    save_pic = False
+    pic_type = "D"
 
 #----------------------------------------------------------------------
 class ResidualOptions:

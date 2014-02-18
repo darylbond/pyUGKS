@@ -5,7 +5,7 @@ import pyopencl as cl
 import numpy as np
 
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 #from mpl_toolkits.mplot3d import Axes3D
 
@@ -43,6 +43,9 @@ class UGKSim(object):
     saved = False
     closed = False
     HDF_init = False
+    picName = False
+    monitorName = False
+    pic_counter = 0
 
     def __init__(self):
         """
@@ -99,6 +102,27 @@ class UGKSim(object):
         
         # save to file
         self.saveToFile(save_f=gdata.save_options.save_initial_f)
+        
+        # pics
+        if not self.picName:
+            save = gdata.save_options
+            
+            # file
+            (dirName,firstName) = os.path.split(gdata.rootName)
+            
+            # file name
+            if save.save_name != "":
+                name = save.save_name
+            else:
+                name = firstName
+                
+            
+            picPath = os.path.join(gdata.rootName,"IMG/"+name)
+            if not os.access(picPath, os.F_OK):
+                os.makedirs(picPath)
+            
+            self.picName = os.path.join(picPath,name)
+            self.monitorName = os.path.join(gdata.rootName, "IMG", firstName)
 
         return
         
@@ -605,6 +629,9 @@ class UGKSim(object):
                 else:
                     self.saveToFile(save_f=save.save_f_always)
                     
+                if save.save_pic:
+                    self.plot_step()
+                    
             if gdata.time < save.initial_save_cutoff_time:
                 if not self.step % save.initial_save_count:
                     step_finished.wait()
@@ -659,7 +686,6 @@ class UGKSim(object):
         if not gdata.residual_options.plot_residual:
             return
             
-
         # generate plot
         self.resFig = plt.figure(figsize=(12, 6))
         self.resPlot = self.resFig.add_subplot(111)
@@ -681,7 +707,7 @@ class UGKSim(object):
             self.line_residual_2, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'b', label="V")
             self.line_residual_3, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'k', label="1/T")
         
-        plt.legend(loc=3,ncol=2)        
+        self.resPlot.legend(loc=3,ncol=2)        
         
         if not self.time_history_residual:
             max_res = 1
@@ -691,14 +717,19 @@ class UGKSim(object):
         plot_title = "Residual"
         if gdata.title:
             plot_title += " - " + gdata.title
-        plt.title(plot_title)
+        self.resPlot.set_title(plot_title)
         
-        plt.grid(True)
+        self.resPlot.grid(True)
         self.residual_plot_limits = True
-        plt.xlim(1,gdata.max_step)
-        plt.ylim(gdata.residual_options.min_residual,max_res)
-        plt.ion()
-        plt.show()
+        self.resPlot.set_xlim(1,gdata.max_step)
+        self.resPlot.set_ylim(gdata.residual_options.min_residual,max_res)
+        
+        name = self.picName+"_RESIDUAL.png"
+        self.resFig.savefig(name)
+        
+        name = self.monitorName+"_RESIDUAL.png"
+        self.resFig.savefig(name)
+            
         
         print "\nresidual plot generated\n"
         
@@ -718,8 +749,8 @@ class UGKSim(object):
             
         max_y = np.max(self.time_history_residual)
 
-        plt.ylim(gdata.residual_options.min_residual,max_y)
-        plt.xlim(np.min(self.time_history_residual_N),gdata.max_step)
+        self.resPlot.set_ylim(gdata.residual_options.min_residual,max_y)
+        self.resPlot.set_xlim(np.min(self.time_history_residual_N),gdata.max_step)
         
         self.line_residual_0.set_xdata(self.time_history_residual_N)
         data = self.line_residual_0.get_ydata()
@@ -746,7 +777,7 @@ class UGKSim(object):
             
             max_y = max(max_y, np.max(self.res_slope))
 
-            plt.ylim(gdata.residual_options.min_residual,max_y)
+            self.resPlot.set_ylim(gdata.residual_options.min_residual,max_y)
             
             self.line_slope_0.set_xdata(self.res_slope_N)
             self.line_slope_0.set_ydata(self.res_slope[0])
@@ -762,6 +793,12 @@ class UGKSim(object):
             
         
         plt.draw()
+        
+        name = self.picName+"_RESIDUAL.png"
+        self.resFig.savefig(name)
+        
+        name = self.monitorName+"_RESIDUAL.png"
+        self.resFig.savefig(name)
         
         print "residual = ",gdata.residual_options.global_residual
 
@@ -1096,6 +1133,70 @@ class UGKSim(object):
             adsorbed_mass += adsorbed_mass_i
             
         return bulk_mass, adsorbed_mass
+        
+    def plot_step(self):
+        """
+        save a plot of the current time step to png
+        """
+        
+        X = []
+        Y = []
+        Z = []
+        
+        max_z = -1
+        min_z = 1
+        
+        save = gdata.save_options
+        
+        for block in self.blocks:
+            x = block.x[:,:,0]
+            y = block.y[:,:,0]
+            
+            block.updateHost()
+            
+            if save.pic_type == "UV":
+                UV = block.macro_H[:,:,1:3]
+                z = np.sqrt(UV[:,:,0]**2 + UV[:,:,1]**2)
+            elif save.pic_type == "D":
+                z = block.macro_H[:,:,0]
+            elif save.pic_type == "T":
+                z = 1.0/block.macro_H[:,:,3]
+            elif save.pic_type == "P":
+                z = 0.5*block.macro_H[:,:,0]*block.macro_H[:,:,3]
+            elif save.pic_type == "Q":
+                Q = block.Q_H
+                z = np.sqrt(Q[:,:,0]**2 + Q[:,:,1]**2)
+                
+            X.append(x)
+            Y.append(y)
+            Z.append(z)
+            
+            max_z = max(max_z, np.max(z))
+            min_z = min(min_z, np.min(z))
+            
+        max_size = 12
+        
+        fig = plt.figure(figsize=(max_size, max_size), dpi=300)
+        ax = fig.add_subplot(111)
+        
+        for i in range(len(X)):
+            
+            ax.pcolormesh(X[i], Y[i], Z[i], vmin=min_z, vmax=max_z)
+            
+        ax.set_aspect('equal')
+            
+            
+        name = self.picName+"_%s_step_%0.5i.png"%(save.pic_type, self.pic_counter)
+        fig.savefig(name)
+        
+        name = self.monitorName+"_%s_LATEST.png"%save.pic_type
+        fig.savefig(name)
+        
+        plt.close(fig)
+        
+        self.pic_counter += 1
+        
+        return 
         
     def __del__(self):
         """
