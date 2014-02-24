@@ -14,6 +14,9 @@ import time
 import sys
 import os
 
+from math import *
+from scipy.special import *
+
 from ugks_data import Block, gdata
 from ugks_CL import genOpenCL, update_source
 from geom.geom_bc_defs import *
@@ -815,14 +818,20 @@ class UGKSBlock(object):
         err_code = self.flag_H[0]
         ad_data = self.flag_H[1]
         
+        err = False
+        
         if err_code == 1.0:
-            raise RuntimeError("ERROR: NaN encountered")
+            err = True
+            print "ERROR: NaN encountered"
         elif err_code == 1.1:
-            raise RuntimeError("ERROR: NaN encountered in fluxes")
+            err = True
+            print "ERROR: NaN encountered in fluxes"
         elif err_code == 1.2:
-            raise RuntimeError("ERROR: NaN encountered in relaxation")
+            err = True
+            print "ERROR: NaN encountered in relaxation"
         elif err_code == 1.3:
-            raise RuntimeError("ERROR: NaN encountered in macro update")
+            err = True
+            print "ERROR: NaN encountered in macro update"
         elif err_code == 2.0:
             "we are adsorbing too much in the time step, need to adjust dt"
             self.max_dt = min(self.max_dt, ad_data)
@@ -832,9 +841,10 @@ class UGKSBlock(object):
             self.max_dt = min(self.max_dt, ad_data)
             print "desorbed too much, request dt = %g --> dt = %g"%(gdata.dt, self.max_dt)
         elif err_code == 4.0:
-            raise RuntimeError("ERROR: pressure / temperature outside adsorption isotherm data")
+            err = True
+            print "ERROR: pressure / temperature outside adsorption isotherm data"
         
-        return
+        return err
         
     def reset_flag(self):
         """
@@ -869,7 +879,9 @@ class UGKSBlock(object):
                              flux, self.macro_D, dt, self.flag_D)
                              
             cl.enqueue_barrier(self.queue)
-            self.get_flag()
+            
+            if self.get_flag():
+                return True
             
             rtype = bc.reflect_type
         
@@ -1115,7 +1127,7 @@ class UGKSBlock(object):
                           offset_bot, offset_top)
                          
             
-        return
+        return False
         
     def UGKS_update(self, get_residual=False):
         """
@@ -1152,7 +1164,8 @@ class UGKSBlock(object):
                              self.area_D, self.macro_D, self.Q_D, 
                              self.residual_D, dt, self.flag_D)
                              
-        self.get_flag()
+        if self.get_flag():
+                return True
         
         self.host_update = 0
         self.macro_update = 0
@@ -1180,7 +1193,7 @@ class UGKSBlock(object):
                 if r <= 0.0:
                     self.residual[i] = 1.0
         
-        return
+        return False
         
 #==============================================================================
 # INETRNAL DATA

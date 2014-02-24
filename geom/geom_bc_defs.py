@@ -20,7 +20,7 @@ This is done once per time step, before evaluating the fluxes.
    just inside the boundary into the ghost-cells outside
    the boundary.  This works fine for a strong supersonic outflow.
 """
-
+from geom_flow import FlowCondition
 import numpy as np
 import copy
 
@@ -255,7 +255,16 @@ class ConstantBC(BoundaryCondition):
     run. This data is loaded at the initialisation stage and then left untouched
     """
     def __init__(self, D=0, T=0, U=0, V=0, UDF_D=None,
-                 UDF_U=None, UDF_V=None, UDF_T=None, label="CONSTANT"):
+                 UDF_U=None, UDF_V=None, UDF_T=None, flowCondition=None, label="CONSTANT"):
+        if flowCondition != None:
+            D = flowCondition.D
+            T = flowCondition.T
+            U = flowCondition.U
+            V = flowCondition.V
+            UDF_D = flowCondition.UDF_D
+            UDF_U = flowCondition.UDF_U
+            UDF_V = flowCondition.UDF_V
+            UDF_T = flowCondition.UDF_T
         BoundaryCondition.__init__(self,D=D, U=U, V=V, T=T, 
                                    UDF_D=UDF_D, UDF_U=UDF_U, UDF_V=UDF_V, UDF_T=UDF_T, 
                                    type_of_BC=CONSTANT, label=label)
@@ -305,8 +314,19 @@ class DiffuseBC(BoundaryCondition):
     U = velocity of wall, parallel to wall, positive in direction of cell wall tangent vector
     """
     def __init__(self, D=1, T=0, U=0, V=0, UDF_D=None, 
-                 UDF_U=None, UDF_V=None, UDF_T=None,
+                 UDF_U=None, UDF_V=None, UDF_T=None, flowCondition=None, 
                  label="DIFFUSE"):
+                     
+        if flowCondition != None:
+            D = flowCondition.D
+            T = flowCondition.T
+            U = flowCondition.U
+            V = flowCondition.V
+            UDF_D = flowCondition.UDF_D
+            UDF_U = flowCondition.UDF_U
+            UDF_V = flowCondition.UDF_V
+            UDF_T = flowCondition.UDF_T
+            
         BoundaryCondition.__init__(self, D=D, U=U, 
                                    V=V, T=T, UDF_D=UDF_D, 
                                    UDF_U=UDF_U, UDF_V=UDF_V, UDF_T=UDF_T,
@@ -334,6 +354,7 @@ class AdsorbingBC(BoundaryCondition):
     """
     def __init__(self, D=1, T=0, U=0, V=0, UDF_D=None, 
                  UDF_U=None, UDF_V=None, UDF_T=None, 
+                 flowCondition=None, 
                  adsorb=None,
                  beta_n=0,
                  beta_t=0,
@@ -344,6 +365,17 @@ class AdsorbingBC(BoundaryCondition):
                  cover_initial=0,
                  reflect_type='S',
                  label="ADSORBING"):
+                     
+        if flowCondition != None:
+            D = flowCondition.D
+            T = flowCondition.T
+            U = flowCondition.U
+            V = flowCondition.V
+            UDF_D = flowCondition.UDF_D
+            UDF_U = flowCondition.UDF_U
+            UDF_V = flowCondition.UDF_V
+            UDF_T = flowCondition.UDF_T
+            
         BoundaryCondition.__init__(self, D=D, U=U, 
                                    V=V, T=T, UDF_D=UDF_D, 
                                    UDF_U=UDF_U, UDF_V=UDF_V, UDF_T=UDF_T,

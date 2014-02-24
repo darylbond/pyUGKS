@@ -295,6 +295,7 @@ adsorbingWall_P1(__global double2* normal,
     __local double2 data[LOCAL_SIZE];
     __local double adjusted_flux[LOCAL_SIZE];
     __local double adsorb_ratio[1];
+    __local double correct_reflected[1];
     
     adsorb_ratio[0] = 0.0;
 
@@ -308,12 +309,15 @@ adsorbingWall_P1(__global double2* normal,
         double beta, dvtheta;
         double2 total_flux, reflected_flux, adsorbed_flux, desorbed_flux;
         double2 uv, face_dist;
-        int delta, zero_dvtheta;
+        int delta;
         
         //data = [reflected flux, adsorbed flux]
         
+        // initialise to zero
         data[thread_id] = 0.0;
         adjusted_flux[thread_id] = 0.0;
+        
+        barrier(CLK_LOCAL_MEM_FENCE);
         
         double vartheta = COVER(face, ci).s0; // the fraction of cover that this wall section has
         
@@ -332,12 +336,13 @@ adsorbingWall_P1(__global double2* normal,
                 
                 adsorbed_flux = beta*total_flux*GAMMA_F[face]*(1.0 - vartheta); // is adsorbed
                 
-                if (adsorbed_flux.x > total_flux.x) {
+                // make sure that we don't over adsorb
+                int flux_sign = sign(total_flux.x);
+                if ((flux_sign*adsorbed_flux.x) > (flux_sign*total_flux.x)) {
                     adsorbed_flux = total_flux;
                 }
                 
                 reflected_flux = total_flux - adsorbed_flux; // is reflected
-                
                 
                 // sum of the reflected and adsorbed distributions
                 data[thread_id].x += reflected_flux.x;
@@ -366,31 +371,28 @@ adsorbingWall_P1(__global double2* normal,
             grab_id *= 2;
             barrier(CLK_LOCAL_MEM_FENCE);
         }
+
         
         if (thread_id == 0) {
+            
+            correct_reflected[0] = 1.0;
         
             // we now know how much needs to be reflected and adsorbed
             
-            reflected_flux.x = data[0].x;
-            adsorbed_flux.x  = data[0].y;
+            double reflected_flux_initial = data[0].x;
+            double adsorbed_flux_initial  = data[0].y;
             
-            zero_dvtheta = 0;
+            double reflected_flux_final = reflected_flux_initial;
+            double adsorbed_flux_final = adsorbed_flux_initial;
             
             if (GAMMA_F[face] > 0.0) {
-            
-                dvtheta = dt*ALPHA_P[face]*adsorbed_flux.x;
+
+                dvtheta = dt*ALPHA_P[face]*adsorbed_flux_initial;
                 
                 if (dvtheta > (1 - vartheta)) {
-                    // we are adsorbing too much!
-                    flag[0] = ERR_ADSORB_TOO_MUCH;
-                    // calculate the time step required to adsorb only half as much as is 
-                    // physically possible
-                    // we now use this dt so that we can check the desorbing process as well
-                    dt = GOLDEN_RATIO*(1 - vartheta)/(ALPHA_P[face]*adsorbed_flux.x);
-                    flag[1] = dt;
-                    
-                    dvtheta = dt*ALPHA_P[face]*adsorbed_flux.x;
-                    zero_dvtheta = 1;
+                    // only allow as much adsorption as is possible
+                    dvtheta = 1 - vartheta;
+                    adsorbed_flux_final = dvtheta/dt*ALPHA_P[face];
                 }
                 
                 // calculate the desorption rate based on the Langmuir isotherm
@@ -413,20 +415,33 @@ adsorbingWall_P1(__global double2* normal,
                 //  including what we have just adsorbed in this time step
                 if ((vartheta + dvtheta) < 0.0) {
                     desorbed_flux.x = vartheta/(dt*ALPHA_P[face]);
-                    dt = GOLDEN_RATIO*vartheta/(ALPHA_P[face]*desorbed_flux.x);
-                    flag[0] = ERR_DESORB_TOO_MUCH;
-                    flag[1] = dt;
-                    zero_dvtheta = 1;
                 }
             } else {
                 dvtheta = 0.0;
             }
             
-            if (zero_dvtheta == 0) {
-                COVER(face, ci).s0 += dvtheta;
-                COVER(face, ci).s1 = reflected_flux.x;
-                COVER(face, ci).s2 = adsorbed_flux.x;
-                COVER(face, ci).s3 = desorbed_flux.x;
+            // we now know how much ACTUALLY got adsorbed and desorbed
+            // need to adjust the reflected quantity to account for any discrepancy
+            // in the predicted and actual adsorbed 
+            
+            reflected_flux_final = reflected_flux_initial + adsorbed_flux_initial - adsorbed_flux_final;
+            
+            correct_reflected[0] = reflected_flux_final/reflected_flux_initial;
+            
+            COVER(face, ci).s0 += dvtheta;
+            COVER(face, ci).s1 = reflected_flux_final;
+            COVER(face, ci).s2 = adsorbed_flux_final;
+            COVER(face, ci).s3 = desorbed_flux.x;
+        }
+    }
+    
+    barrier(CLK_GLOBAL_MEM_FENCE);
+    
+    if (correct_reflected[0] != 1.0) {
+        for (size_t li = 0; li < LOCAL_LOOP_LENGTH; ++li) {
+            size_t gv = li*LOCAL_SIZE+thread_id;
+            if (gv < NV) {
+                WALL_DIST(ci, gv) *= correct_reflected[0];  // correct the reflected distribution
             }
         }
     }

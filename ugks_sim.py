@@ -21,6 +21,7 @@ from ugks_block import UGKSBlock
 
 from geom.geom_bc_defs import *
 from geom.geom_defs import *
+from pygeom.pygeom import Node
 
 def reject_outliers(data, m=2):
     data = np.array(data)
@@ -100,11 +101,13 @@ class UGKSim(object):
         self.HDF_init = False
         self.clock_time_stop_seconds = gdata.clock_time_stop[0]*60**2 + gdata.clock_time_stop[1]*60
         
+        # pics
+        self.initPicOutput()
+        
         # save to file
         self.saveToFile(save_f=gdata.save_options.save_initial_f)
         
-        # pics
-        self.initPicOutput()
+        
         
 
         return
@@ -298,7 +301,7 @@ class UGKSim(object):
                 if (dt_new > (1.0+gdata.delta_dt)*dt_old) & limit:
                     dt_new = (1.0+gdata.delta_dt)*dt_old
                 gdata.dt = dt_new
-                print "dt = %g"%gdata.dt
+                print "dt = %g (%g)"%(gdata.dt, gdata.dt/gdata.t_ref)
 
         return
 
@@ -388,6 +391,8 @@ class UGKSim(object):
         run one step of the simulation
         """
         
+        err = False
+        
         if get_res:
             res = 0.0
         
@@ -408,7 +413,10 @@ class UGKSim(object):
         while (gdata.dt != dt_old) & (count < 2):
             dt_old = gdata.dt
             for b in self.blocks:
-                b.UGKS_flux()
+                err = b.UGKS_flux()
+                if err:
+                    return cl.enqueue_barrier(self.queue), err
+                    
             cl.enqueue_barrier(self.queue)
             self.updateTimeStep()
             count += 1
@@ -420,7 +428,9 @@ class UGKSim(object):
 
         
         for b in self.blocks:
-            b.UGKS_update(get_res)
+            err = b.UGKS_update(get_res)
+            if err:
+                return cl.enqueue_barrier(self.queue), err
             
         cl.enqueue_barrier(self.queue)
         
@@ -452,7 +462,7 @@ class UGKSim(object):
         # make sure all ghost cells are up to date
         self.updateAllBC()
 
-        return cl.enqueue_barrier(self.queue)
+        return cl.enqueue_barrier(self.queue), err
         
     def run(self):
         """
@@ -522,7 +532,7 @@ class UGKSim(object):
                 get_dt = False
                 
             # one iteration of the method
-            step_finished = self.one_step(get_dt, get_res)
+            step_finished, foundNaN = self.one_step(get_dt, get_res)
             
             self.saved = False
 
@@ -611,9 +621,6 @@ class UGKSim(object):
                     self.saveToFile(save_f=save.save_final_f)
                 else:
                     self.saveToFile(save_f=save.save_f_always)
-                    
-                if save.save_pic:
-                    self.plot_step()
                     
             if gdata.time < save.initial_save_cutoff_time:
                 if not self.step % save.initial_save_count:
@@ -1091,6 +1098,10 @@ class UGKSim(object):
         """
         group saving calls together
         """
+
+        if gdata.save_options.save_pic:
+            self.plot_step()        
+        
         if gdata.save_options.save & (not self.saved):
             
             print "saving step: ",self.step
@@ -1162,16 +1173,49 @@ class UGKSim(object):
                     
             self.picLimits = [[min_x, max_x], [min_y, max_y]]
             
-            ar = (max_x - min_x)/(max_y - min_y)
+            ar = 16/10.0
+            max_fig_size = 24
+            self.picSize = (max_fig_size, max_fig_size/ar)
             
-            max_fig_size = 20
-            
-            if ar > 1: 
-                self.picSize = (max_fig_size, max_fig_size/ar)
-            else:
-                self.picSize = (ar*max_fig_size, max_fig_size)
+            # plot the grid
+            self.plot_grid()
                 
             return
+            
+    def plot_grid(self):
+        """
+        plot the grid of all blocks
+        """
+        
+        fig = plt.figure(figsize=(self.picSize[0], self.picSize[1]), dpi=300)
+        
+        ax = fig.add_subplot(111)
+        
+        for block in self.blocks:
+            x = block.x[:,:,0]
+            y = block.y[:,:,0]
+        
+            ax.plot(x,y,"k")
+            ax.plot(np.rot90(x),np.rot90(y),"k", alpha=0.5)
+            
+        
+        for node in Node.nodeList:
+            x = node.x/gdata.L_ref
+            y = node.y/gdata.L_ref
+            ax.plot(x, y,'ko')
+            ax.text(x, y, node.label)
+            
+        ax.set_aspect('equal')
+            
+        try:
+            plt.tight_layout()
+        except:
+            pass
+        
+        name = self.picName+"_GRID.png"
+        fig.savefig(name)
+        
+        return
         
     def plot_step(self):
         """
@@ -1182,10 +1226,8 @@ class UGKSim(object):
         Y = []
         Z = []
         
-        max_z = -1
-        min_z = 1
-        
-        save = gdata.save_options
+        max_z = 6*[-1]
+        min_z = 6*[1]
         
         for block in self.blocks:
             x = block.x[:,:,0]
@@ -1193,45 +1235,50 @@ class UGKSim(object):
             
             block.updateHost()
             
-            if save.pic_type == "UV":
-                UV = block.macro_H[:,:,1:3]
-                z = np.sqrt(UV[:,:,0]**2 + UV[:,:,1]**2)
-            elif save.pic_type == "D":
-                z = block.macro_H[:,:,0]
-            elif save.pic_type == "T":
-                z = 1.0/block.macro_H[:,:,3]
-            elif save.pic_type == "P":
-                z = 0.5*block.macro_H[:,:,0]*block.macro_H[:,:,3]
-            elif save.pic_type == "Q":
-                Q = block.Q_H
-                z = np.sqrt(Q[:,:,0]**2 + Q[:,:,1]**2)
+            UV = block.macro_H[:,:,1:3]
+            vel = np.sqrt(UV[:,:,0]**2 + UV[:,:,1]**2)
+            T = 1.0/block.macro_H[:,:,3]
+            M = (vel*gdata.C_ref)/np.sqrt(gdata.gamma*gdata.R*gdata.T_ref*T)
+            D = block.macro_H[:,:,0]
+            P = 0.5*D*T
+            Q = block.Q_H
+            q = np.sqrt(Q[:,:,0]**2 + Q[:,:,1]**2)
+            
+            vec = [D, T, P, vel, q, M]
+            
+            for i, data in enumerate(vec):
+                max_z[i] = max(max_z[i], np.max(data))
+                min_z[i] = min(min_z[i], np.min(data))
                 
             X.append(x)
             Y.append(y)
-            Z.append(z)
-            
-            max_z = max(max_z, np.max(z))
-            min_z = min(min_z, np.min(z))
-                    
-        
+            Z.append(vec)
+     
         fig = plt.figure(figsize=(self.picSize[0], self.picSize[1]), dpi=300)
-        ax = fig.add_subplot(111)
         
-        for i in range(len(X)):
-            ax.pcolormesh(X[i], Y[i], Z[i], vmin=min_z, vmax=max_z)
+        label = ['D', 'T', 'P', '|UV|', '|Q|', 'M']
         
-        ax.set_xlim(self.picLimits[0])
-        ax.set_ylim(self.picLimits[1])
+        for sp in range(6):
+            ax = fig.add_subplot(2,3,sp+1)
         
-        ax.set_aspect('equal')
+            for i in range(len(X)):
+                cs = ax.pcolormesh(X[i], Y[i], Z[i][sp], vmin=min_z[sp], vmax=max_z[sp])
         
-        plt.tight_layout()
+            ax.set_xlim(self.picLimits[0])
+            ax.set_ylim(self.picLimits[1])
+            ax.set_title(label[sp])
+            plt.colorbar(cs, ax=ax)
+        
+        try:
+            plt.tight_layout()
+        except:
+            pass
             
             
-        name = self.picName+"_%s_step_%0.5i.png"%(save.pic_type, self.pic_counter)
+        name = self.picName+"_step_%0.5i.png"%(self.pic_counter)
         fig.savefig(name)
         
-        name = self.monitorName+"_%s_LATEST.png"%save.pic_type
+        name = self.monitorName+"_LATEST.png"
         fig.savefig(name)
         
         plt.close(fig)
@@ -1239,6 +1286,7 @@ class UGKSim(object):
         self.pic_counter += 1
         
         return 
+        
         
     def __del__(self):
         """
