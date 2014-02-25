@@ -142,32 +142,31 @@ def genHeader(data):
     s = s[:-2] # remove comma and space
     s += '};\n'
     
-    # the number of points in the look-up table
-#    s += '__constant int N_ISO[4] = {'
-#    for bc in bc_list:
-#        if bc.type_of_BC == ADSORBING:
-#            s += '%d, '%bc.adsorb.shape[0]
-#        else: s += '-1, '
-#    s = s[:-2] # remove comma and space
-#    s += '};\n'
-    
     # define the look-up tables for adsorption isotherms
     
     for bci, bc in enumerate(bc_list):
         if bc.type_of_BC == ADSORBING:
-            shape = bc.adsorb.shape
-            if shape[1] != 3:
-                raise RuntimeError("Passed in array for isotherm values is not an n*3 array")
-            s += '__constant double4 ISO_%s[%d] = {'%(faceName[bci], shape[0])
-            for i in range(shape[0]):
-                s += '(double4)('
-                for j in range(shape[1]):
-                    s += '%0.15e, '%bc.adsorb[i,j]
-                s = s[:-2]
-                s += ', 0), '
-            s = s[:-2] # remove comma and space
-            s += '};\n'
+            
+            if bc.adsorb.shape == ():
+                s += '#define CONSTANT_ADSORB_%s 1\n'%faceName[bci]
+                s += '#define ADSORB_%s %g\n'%(faceName[bci], bc.adsorb)
+                s += '__constant double4 ISO_%s[1] = {(double4)(-1,-1,-1,-1)};\n'%(faceName[bci])
+            else:
+                shape = bc.adsorb.shape
+                if shape[1] != 3:
+                    raise RuntimeError("Passed in array for isotherm values is not an n*3 array")
+                s += '__constant double4 ISO_%s[%d] = {'%(faceName[bci], shape[0])
+                for i in range(shape[0]):
+                    s += '(double4)('
+                    for j in range(shape[1]):
+                        s += '%0.15e, '%bc.adsorb[i,j]
+                    s = s[:-2]
+                    s += ', 0), '
+                s = s[:-2] # remove comma and space
+                s += '};\n'
         else: 
+            s += '#define CONSTANT_ADSORB_%s 0\n'%faceName[bci]
+            s += '#define ADSORB_%s 0.0\n'%(faceName[bci])
             s += '__constant double4 ISO_%s[1] = {(double4)(-1,-1,-1,-1)};\n'%(faceName[bci])
     
     plotting = 0
@@ -179,47 +178,56 @@ def genHeader(data):
     for bci, bc in enumerate(bc_list):
         if bc.type_of_BC == ADSORBING:
             
-            xy = bc.adsorb[:,0:2]
-            deln = Delaunay(xy)
-            tris = deln.vertices
-            nbrs = deln.neighbors
+            if bc.adsorb.shape == ():
+                s += '__constant int4 TRI_%s[1] = {(int4)(-1,-1,-1,-1)};\n'%(faceName[bci])
+                s += '__constant int4 NBR_%s[1] = {(int4)(-1,-1,-1,-1)};\n'%(faceName[bci])
+                n_tri.append(0)
+            else:
+                s += '#define CONSTANT_ADSORB_%s 0\n'%faceName[bci]
+                s += '#define ADSORB_%s 0.0\n'%(faceName[bci])
             
-            if plotting:
-                ax = fig.add_subplot(1,len(bc_list),bci+1)
-                cb = ax.tricontourf(xy[:,0], xy[:,1], tris, bc.adsorb[:,2],50)
-                ax.triplot(xy[:,0], xy[:,1], tris)
-                plt.colorbar(cb)
-
-            shape = tris.shape
-
-            s += '__constant int4 TRI_%s[%d] = {'%(faceName[bci], shape[0])
-            for i in range(shape[0]):
-                s += '(int4)('
-                for j in range(shape[1]):
-                    s += '%d, '%tris[i,j]
-                s = s[:-2]
-                s += ', 0), '
-            s = s[:-2] # remove comma and space
-            s += '};\n'
-        
-            n_tri.append(shape[0])
+                xy = bc.adsorb[:,0:2]
+                deln = Delaunay(xy)
+                tris = deln.vertices
+                nbrs = deln.neighbors
+                
+                if plotting:
+                    ax = fig.add_subplot(1,len(bc_list),bci+1)
+                    cb = ax.tricontourf(xy[:,0], xy[:,1], tris, bc.adsorb[:,2],50)
+                    ax.triplot(xy[:,0], xy[:,1], tris)
+                    plt.colorbar(cb)
+    
+                shape = tris.shape
+    
+                s += '__constant int4 TRI_%s[%d] = {'%(faceName[bci], shape[0])
+                for i in range(shape[0]):
+                    s += '(int4)('
+                    for j in range(shape[1]):
+                        s += '%d, '%tris[i,j]
+                    s = s[:-2]
+                    s += ', 0), '
+                s = s[:-2] # remove comma and space
+                s += '};\n'
             
-            shape = nbrs.shape
-
-            s += '__constant int4 NBR_%s[%d] = {'%(faceName[bci], shape[0])
-            for i in range(shape[0]):
-                s += '(int4)('
-                for j in range(shape[1]):
-                    s += '%d, '%nbrs[i,j]
-                s = s[:-2]
-                s += ', 0), '
-            s = s[:-2] # remove comma and space
-            s += '};\n'
+                n_tri.append(shape[0])
+                
+                shape = nbrs.shape
+    
+                s += '__constant int4 NBR_%s[%d] = {'%(faceName[bci], shape[0])
+                for i in range(shape[0]):
+                    s += '(int4)('
+                    for j in range(shape[1]):
+                        s += '%d, '%nbrs[i,j]
+                    s = s[:-2]
+                    s += ', 0), '
+                s = s[:-2] # remove comma and space
+                s += '};\n'
             
-        else: 
+        else:
             s += '__constant int4 TRI_%s[1] = {(int4)(-1,-1,-1,-1)};\n'%(faceName[bci])
             s += '__constant int4 NBR_%s[1] = {(int4)(-1,-1,-1,-1)};\n'%(faceName[bci])
             n_tri.append(0)
+            
     
     # the number of points in the look-up table
     s += '__constant int N_TRI[4] = {%d, %d, %d, %d};\n'%(n_tri[0],n_tri[1],n_tri[2],n_tri[3])

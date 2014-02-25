@@ -267,6 +267,7 @@ class UGKSBlock(object):
         self.macro_H = np.ones((self.ni,self.nj,4),dtype=np.float64)
         self.Q_H = np.ones((self.ni,self.nj,2),dtype=np.float64)
         
+        
         if restart_hdf:
             step = restart_hdf['global_data/final_step'][()]
             data = restart_hdf['step_%d/block_%d'%(step, self.id)]
@@ -367,6 +368,7 @@ class UGKSBlock(object):
         self.macro_D = self.set_buffer(self.macro_H)
         self.Q_D = self.set_buffer(self.Q_H)
         
+        
         # time step
         self.time_step_D = self.set_buffer(self.time_step_H)
         
@@ -379,6 +381,8 @@ class UGKSBlock(object):
         
         ### INTERNAL DATA
         if gdata.save_options.internal_data:
+            self.stress_H = np.ones((self.ni,self.nj,4),dtype=np.float64)
+            self.stress_D = self.set_buffer(self.stress_H)
             self.Txyz_H = np.ones((self.ni,self.nj,4),dtype=np.float64)
             self.Txyz_D = self.set_buffer(self.Txyz_H)
             
@@ -1206,11 +1210,12 @@ class UGKSBlock(object):
         
         if gdata.save_options.internal_data:
             global_size, work_size = m_tuple((self.ni, self.nj),(gdata.work_size_i,gdata.work_size_j))
-            self.prg.getInternalTemp(self.queue, global_size, work_size,
-                                 self.f_D, self.Txyz_D)
+            self.prg.getInternal(self.queue, global_size, work_size,
+                                 self.f_D, self.Txyz_D, self.stress_D)
             cl.enqueue_barrier(self.queue)
                                  
             cl.enqueue_copy(self.queue,self.Txyz_H,self.Txyz_D)
+            cl.enqueue_copy(self.queue,self.stress_H,self.stress_D)
         return
 
     def updateHostMacro(self):
@@ -1353,12 +1358,19 @@ class UGKSBlock(object):
         
         
         if gdata.save_options.internal_data:
-            self.getInternal()
             sgrp.create_dataset("Txyz",data=self.Txyz_H[:,:,0:-1], compression=gdata.save_options.compression)
             
             xdmf += '<Attribute Name="Txyz" AttributeType="Vector" Center="Cell">\n'
             xdmf += '<DataItem Dimensions="%d %d 3" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
             xdmf += '%s:/step_%d/block_%d/Txyz\n'%(h5Name, step, self.id)
+            xdmf += '</DataItem>\n'
+            xdmf += '</Attribute>\n'
+            
+            sgrp.create_dataset("stress",data=self.stress_H[:,:,0:3], compression=gdata.save_options.compression)
+            
+            xdmf += '<Attribute Name="stress" AttributeType="Vector" Center="Cell">\n'
+            xdmf += '<DataItem Dimensions="%d %d 3" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
+            xdmf += '%s:/step_%d/block_%d/stress\n'%(h5Name, step, self.id)
             xdmf += '</DataItem>\n'
             xdmf += '</Attribute>\n'
 

@@ -181,24 +181,45 @@ double2 vartheta_langmuir(double D, double T, size_t face)
     __constant int4* TRI;
     __constant int4* NBR;
 
+    double2 vartheta;
 
     switch (face) {
         case GNORTH:
+            if (CONSTANT_ADSORB_north) {
+                vartheta.x = ADSORB_north;
+                vartheta.y = 0.0;
+                return vartheta;
+            }
             ISO = ISO_north;
             TRI = TRI_north;
             NBR = NBR_north;
             break;
         case GEAST:
+            if (CONSTANT_ADSORB_east) {
+                vartheta.x = ADSORB_east;
+                vartheta.y = 0.0;
+                return vartheta;
+            }
             ISO = ISO_east;
             TRI = TRI_east;
             NBR = NBR_east;
             break;
         case GSOUTH:
+            if (CONSTANT_ADSORB_south) {
+                vartheta.x = ADSORB_south;
+                vartheta.y = 0.0;
+                return vartheta;
+            }
             ISO = ISO_south;
             TRI = TRI_south;
             NBR = NBR_south;
             break;
         case GWEST:
+            if (CONSTANT_ADSORB_west) {
+                vartheta.x = ADSORB_west;
+                vartheta.y = 0.0;
+                return vartheta;
+            }
             ISO = ISO_west;
             TRI = TRI_west;
             NBR = NBR_west;
@@ -214,7 +235,7 @@ double2 vartheta_langmuir(double D, double T, size_t face)
 
     int3 tri = TRI[loc.x].s012;
     
-    double2 vartheta;
+    
     vartheta.x = interpolate(pt, ISO[tri.x], ISO[tri.y], ISO[tri.z]);
     vartheta.y = (double) loc.y;
     

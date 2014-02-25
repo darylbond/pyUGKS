@@ -3,6 +3,7 @@
 /////////////////////////////////////////\n
 #define F(i,j,v) Fin[NV*NJ*(i) + NV*(j) + (v)] 
 #define TXYZ(i,j) Txyz[(i)*nj + (j)] 
+#define STRESS(i,j) Stress[(i)*nj + (j)] 
 #define XY(i,j) xy[(i)*NY + (j)] 
 
 
@@ -311,7 +312,7 @@ clFindDT(__global double2* xy, __global double* area,
 ////////////////////////////////////////////////////////////////////////////////
 
 __kernel void
-getInternalTemp(__global double2* Fin, __global double4* Txyz)
+getInternal(__global double2* Fin, __global double4* Txyz, __global double4* Stress)
 {
   // get the three temperatures Tx, Ty and Tz, plus the combined
 
@@ -332,6 +333,7 @@ getInternalTemp(__global double2* Fin, __global double4* Txyz)
     double M2 = 0.0;  
     double M4 = 0.0; 
     double M5 = 0.0;
+    double M6 = 0.0;
     double H = 0.0;
     
     for (int i=0; i < NV; i++) {
@@ -347,10 +349,11 @@ getInternalTemp(__global double2* Fin, __global double4* Txyz)
       M2 += uv.y*f.x;
       M4 += uv.x*uv.x*f.x;
       M5 += uv.y*uv.y*f.x;
+      M6 += uv.x*uv.y*f.x;
       H += f.y;
     }
       
-    double U, V, Tx, Ty, Tz, T;
+    double U, V, Tx, Ty, Tz, T, tau_xx, tau_yy, tau_xy;
     
     U = M1/D;	// mean velocity x
     V = M2/D;	// mean velocity y
@@ -360,6 +363,12 @@ getInternalTemp(__global double2* Fin, __global double4* Txyz)
     T = (Tx + Ty + Tz)/B;
     
     TXYZ(mi,mj) = (double4)(Tx, Ty, Tz, T);
+    
+    tau_xx = M4 - D*(U*U + T/2.0);
+    tau_xy = M6 - D*(U*V + T/2.0);
+    tau_yy = M5 - D*(V*V + T/2.0);
+    
+    STRESS(mi,mj) = (double4)(tau_xx, tau_xy, tau_yy, 0.0);
   }
 
   return;
