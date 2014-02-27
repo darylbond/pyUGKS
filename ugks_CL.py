@@ -38,6 +38,10 @@ def genHeader(data):
         flux_method = 1
         stencil_length = 5
         mid_stencil = 2
+    elif gdata.flux_method == "minmod":
+        flux_method = 3
+        stencil_length = 3
+        mid_stencil = 1
     
     if gdata.platform == "AMD":
         #s += '#pragma OPENCL EXTENSION cl_amd_fp64 : enable \n'

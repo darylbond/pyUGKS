@@ -4,8 +4,6 @@
 import pyopencl as cl
 import numpy as np
 
-import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 #from mpl_toolkits.mplot3d import Axes3D
 
@@ -1099,7 +1097,7 @@ class UGKSim(object):
         group saving calls together
         """
 
-        if gdata.save_options.save_pic:
+        if (gdata.save_options.save_pic) & (gdata.time != 0.0):
             self.plot_step()        
         
         if gdata.save_options.save & (not self.saved):

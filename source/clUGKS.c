@@ -184,6 +184,10 @@ iFace(__global double2* Fin,
                 // left side of interface
                 double2 sigma = WENO5(f_stencil, interface_distance);
                 #endif
+                #if FLUX_METHOD == 3 // minmod
+                // left side of interface
+                double2 sigma = NND(f_stencil, interface_distance);
+                #endif
 
                 // the interface value of f
                 IFACEF(gi,gj,gv) = f_stencil[MID_STENCIL] + sigma*interface_distance;
@@ -1124,14 +1128,14 @@ wallMassEnergyFluxes(__global double2* normal,
             double4 macro_in = -rot*data_in[0];
             double4 macro_out = rot*data_out[0];
             
-            // total internal energy
-            double2 mean_vel;
+            //// total internal energy
+            //double2 mean_vel;
             
-            mean_vel = macro_in.s12/macro_in.s0;
-            macro_in.s3 -= 0.5*dot(mean_vel,mean_vel)*macro_in.s0;
+            //mean_vel = macro_in.s12/macro_in.s0;
+            //macro_in.s3 -= 0.5*dot(mean_vel,mean_vel)*macro_in.s0;
             
-            mean_vel = macro_out.s12/macro_out.s0;
-            macro_out.s3 -= 0.5*dot(mean_vel,mean_vel)*macro_out.s0;
+            //mean_vel = macro_out.s12/macro_out.s0;
+            //macro_out.s3 -= 0.5*dot(mean_vel,mean_vel)*macro_out.s0;
             
             // density, momentum x, momentum y, energy
             WALL_FLUX(face, ci) = (double8)(macro_in.s0, macro_out.s0, macro_in.s1, macro_out.s1, macro_in.s2, macro_out.s2, macro_in.s3, macro_out.s3);

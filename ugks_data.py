@@ -17,6 +17,8 @@ import numpy as np
 import scipy
 from scipy.special import *
 
+from matplotlib import pylab as plt
+
 #local
 from pygeom.pygeom import *
 from geom.geom_defs import *

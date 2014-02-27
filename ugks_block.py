@@ -82,7 +82,7 @@ class UGKSBlock(object):
         
         self.label = b.label
         
-        if gdata.flux_method == "vanLeer":
+        if gdata.flux_method in ["vanLeer", "minmod"]:
             self.ghost = 2
         elif gdata.flux_method == "WENO5":
             self.ghost = 3

@@ -9,6 +9,9 @@
 
 import os
 
+import matplotlib
+matplotlib.use('Agg')
+
 os.environ["PYOPENCL_COMPILER_OUTPUT"]="1"
 os.environ["PYOPENCL_NO_CACHE"]="1"
 

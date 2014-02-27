@@ -309,6 +309,46 @@ double2 WENO5(double2* S, double dx)
 }
 #endif
 
+/////////////////////////////////////////
+// minmod
+/////////////////////////////////////////
+#if FLUX_METHOD == 3
+
+double minmod(double a, double b)
+{
+	// calculate minmod function
+
+	double out;
+
+	if ((fabs(a) < fabs(b)) && (a*b > 0))
+		out = a;
+	else if ((fabs(b) < fabs(a)) && (a*b > 0))
+		out = b;
+	else if (a == b)
+		out = a;
+	else if (a*b <= 0)
+		out = 0;
+	return out;
+}
+
+double2 NND(double2* S, double dx)
+{
+	// calculate the flux by the NND method (2nd order accurate, CFL_max = 2/3)
+
+	size_t n = 1;
+
+	double2 dIp12 = S[n+1] - S[n];
+	double2 dIm12 = S[n] - S[n-1];
+
+	double2 Ip12;
+
+	Ip12.x = S[n].x + 0.5*minmod(dIp12.x,dIm12.x);
+  Ip12.y = S[n].y + 0.5*minmod(dIp12.y,dIm12.y);
+
+	return (Ip12 - S[n])/dx;
+}
+#endif
+
 int equal2(double2 a, double2 b, double tol) 
 {
   // check if a and b are within tol of each other
