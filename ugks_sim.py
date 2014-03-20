@@ -299,7 +299,7 @@ class UGKSim(object):
                 if (dt_new > (1.0+gdata.delta_dt)*dt_old) & limit:
                     dt_new = (1.0+gdata.delta_dt)*dt_old
                 gdata.dt = dt_new
-                print "dt = %g (%g)"%(gdata.dt, gdata.dt/gdata.t_ref)
+                print "dt = %g"%(gdata.dt)
 
         return
 
@@ -778,7 +778,19 @@ class UGKSim(object):
             
             self.line_slope_3.set_xdata(self.res_slope_N)
             self.line_slope_3.set_ydata(self.res_slope[3])
+        
+        
+        if not self.time_history_residual:
+            max_res = 1
+        else:
+            max_res = np.max(self.time_history_residual)
+        
+        if gdata.residual_options.min_residual == 0.0:
+            min_res = np.min(self.time_history_residual)
+        else:
+            min_res = gdata.residual_options.min_residual
             
+        self.resPlot.set_ylim(min_res ,max_res)
         
         plt.draw()
         
