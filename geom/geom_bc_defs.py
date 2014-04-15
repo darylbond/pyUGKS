@@ -103,7 +103,7 @@ class BoundaryCondition(object):
             'other_face', 'orientation', 'label', 'UDF_U',\
             'UDF_V', 'UDF_T','UDF_D','adsorb', 'beta_n', 'beta_t', 'alpha_n', \
             'alpha_t', 'alpha_p', 'k_f', 'S_T', 'cover_initial','gamma_f',\
-            'reflect_type','flip_distribution','transform'
+            'reflect_type','flip_distribution','transform','dynamic'
             
     def __init__(self,
                  type_of_BC = REFLECT,
@@ -125,6 +125,7 @@ class BoundaryCondition(object):
                  S_T=1.0,
                  cover_initial=0,
                  reflect_type='S',
+                 dynamic=1,
                  other_block=-1,
                  other_face=-1,
                  orientation=NO_HOLD,
@@ -155,6 +156,7 @@ class BoundaryCondition(object):
         self.S_T=copy.copy(S_T)
         self.cover_initial=copy.copy(cover_initial)
         self.reflect_type=copy.copy(reflect_type)
+        self.dynamic=copy.copy(dynamic)
         self.alpha_p = 0
         self.other_block = copy.copy(other_block)
         self.other_face = copy.copy(other_face)
@@ -184,6 +186,7 @@ class BoundaryCondition(object):
                                  k_f = self.k_f,
                                  S_T = self.S_T,
                                  cover_initial = self.cover_initial,
+                                 dynamic = self.dynamic,
                                  reflect_type=self.reflect_type,
                                  other_block=self.other_block,
                                  other_face=self.other_face,
@@ -364,6 +367,7 @@ class AdsorbingBC(BoundaryCondition):
                  S_T=1.0,
                  cover_initial=0,
                  reflect_type='S',
+                 dynamic=1,
                  label="ADSORBING"):
                      
         if flowCondition != None:
@@ -382,7 +386,7 @@ class AdsorbingBC(BoundaryCondition):
                                    adsorb=adsorb, beta_n=beta_n, beta_t=beta_t,
                                    alpha_n=alpha_n, alpha_t=alpha_t,
                                    k_f=k_f, S_T=S_T, cover_initial=cover_initial,
-                                   reflect_type=reflect_type,
+                                   reflect_type=reflect_type,dynamic=dynamic,
                                    type_of_BC=ADSORBING, label=label)
         
         return
@@ -404,6 +408,7 @@ class AdsorbingBC(BoundaryCondition):
                             S_T = self.S_T,
                             cover_initial = self.cover_initial,
                             reflect_type=self.reflect_type,
+                            dynamic=self.dynamic,
                             label=self.label)
                                
 class InflowBC(BoundaryCondition):

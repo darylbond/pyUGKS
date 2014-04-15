@@ -407,13 +407,19 @@ adsorbingWall_P1(__global double2* normal,
             double adsorbed_flux_final = adsorbed_flux_initial;
             
             if (GAMMA_F[face] > 0.0) {
-
-                dvtheta = dt*ALPHA_P[face]*adsorbed_flux_initial;
                 
-                if (dvtheta > (1 - vartheta)) {
-                    // only allow as much adsorption as is possible
-                    dvtheta = 1 - vartheta;
-                    adsorbed_flux_final = dvtheta/dt*ALPHA_P[face];
+                if (DYNAMIC_VARTHETA[face] == 1) {
+
+                    dvtheta = dt*ALPHA_P[face]*adsorbed_flux_initial;
+                
+                    if (dvtheta > (1 - vartheta)) {
+                        // only allow as much adsorption as is possible
+                        dvtheta = 1 - vartheta;
+                        adsorbed_flux_final = dvtheta/dt*ALPHA_P[face];
+                    }
+                } else {
+                    dvtheta = 0.0;
+                    adsorbed_flux_final = adsorbed_flux_initial;
                 }
                 
                 // calculate the desorption rate based on the Langmuir isotherm
@@ -429,14 +435,17 @@ adsorbingWall_P1(__global double2* normal,
                 
                 desorbed_flux.x  = gamma_b*vartheta;
                 
-                dvtheta -= dt*ALPHA_P[face]*desorbed_flux.x;
-                
-                // make sure we don't get negative ratio of coverage
-                // also ensure that we only desorb what is available, not 
-                //  including what we have just adsorbed in this time step
-                if ((vartheta + dvtheta) < 0.0) {
-                    desorbed_flux.x = vartheta/(dt*ALPHA_P[face]);
+                if (DYNAMIC_VARTHETA[face] == 1) {
+                    dvtheta -= dt*ALPHA_P[face]*desorbed_flux.x;
+                    
+                    // make sure we don't get negative ratio of coverage
+                    // also ensure that we only desorb what is available, not 
+                    //  including what we have just adsorbed in this time step
+                    if ((vartheta + dvtheta) < 0.0) {
+                        desorbed_flux.x = vartheta/(dt*ALPHA_P[face]);
+                    }
                 }
+                
             } else {
                 dvtheta = 0.0;
             }

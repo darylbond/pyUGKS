@@ -109,6 +109,7 @@ class Block(object):
                S_T=1.0,
                cover_initial=0,
                reflect_type='S', 
+               dynamic=1,
                label="", 
                flowCondition=None, 
                other_block = None,
@@ -222,6 +223,7 @@ class Block(object):
                                   k_f=k_f, 
                                   S_T=S_T, 
                                   cover_initial=cover_initial,
+                                  dynamic=dynamic,
                                   reflect_type=reflect_type,
                                   label = flowCondition.label)
             else:
@@ -235,6 +237,7 @@ class Block(object):
                                       k_f=k_f, 
                                       S_T=S_T, 
                                       cover_initial=cover_initial, 
+                                      dynamic=dynamic,
                                       reflect_type=reflect_type,
                                       label=label)
                                         

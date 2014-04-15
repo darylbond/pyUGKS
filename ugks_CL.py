@@ -146,12 +146,22 @@ def genHeader(data):
     s = s[:-2] # remove comma and space
     s += '};\n'
     
+    s += '__constant int DYNAMIC_VARTHETA[4] = {'
+    for bc in bc_list:
+        if bc.type_of_BC == ADSORBING:
+            s += '%i, '%bc.dynamic
+        else: s += '-1, '
+    s = s[:-2] # remove comma and space
+    s += '};\n'
+    
     # define the look-up tables for adsorption isotherms
     
     for bci, bc in enumerate(bc_list):
         if bc.type_of_BC == ADSORBING:
             
             if bc.adsorb.shape == ():
+                if (bc.adsorb > 1.0) | (bc.adsorb <= 0.0):
+                    raise RuntimeError("Boundary condition equilibrium adsorption out of bounds, must be 0 < adsorb <=1")
                 s += '#define CONSTANT_ADSORB_%s 1\n'%faceName[bci]
                 s += '#define ADSORB_%s %g\n'%(faceName[bci], bc.adsorb)
                 s += '__constant double4 ISO_%s[1] = {(double4)(-1,-1,-1,-1)};\n'%(faceName[bci])
