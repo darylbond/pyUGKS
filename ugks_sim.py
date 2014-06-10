@@ -920,7 +920,6 @@ class UGKSim(object):
         grp.create_dataset("CFL",data=gdata.CFL)
         grp.create_dataset("t0",data=gdata.t0)
         grp.create_dataset("Nv",data=gdata.Nv)
-        grp.create_dataset("mu_ref",data=gdata.mu_ref)
         grp.create_dataset("Kn_eff",data=gdata.Kn_eff)
         grp.create_dataset("omega",data=gdata.omega)
         grp.create_dataset("R",data=gdata.R)

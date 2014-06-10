@@ -86,11 +86,12 @@ def genHeader(data):
     s += '#define Pr {}\n'.format(gdata.Pr)
     s += '#define umax {}\n'.format(gdata.umax)
     s += '#define vmax {}\n'.format(gdata.vmax)
-    s += "#define mu_ref %0.15e\n"%gdata.mu_ref
+    s += "#define Kn_eff %0.15e\n"%gdata.Kn_eff
     s += '#define gam {}\n'.format(gdata.gamma)
     s += '#define B {}\n'.format(gdata.b)
     s += '#define K {} // total number of extra degrees of freedom accounted for\n'.format(gdata.K)
     s += '#define OMEGA {}\n'.format(gdata.omega)
+    s += '#define RELAX_TYPE {}\n'.format(gdata.relax_type)
     
     s += '#define CFL %0.15e\n\n'%gdata.CFL
     
