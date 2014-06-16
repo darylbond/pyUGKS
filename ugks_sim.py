@@ -7,6 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 #from mpl_toolkits.mplot3d import Axes3D
 
+import scipy.signal as signal
+
 import time
 import os
 #from math import sqrt
@@ -105,8 +107,10 @@ class UGKSim(object):
         # save to file
         self.saveToFile(save_f=gdata.save_options.save_initial_f)
         
-        
-        
+        # signal filtering
+        N = gdata.residual_options.filter_order
+        Wn = gdata.residual_options.filter_cutoff_freq
+        self.filter = signal.butter(N, Wn, output='ba')
 
         return
         
@@ -115,6 +119,7 @@ class UGKSim(object):
         """
         self.res_slope_N = []
         self.res_slope = [[],[],[],[]]
+        self.res_f_slope = [[],[],[],[]]
         self.time_history_residual = []
         self.time_history_residual_N = []
         
@@ -477,8 +482,6 @@ class UGKSim(object):
         if res.get_residual:
             below_slope_threshold_count = 0
             first_res = True
-            if res.plot_residual:
-                self.plotResidualInit()
             
         mag = 1
         
@@ -570,17 +573,17 @@ class UGKSim(object):
             if get_res:
                 self.time_history_residual.append(res.global_residual)
                 self.time_history_residual_N.append(self.step)
-                if (len(self.time_history_residual) >= res.slope_sample) & (self.step >= res.slope_start):
-                    slope = self.get_residual_slope()
-                    print "residual slope = ",slope
-                    if np.all(slope < res.min_slope):
-                        below_slope_threshold_count += 1
-                    if below_slope_threshold_count > 2:      
-                        print "simulation exit -> residual stabilised"
-                        print "step ",self.step," t = ",gdata.time
-                        break
-                if res.plot_residual:
-                    self.plotResidualUpdate()
+                
+                slope = self.analyse_residual()                
+                
+                if np.all(slope < res.min_slope):
+                    below_slope_threshold_count += 1
+                else:
+                    below_slope_threshold_count = 0
+                if below_slope_threshold_count > 2:
+                    print "simulation exit -> residual stabilised"
+                    print "step ",self.step," t = ",gdata.time
+                    break
                 if self.step >= res.residual_start:
                     if first_res:
                         initial_res = res.global_residual
@@ -666,182 +669,82 @@ class UGKSim(object):
 
         return
         
-    def plotResidualInit(self):
+    def analyse_residual(self):
         """
-        plot time history of residual
-        """
-        
-        if not gdata.residual_options.plot_residual:
-            return
-            
-        # generate plot
-        self.resFig = plt.figure(figsize=(12, 6))
-        self.resPlot = self.resFig.add_subplot(111)
-        
-        self.line_slope_0, = self.resPlot.loglog(self.res_slope_N, self.res_slope[0],'r--',label="rho")
-        self.line_slope_1, = self.resPlot.loglog(self.res_slope_N, self.res_slope[1], 'g--', label="U")
-        self.line_slope_2, = self.resPlot.loglog(self.res_slope_N, self.res_slope[2], 'b--', label="V")
-        self.line_slope_3, = self.resPlot.loglog(self.res_slope_N, self.res_slope[3], 'k--', label="1/T")
-        
-        if gdata.restart:
-            init = np.array(self.time_history_residual)
-            self.line_residual_0, = self.resPlot.loglog(self.time_history_residual_N, init[:,0],'r',label="rho")
-            self.line_residual_1, = self.resPlot.loglog(self.time_history_residual_N, init[:,1], 'g', label="U")
-            self.line_residual_2, = self.resPlot.loglog(self.time_history_residual_N, init[:,2], 'b', label="V")
-            self.line_residual_3, = self.resPlot.loglog(self.time_history_residual_N, init[:,3], 'k', label="1/T")
-        else:
-            self.line_residual_0, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual,'r',label="rho")
-            self.line_residual_1, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'g', label="U")
-            self.line_residual_2, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'b', label="V")
-            self.line_residual_3, = self.resPlot.loglog(self.time_history_residual_N, self.time_history_residual, 'k', label="1/T")
-        
-        self.resPlot.legend(loc=3,ncol=2)        
-        
-        if not self.time_history_residual:
-            max_res = 1
-        else:
-            max_res = np.max(self.time_history_residual)
-        
-        plot_title = "Residual"
-        if gdata.title:
-            plot_title += " - " + gdata.title
-        self.resPlot.set_title(plot_title)
-        
-        self.resPlot.grid(True)
-        self.residual_plot_limits = True
-        self.resPlot.set_xlim(1,gdata.max_step)
-        self.resPlot.set_ylim(gdata.residual_options.min_residual,max_res)
-        
-        name = self.picName+"_RESIDUAL.png"
-        self.resFig.savefig(name)
-        
-        name = self.monitorName+"_RESIDUAL.png"
-        self.resFig.savefig(name)
-            
-        
-        print "\nresidual plot generated\n"
-        
-
-        # throw away first few samples
-        self.res_throw = True
-
-        return
-
-    def plotResidualUpdate(self):
-        """
-        update the residual plot
+        perform analysis on the residual
         """
         
-        if not self.resPlot:
-            return
-            
-        max_y = np.max(self.time_history_residual)
+        res = gdata.residual_options
+        
+        res_x = np.log10(self.time_history_residual_N)
+        res_y = np.log10(self.time_history_residual)
+        
+        if res.plot_residual:
+            fig = plt.figure(figsize=(12, 6))
+            ax = fig.add_subplot(111)
+            c = ['r','g','b','k']        
+            lb = ['D','U','V','T']
 
-        self.resPlot.set_ylim(gdata.residual_options.min_residual,max_y)
-        self.resPlot.set_xlim(np.min(self.time_history_residual_N),gdata.max_step)
-        
-        self.line_residual_0.set_xdata(self.time_history_residual_N)
-        data = self.line_residual_0.get_ydata()
-        data = np.append(data,self.time_history_residual[-1][0])
-        self.line_residual_0.set_ydata(data)
-        
-        self.line_residual_1.set_xdata(self.time_history_residual_N)
-        data = self.line_residual_1.get_ydata()
-        data = np.append(data,self.time_history_residual[-1][1])
-        self.line_residual_1.set_ydata(data)
-        
-        self.line_residual_2.set_xdata(self.time_history_residual_N)
-        data = self.line_residual_2.get_ydata()
-        data = np.append(data,self.time_history_residual[-1][2])
-        self.line_residual_2.set_ydata(data)
-        
-        self.line_residual_3.set_xdata(self.time_history_residual_N)
-        data = self.line_residual_3.get_ydata()
-        data = np.append(data,self.time_history_residual[-1][3])
-        self.line_residual_3.set_ydata(data)
-        
-        ###
-        if len(self.res_slope_N) > 1:
-            
-            max_y = max(max_y, np.max(self.res_slope))
-
-            self.resPlot.set_ylim(gdata.residual_options.min_residual,max_y)
-            
-            self.line_slope_0.set_xdata(self.res_slope_N)
-            self.line_slope_0.set_ydata(self.res_slope[0])
-            
-            self.line_slope_1.set_xdata(self.res_slope_N)
-            self.line_slope_1.set_ydata(self.res_slope[1])
-            
-            self.line_slope_2.set_xdata(self.res_slope_N)
-            self.line_slope_2.set_ydata(self.res_slope[2])
-            
-            self.line_slope_3.set_xdata(self.res_slope_N)
-            self.line_slope_3.set_ydata(self.res_slope[3])
-        
-        
-        if not self.time_history_residual:
-            max_res = 1
-        else:
-            max_res = np.max(self.time_history_residual)
-        
-        if gdata.residual_options.min_residual == 0.0:
-            min_res = np.min(self.time_history_residual)
-        else:
-            min_res = gdata.residual_options.min_residual
-            
-        self.resPlot.set_ylim(min_res ,max_res)
-        
-        plt.draw()
-        
-        name = self.picName+"_RESIDUAL.png"
-        self.resFig.savefig(name)
-        
-        name = self.monitorName+"_RESIDUAL.png"
-        self.resFig.savefig(name)
-        
-        print "residual = ",gdata.residual_options.global_residual
-
-        #print "done"
-
-        return
-    
-    def get_residual_slope(self):
-        """
-        calculate the slope of the residual
-        """
-        # first normalize
-        
-        N = gdata.residual_options.slope_sample
-        
-        if len(self.time_history_residual_N) >= N:
-            
-            res = np.array(self.time_history_residual)
-            
-            # check if we have zeros, or negatives, in our residuals
-            if np.any(res <= 0.0):
-                return np.inf
-            
-            res = np.log10(res)
-            
             for i in range(4):
-                maxi = np.max(res[:,i])
-                mini = np.min(res[:,i])
-                res[:,i] = (res[:,i] - mini)/(maxi - mini) + 1.0
-        
-            res = res[-N::,:]
-            res_x = np.log10(self.time_history_residual_N[-N::])
-
-            slope = np.polyfit(res_x, res, 1)
-            slope = np.abs(slope[0])
-            
-            self.res_slope_N.append(self.step)
-            for i in range(4):
-                self.res_slope[i].append(slope[i])
+                ax.plot(res_x, res_y[:,i], c[i]+'--', label=lb[i], lw=1.0)
                 
-            return slope
+        if self.step >= res.slope_start:
+        
+            run = np.diff(res_x)
+        
+            # make sure we have evenly sampled data
+            dx = np.min(run)
+            sample_x = np.arange(res_x[0], res_x[-1]+dx, dx)
+                 
             
-        return np.inf
+            slopes = []
+            for i in range(4):            
+                sample_y = np.interp(sample_x, res_x, res_y[:,i])
+                # now filter the data
+                filt = signal.filtfilt(self.filter[0], self.filter[1], sample_y)
+                
+                slope = np.abs(np.diff(filt)/dx)
+                slopes.append(slope[-1])
+                
+                
+                if res.plot_residual:
+                    ax.plot(sample_x, filt, c[i]+'-', lw=1.0)
+                    ax.plot(sample_x[1::], np.log10(slope), c[i]+'-', lw=0.5)
+                
+            print "residual slope = ",slopes
+        else:
+            slopes = np.inf
+        
+        if res.plot_residual:
+            if not self.time_history_residual:
+                max_res = 0
+            else:
+                max_res = np.max(res_y)
+                
+                
+            plot_title = "Residual"
+            if gdata.title:
+                plot_title += " - " + gdata.title
+            ax.set_title(plot_title)
+            
+            ax.grid(True)
+            ax.set_xlim(0,np.log10(gdata.max_step))
+            ax.set_ylim(np.log10(res.min_residual),max_res)
+            
+            ax.set_xlabel('log10 N')
+            ax.set_ylabel('log10 R')
+            
+            ax.legend(loc='lower left')
+            
+            name = self.picName+"_RESIDUAL.png"
+            fig.savefig(name)
+            
+            name = self.monitorName+"_RESIDUAL.png"
+            fig.savefig(name)
+            
+            plt.close(fig)
+        
+        return slopes
 
     def secToTime(self,seconds):
         """
@@ -1123,6 +1026,7 @@ class UGKSim(object):
 
         return
         
+        
     def total_mass(self):
         """
         calculate the total mass contained in this simulation
@@ -1276,7 +1180,7 @@ class UGKSim(object):
             ax.set_xlim(self.picLimits[0])
             ax.set_ylim(self.picLimits[1])
             ax.set_title(label[sp])
-            plt.colorbar(cs, ax=ax)
+            #plt.colorbar(cs, ax=ax)
         
         try:
             plt.tight_layout()

@@ -92,15 +92,16 @@ class ResidualOptions:
     residual_count = -1
     min_residual = 1e-50
     min_slope = 1e-3
-    slope_start = 0
-    residual_start = 1
-    slope_sample = 3
+    slope_start = 10
+    residual_start = 10
     non_linear_output = False
     non_linear_output_limit = 1e5
     non_linear_save = False
     non_linear_dt = False
     plot_residual = False
     hold_plot = False
+    filter_order = 2
+    filter_cutoff_freq = 0.01
 
 #----------------------------------------------------------------------
 
