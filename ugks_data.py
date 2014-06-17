@@ -100,8 +100,6 @@ class ResidualOptions:
     non_linear_dt = False
     plot_residual = False
     hold_plot = False
-    filter_order = 2
-    filter_cutoff_freq = 0.01
 
 #----------------------------------------------------------------------
 

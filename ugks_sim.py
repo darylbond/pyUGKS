@@ -106,11 +106,6 @@ class UGKSim(object):
         
         # save to file
         self.saveToFile(save_f=gdata.save_options.save_initial_f)
-        
-        # signal filtering
-        N = gdata.residual_options.filter_order
-        Wn = gdata.residual_options.filter_cutoff_freq
-        self.filter = signal.butter(N, Wn, output='ba')
 
         return
         
@@ -574,16 +569,18 @@ class UGKSim(object):
                 self.time_history_residual.append(res.global_residual)
                 self.time_history_residual_N.append(self.step)
                 
-                slope = self.analyse_residual()                
+                slope = self.analyse_residual()
                 
-                if np.all(slope < res.min_slope):
-                    below_slope_threshold_count += 1
-                else:
-                    below_slope_threshold_count = 0
-                if below_slope_threshold_count > 2:
-                    print "simulation exit -> residual stabilised"
-                    print "step ",self.step," t = ",gdata.time
-                    break
+                if self.step >= res.slope_start:
+                    print "residual slope = ",slope
+                    if np.all(np.array(slope) < res.min_slope):
+                        below_slope_threshold_count += 1
+                    else:
+                        below_slope_threshold_count = 0
+                    if below_slope_threshold_count >= 2:
+                        print "simulation exit -> residual stabilised"
+                        print "step ",self.step," t = ",gdata.time
+                        break
                 if self.step >= res.residual_start:
                     if first_res:
                         initial_res = res.global_residual
@@ -695,13 +692,18 @@ class UGKSim(object):
             # make sure we have evenly sampled data
             dx = np.min(run)
             sample_x = np.arange(res_x[0], res_x[-1]+dx, dx)
-                 
+            
+            # signal filtering
+            # adjust Wn based on number of samples
+            n = len(res_x)
+            Wn = 1.0/n**0.8
+            A, B = signal.butter(2, Wn, output='ba')
             
             slopes = []
             for i in range(4):            
                 sample_y = np.interp(sample_x, res_x, res_y[:,i])
                 # now filter the data
-                filt = signal.filtfilt(self.filter[0], self.filter[1], sample_y)
+                filt = signal.filtfilt(A, B, sample_y)
                 
                 slope = np.abs(np.diff(filt)/dx)
                 slopes.append(slope[-1])
@@ -711,7 +713,6 @@ class UGKSim(object):
                     ax.plot(sample_x, filt, c[i]+'-', lw=1.0)
                     ax.plot(sample_x[1::], np.log10(slope), c[i]+'-', lw=0.5)
                 
-            print "residual slope = ",slopes
         else:
             slopes = np.inf
         
