@@ -189,40 +189,44 @@ double2 vartheta_langmuir(double D, double T, size_t face)
                 vartheta.x = ADSORB_north;
                 vartheta.y = 0.0;
                 return vartheta;
-            }
-            ISO = ISO_north;
-            TRI = TRI_north;
-            NBR = NBR_north;
+            } else {
+				ISO = ISO_north;
+				TRI = TRI_north;
+				NBR = NBR_north;
+			}
             break;
         case GEAST:
             if (CONSTANT_ADSORB_east) {
                 vartheta.x = ADSORB_east;
                 vartheta.y = 0.0;
                 return vartheta;
-            }
-            ISO = ISO_east;
-            TRI = TRI_east;
-            NBR = NBR_east;
+            } else {
+				ISO = ISO_east;
+				TRI = TRI_east;
+				NBR = NBR_east;
+			}
             break;
         case GSOUTH:
             if (CONSTANT_ADSORB_south) {
                 vartheta.x = ADSORB_south;
                 vartheta.y = 0.0;
                 return vartheta;
-            }
-            ISO = ISO_south;
-            TRI = TRI_south;
-            NBR = NBR_south;
+            } else { 
+				ISO = ISO_south;
+				TRI = TRI_south;
+				NBR = NBR_south;
+			}
             break;
         case GWEST:
             if (CONSTANT_ADSORB_west) {
                 vartheta.x = ADSORB_west;
                 vartheta.y = 0.0;
                 return vartheta;
-            }
-            ISO = ISO_west;
-            TRI = TRI_west;
-            NBR = NBR_west;
+            } else {
+				ISO = ISO_west;
+				TRI = TRI_west;
+				NBR = NBR_west;
+			}
             break;
     }
 
