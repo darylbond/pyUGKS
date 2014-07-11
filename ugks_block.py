@@ -589,7 +589,7 @@ class UGKSBlock(object):
         
         t = np.float64(gdata.time)
 
-        if force | self.time_dependent_BC:        
+        if force | self.time_dependent_BC:
         
             self.prg.paraBC(self.queue, global_size, work_size, self.para_D,
                             self.wall_prop_D, t)

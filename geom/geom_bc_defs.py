@@ -260,14 +260,14 @@ class ConstantBC(BoundaryCondition):
     def __init__(self, D=0, T=0, U=0, V=0, UDF_D=None,
                  UDF_U=None, UDF_V=None, UDF_T=None, flowCondition=None, label="CONSTANT"):
         if flowCondition != None:
-            D = flowCondition.D
-            T = flowCondition.T
-            U = flowCondition.U
-            V = flowCondition.V
-            UDF_D = flowCondition.UDF_D
-            UDF_U = flowCondition.UDF_U
-            UDF_V = flowCondition.UDF_V
-            UDF_T = flowCondition.UDF_T
+            D = copy.copy(flowCondition.D)
+            T = copy.copy(flowCondition.T)
+            U = copy.copy(flowCondition.U)
+            V = copy.copy(flowCondition.V)
+            UDF_D = copy.copy(flowCondition.UDF_D)
+            UDF_U = copy.copy(flowCondition.UDF_U)
+            UDF_V = copy.copy(flowCondition.UDF_V)
+            UDF_T = copy.copy(flowCondition.UDF_T)
         BoundaryCondition.__init__(self,D=D, U=U, V=V, T=T, 
                                    UDF_D=UDF_D, UDF_U=UDF_U, UDF_V=UDF_V, UDF_T=UDF_T, 
                                    type_of_BC=CONSTANT, label=label)
@@ -321,14 +321,14 @@ class DiffuseBC(BoundaryCondition):
                  label="DIFFUSE"):
                      
         if flowCondition != None:
-            D = flowCondition.D
-            T = flowCondition.T
-            U = flowCondition.U
-            V = flowCondition.V
-            UDF_D = flowCondition.UDF_D
-            UDF_U = flowCondition.UDF_U
-            UDF_V = flowCondition.UDF_V
-            UDF_T = flowCondition.UDF_T
+            D = copy.copy(flowCondition.D)
+            T = copy.copy(flowCondition.T)
+            U = copy.copy(flowCondition.U)
+            V = copy.copy(flowCondition.V)
+            UDF_D = copy.copy(flowCondition.UDF_D)
+            UDF_U = copy.copy(flowCondition.UDF_U)
+            UDF_V = copy.copy(flowCondition.UDF_V)
+            UDF_T = copy.copy(flowCondition.UDF_T)
             
         BoundaryCondition.__init__(self, D=D, U=U, 
                                    V=V, T=T, UDF_D=UDF_D, 
@@ -371,14 +371,14 @@ class AdsorbingBC(BoundaryCondition):
                  label="ADSORBING"):
                      
         if flowCondition != None:
-            D = flowCondition.D
-            T = flowCondition.T
-            U = flowCondition.U
-            V = flowCondition.V
-            UDF_D = flowCondition.UDF_D
-            UDF_U = flowCondition.UDF_U
-            UDF_V = flowCondition.UDF_V
-            UDF_T = flowCondition.UDF_T
+            D = copy.copy(flowCondition.D)
+            T = copy.copy(flowCondition.T)
+            U = copy.copy(flowCondition.U)
+            V = copy.copy(flowCondition.V)
+            UDF_D = copy.copy(flowCondition.UDF_D)
+            UDF_U = copy.copy(flowCondition.UDF_U)
+            UDF_V = copy.copy(flowCondition.UDF_V)
+            UDF_T = copy.copy(flowCondition.UDF_T)
             
         BoundaryCondition.__init__(self, D=D, U=U, 
                                    V=V, T=T, UDF_D=UDF_D, 

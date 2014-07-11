@@ -786,17 +786,16 @@ class UGKSim(object):
         
         save = gdata.save_options
         
-         # file
-        (dirName,firstName) = os.path.split(gdata.rootName)
-        h5Path = os.path.join(gdata.rootName,"HDF5")
-        if not os.access(h5Path, os.F_OK):
-            os.makedirs(h5Path)
-
-        
         if save.save_name != "":
             name = save.save_name
         else:
             name = firstName
+        
+         # file
+        (dirName,firstName) = os.path.split(gdata.rootName)
+        h5Path = os.path.join(gdata.rootName,"HDF5",name)
+        if not os.access(h5Path, os.F_OK):
+            os.makedirs(h5Path)
             
         h5Name = os.path.join(h5Path,name+".h5")
             
@@ -806,15 +805,19 @@ class UGKSim(object):
             name.replace(".","-")
         
         h5Name = os.path.join(h5Path,name+".h5") 
+        
         save.h5Name = h5Name
         self.h5Name = h5Name
         self.h5name_short = name+".h5"
+        self.h5_base_name = os.path.join(h5Path,name) 
+        
+        self.global_h5_name = h5Name
             
         
-        print "HDF save to --> %s"%h5Name
-        self.hdf = h5py.File(h5Name, 'w') #open new file to save to
+        print "HDF save to --> %s"%self.h5Name
+        self.hdf_global = h5py.File(h5Name, 'w') #open new file to save to
         
-        grp = self.hdf.create_group("global_data")
+        grp = self.hdf_global.create_group("global_data")
         
         grp.create_dataset("run_config",data=gdata.config_string)
         
@@ -957,7 +960,18 @@ class UGKSim(object):
         if not self.HDF_init:
             self.initHDF()
         
+        # make a new hdf5 file for each saved step
+        ext, name = os.path.splitext(self.h5_base_name)
+        max_steps = int(np.log10(gdata.max_step))
+        cmd_str = "_step=%0."+str(max_steps)+"i"
+        step_str = cmd_str%self.step
+        self.h5Name = ext + step_str + name
+        path, self.h5name_short = os.path.split(self.h5Name)
+        
         print "saving to HDF5...",
+        
+        self.hdf = h5py.File(self.h5Name, 'w')
+        
         
         grp = self.hdf.require_group("step_" + str(self.step))
         grp.create_dataset('step',data=self.step)
@@ -973,6 +987,8 @@ class UGKSim(object):
             
         self.xdmf.write('</Grid>\n')
         
+        self.hdf.close()
+        
         print "done"
         
         return
@@ -982,16 +998,16 @@ class UGKSim(object):
         close the HDF5 file opened by init_HDF5()
         """
         
-        if (not self.closed) & self.HDF_init:
+        if self.HDF_init:
             
-            self.hdf.create_dataset("global_data/final_step",data=self.step)
+            self.hdf_global.create_dataset("global_data/final_step",data=self.step)
             
             if gdata.residual_options.get_residual & (len(self.time_history_residual_N) != 0):
                 length = len(self.time_history_residual_N)
                 residual_xy = np.zeros((length,5))
                 residual_xy[:,0] = self.time_history_residual_N
                 residual_xy[:,1:5] = self.time_history_residual
-                self.hdf.create_dataset("global_data/residual_xy",data=residual_xy, compression=gdata.save_options.compression)
+                self.hdf_global.create_dataset("global_data/residual_xy",data=residual_xy, compression=gdata.save_options.compression)
             
             self.xdmf.write('</Grid>\n')
             self.xdmf.write('</Domain>\n')
@@ -1000,8 +1016,7 @@ class UGKSim(object):
             
             print "closing HDF5 file...",
             
-            self.hdf.close()
-            self.closed = True
+            self.hdf_global.close()
         
         print "done"
         

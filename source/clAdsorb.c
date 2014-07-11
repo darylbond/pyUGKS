@@ -250,8 +250,6 @@ double2 vartheta_langmuir(double D, double T, size_t face)
 #define COVER(w, i) wall_cover[(i)*4 + (w)]
 #define WALL_DIST(i, v) wall_dist[(i)*NV + (v)]
 
-#define GOLDEN_RATIO 0.618
-
 __kernel void
 adsorbingWall_P1(__global double2* normal,
                     int face,
