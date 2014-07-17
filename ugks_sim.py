@@ -961,11 +961,11 @@ class UGKSim(object):
             self.initHDF()
         
         # make a new hdf5 file for each saved step
-        ext, name = os.path.splitext(self.h5_base_name)
+        name = self.h5_base_name
         max_steps = int(np.log10(gdata.max_step))
         cmd_str = "_step=%0."+str(max_steps)+"i"
         step_str = cmd_str%self.step
-        self.h5Name = ext + step_str + name
+        self.h5Name = name + step_str + ".h5"
         path, self.h5name_short = os.path.split(self.h5Name)
         
         print "saving to HDF5...",
