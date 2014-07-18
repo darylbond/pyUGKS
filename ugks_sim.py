@@ -1017,6 +1017,7 @@ class UGKSim(object):
             print "closing HDF5 file...",
             
             self.hdf_global.close()
+            self.HDF_init = False
         
         print "done"
         

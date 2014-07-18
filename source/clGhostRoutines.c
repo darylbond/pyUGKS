@@ -6,6 +6,10 @@ void rot90(int* i, int* j, int n, int Ni, int Nj)
 {
     //rotate a matrix index [i,j] by 90deg CCW n times
     // NOTE: N is equal to number of elements
+    
+    //int start_i = *i;
+    //int start_j = *j;
+    
     for (int a = 0; a < n; a++) {
         int temp = (*i);
         (*i) = Nj - (*j) - 1;
@@ -14,6 +18,8 @@ void rot90(int* i, int* j, int n, int Ni, int Nj)
         Ni = Nj;
         Nj = temp;
     }
+    
+    //printf("(%i, %i) i=%i, j=%i, n=%i, Ni=%i, Nj=%i\n",start_i, start_j, *i, *j, n, Ni, Nj);
 }
 
 /////////////////////////////////////////
@@ -60,57 +66,73 @@ void getSwapIndex(int this_face, int* iB, int* jB, int that_face, int NIB, int N
           if (that_face == GEAST) {
             fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
             (*iB) += NIB - 2*GHOST;
+            return;
           } else if (that_face == GWEST) {
             (*iB) -= NI - 2*GHOST;
+            return;
           } else if (that_face == GNORTH) {
-            rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
+            rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
             (*jB) += NJB - 2*GHOST;
+            return;
           } else if (that_face == GSOUTH) {
-            rot90(iB,jB,1,NIB+adjust_rot,NJB+adjust_rot);
-            flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+            rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
+            //flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
             (*jB) -= NJ - 2*GHOST;
+            return;
           }
         } else if (this_face == GWEST) {
           if (that_face == GWEST) {
             fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
             (*iB) -= NI - 2*GHOST;
+            return;
           } else if (that_face == GEAST) {
             (*iB) += NIB - 2*GHOST;
+            return;
           } else if(that_face == GNORTH) {
             rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
-            fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+            //fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
             (*jB) += NJB - 2*GHOST;
+            return;
           } else if (that_face == GSOUTH) {
             rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
             (*jB) -= NJ - 2*GHOST;
+            return;
           }
         } else if (this_face == GNORTH) {
           if (that_face == GNORTH) {
             flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
             (*jB) += NJB - 2*GHOST;
+            return;
           } else if (that_face == GSOUTH) {
             (*jB) -= NJ - 2*GHOST;
+            return;
           } else if (that_face == GEAST) {
             rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
             (*iB) += NIB - 2*GHOST;
+            return;
           } else if (that_face == GWEST) {
-            rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
-            fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+            rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
+            //fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
             (*iB) -= NI - 2*GHOST;
+            return;
           } 
         } else if (this_face == GSOUTH) {
           if (that_face == GSOUTH) {
             flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
             (*jB) -= NJ - 2*GHOST;
+            return;
           } else if (that_face == GNORTH) {
             (*jB) += NJB - 2*GHOST;
+            return;
           } else if (that_face == GEAST) {
             rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
-            flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+            //flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
             (*iB) += NIB - 2*GHOST;
+            return;
           } else if (that_face == GWEST) {
             rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
             (*iB) -= NI - 2*GHOST;
+            return;
           }
         }
   
@@ -229,7 +251,7 @@ xyExchange(__global double2* xyA,
       jB = gj + jj;
   
       // now align vertices on the edge
-      if (misalign && ori) {
+      if ((misalign == 1) && (ori == 1)) {
         // we are not aligned
         if ((this_face == GEAST) || (this_face == GWEST)) {
           flipud(&iB,&jB,NI,NJ);
@@ -238,7 +260,10 @@ xyExchange(__global double2* xyA,
         }
       }
       
+               
       getSwapIndex(this_face, &iB, &jB, that_face, NIB, NJB, 1);
+      
+      //printf("(%i, %i) : this face = %i (%i, %i), that face = %i (%i, %i) size = (%i, %i)\n",gi, gj,        this_face, gi+ii, gj+jj, that_face, iB, jB, NIB, NJB);
       
       switch (affine) {
         case NO_TRANSFORM:
