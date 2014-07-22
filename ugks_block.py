@@ -22,6 +22,8 @@ from ugks_CL import genOpenCL, update_source
 from geom.geom_bc_defs import *
 from geom.geom_defs import *
 
+import matplotlib.pyplot as plt
+
 def m_tuple(x, y):
     """
     multiply two tuples or lists, return a tuple
@@ -379,6 +381,10 @@ class UGKSBlock(object):
         self.residual_H = np.zeros((self.ni,self.nj,4),dtype=np.float64)
         self.residual_D = self.set_buffer(self.residual_H)
         
+        self.bc_mdot_H = np.zeros((wall_len,4),dtype=np.float64)
+        self.bc_mdot_D = self.set_buffer(self.bc_mdot_H)
+        self.bc_mdot = np.zeros((4))
+        
         ### INTERNAL DATA
         if gdata.save_options.internal_data:
             self.stress_H = np.ones((self.ni,self.nj,4),dtype=np.float64)
@@ -720,7 +726,7 @@ class UGKSBlock(object):
         
         cl.enqueue_copy(self.queue, self.xy_H, self.xy_D)
         
-        self.prg.cellGeom(self.queue, (self.Ni, self.Nj), None,
+        self.prg.cellGeom(self.queue, (self.Ni, self.Nj), (1,1),
                           self.xy_D, self.area_D, self.centre_D,
                           self.side_D, self.normal_D,
                           self.length_D)
@@ -860,6 +866,41 @@ class UGKSBlock(object):
         cl.enqueue_copy(self.queue,self.flag_D, self.flag_H)
         
         return 
+        
+    def get_BC_mdot(self):
+        """
+        look through all the boundary conditions and calculate the mas flow 
+        rate for those that allow mass to enter or leave the domain
+        """
+        
+        get_data = False
+        
+        for this_face, bc in enumerate(self.bc_list):
+                
+            if bc.type_of_BC in [EXTRAPOLATE_OUT, INFLOW, OUTFLOW, CONSTANT]:
+                
+                face = np.int32(this_face)
+                
+                if this_face in [NORTH, SOUTH]:
+                    global_size = (self.ni, 1)
+                else:
+                    global_size = (self.nj, 1)
+                    
+                gsize, wsize = m_tuple(global_size,(1, 1))
+                
+                self.prg.edgeMassFlow(self.queue, gsize, wsize, self.macro_D,
+                                      self.normal_D, self.length_D, self.bc_mdot_D, face)
+                cl.enqueue_barrier(self.queue)
+                
+                get_data = True
+            
+            
+        if get_data:
+            cl.enqueue_copy(self.queue, self.bc_mdot_H, self.bc_mdot_D)
+            
+            self.bc_mdot = np.sum(self.bc_mdot_H)
+        
+        return
         
 #===============================================================================
 #   Unified Gas Kinetic Scheme (UGKS)
@@ -1175,6 +1216,9 @@ class UGKSBlock(object):
         self.macro_update = 0
         
         if get_residual:
+            
+            # calculate the mas flow in/out of non-conserving BCs
+            self.get_BC_mdot()
             
             cl.enqueue_barrier(self.queue)
             

@@ -393,6 +393,7 @@ class UGKSim(object):
         
         if get_res:
             res = 0.0
+            mdot = 0.0
         
         if gdata.opt_run:
             self.start_timer()
@@ -442,15 +443,17 @@ class UGKSim(object):
             for b in self.blocks:
                 block_res = b.residual
                 res += block_res
+                block_mdot = b.bc_mdot
+                mdot += block_mdot
             res /= len(self.blocks)
-
-        # update time counter - lattice units
-        gdata.time += gdata.dt
-
-        if get_res:
+            
+            res = np.append(res, [abs(mdot)], -1)
+        
             gdata.residual_options.global_residual = res
             gdata.residual_options.residual_history.append(res)
-        
+            
+        # update time counter - lattice units
+        gdata.time += gdata.dt
         
         self.step += 1
         gdata.step = self.step
@@ -679,10 +682,10 @@ class UGKSim(object):
         if res.plot_residual:
             fig = plt.figure(figsize=(12, 6))
             ax = fig.add_subplot(111)
-            c = ['r','g','b','k']        
-            lb = ['D','U','V','T']
+            c = ['r','g','b','k','c']        
+            lb = [r'$\rho$','U','V','T',r'$\dot{m}$']
 
-            for i in range(4):
+            for i in range(5):
                 ax.plot(res_x, res_y[:,i], c[i]+'--', label=lb[i], lw=1.0)
                 
         if self.step >= res.slope_start:
@@ -700,7 +703,7 @@ class UGKSim(object):
             A, B = signal.butter(2, Wn, output='ba')
             
             slopes = []
-            for i in range(4):            
+            for i in range(5):            
                 sample_y = np.interp(sample_x, res_x, res_y[:,i])
                 # now filter the data
                 filt = signal.filtfilt(A, B, sample_y)

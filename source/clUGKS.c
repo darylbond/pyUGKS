@@ -28,7 +28,7 @@ double4 getConserved(double4 prim) {
 }
 
 double4 microSlope(double4 prim, double4 sw) {
-    // calculate the micro slop of the Maxwellian
+    // calculate the micro slope of the Maxwellian
     
     double4 micro_slope;
     
@@ -1274,4 +1274,64 @@ getResidual(__global double4* macro,
     }
     
     return;
+}
+
+
+#define MDOT(w, i) mdot[(i)*4 + (w)]
+
+__kernel void
+edgeMassFlow(__global double4* macro,
+			__global double2* normal,
+			__global double* side_length,
+			__global double* mdot,
+			int this_face)
+{
+  // calculate the mass flow rate across a wall
+  // operate on a side by side basis
+  // 'face_direction' sets all normals to point out of the cell
+  
+  size_t ci = get_global_id(0); // the cell index
+  size_t mi, mj, gi, gj, face;
+  double face_direction;
+  
+  if (this_face == GNORTH) {
+	  mi = ci;
+	  mj = nj-1;
+	  gi = GHOST + ci;
+	  gj = NJ - GHOST;
+	  face = SOUTH;
+	  face_direction = 1;
+  } else if (this_face == GEAST) {
+	  mi = ni-1;
+	  mj = ci;
+	  gi = NI - GHOST;
+	  gj = GHOST + ci;
+	  face = WEST;
+	  face_direction = 1;
+  } else if (this_face == GSOUTH) {
+	  mi = ci;
+	  mj = 0;
+	  gi = GHOST + ci;
+	  gj = GHOST;
+	  face = SOUTH;
+	  face_direction = -1;
+  } else if (this_face == GWEST) {
+	  mi = 0;
+	  mj = ci;
+	  gi = GHOST;
+	  gj = GHOST + ci;
+	  face = WEST;
+	  face_direction = -1;
+  }
+  
+  double2 face_normal = face_direction*NORMAL(gi,gj,face);
+  double length = LENGTH(gi, gj, face);
+  double4 cell_macro = MACRO(mi,mj);
+  
+  double mass_flow = dot(face_normal, cell_macro.s12)*cell_macro.s0*length;
+  MDOT(this_face, ci) = mass_flow;
+  
+  //printf("this_face = %i, ci=%i, mi = %i, mj = %i, gi = %i, gj = %i\n  normal=[%v2g], length = %g, macro = [%v4g]\n  mdot = %g\n",this_face, ci, mi, mj, gi, gj, face_normal, length, cell_macro, mass_flow);
+  
+  return;
 }
