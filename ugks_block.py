@@ -899,6 +899,8 @@ class UGKSBlock(object):
             cl.enqueue_copy(self.queue, self.bc_mdot_H, self.bc_mdot_D)
             
             self.bc_mdot = np.sum(self.bc_mdot_H)
+        else:
+            self.bc_mdot = 0.0
         
         return
         

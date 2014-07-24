@@ -448,6 +448,17 @@ class UGKSim(object):
             res /= len(self.blocks)
             
             res = np.append(res, [abs(mdot)], -1)
+            
+            # total mass in system
+            bulk_mass, adsorbed_mass = self.total_mass()
+            mass = bulk_mass + adsorbed_mass
+            
+            delta_mass = abs((self.initial_mass_total - mass)/self.initial_mass_total)
+            
+            if delta_mass > 0.0:
+                res = np.append(res, [delta_mass], -1)
+            else:
+                res = np.append(res, [np.NaN], -1)
         
             gdata.residual_options.global_residual = res
             gdata.residual_options.residual_history.append(res)
@@ -494,6 +505,10 @@ class UGKSim(object):
         if save.save:
             self.saveToFile(save_f=save.save_initial_f)
             self.saved = False
+        
+        # save the total mass in the system at the start
+        bulk_mass, adsorbed_mass = self.total_mass()
+        self.initial_mass_total = bulk_mass + adsorbed_mass
         
         while self.step < gdata.max_step:
             
@@ -679,13 +694,15 @@ class UGKSim(object):
         res_x = np.log10(self.time_history_residual_N)
         res_y = np.log10(self.time_history_residual)
         
+        nr = len(res.global_residual)
+        
         if res.plot_residual:
             fig = plt.figure(figsize=(12, 6))
             ax = fig.add_subplot(111)
-            c = ['r','g','b','k','c']        
-            lb = [r'$\rho$','U','V','T',r'$\dot{m}$']
+            c = ['r','g','b','k','c','m']        
+            lb = [r'$\rho$','U','V','T',r'$\dot{m}$',r'$\Delta m_\mathrm{total}$']
 
-            for i in range(5):
+            for i in range(nr):
                 ax.plot(res_x, res_y[:,i], c[i]+'--', label=lb[i], lw=1.0)
                 
         if self.step >= res.slope_start:
@@ -703,8 +720,13 @@ class UGKSim(object):
             A, B = signal.butter(2, Wn, output='ba')
             
             slopes = []
-            for i in range(5):            
-                sample_y = np.interp(sample_x, res_x, res_y[:,i])
+            for i in range(nr):
+                ry = res_y[:,i]
+                mask = np.isfinite(ry)
+                ry = ry[mask]
+                rx = res_x[mask]
+                
+                sample_y = np.interp(sample_x, rx, ry)
                 # now filter the data
                 filt = signal.filtfilt(A, B, sample_y)
                 
@@ -722,8 +744,11 @@ class UGKSim(object):
         if res.plot_residual:
             if not self.time_history_residual:
                 max_res = 0
+                min_res = np.log10(res.min_residual)
             else:
-                max_res = np.max(res_y)
+                masked_res = res_y[np.isfinite(res_y)]
+                max_res = np.max(masked_res)
+                min_res = np.min(masked_res)
                 
                 
             plot_title = "Residual"
@@ -733,7 +758,7 @@ class UGKSim(object):
             
             ax.grid(True)
             ax.set_xlim(0,np.log10(gdata.max_step))
-            ax.set_ylim(np.log10(res.min_residual),max_res)
+            ax.set_ylim(min_res,max_res)
             
             ax.set_xlabel('log10 N')
             ax.set_ylabel('log10 R')
@@ -1006,10 +1031,11 @@ class UGKSim(object):
             self.hdf_global.create_dataset("global_data/final_step",data=self.step)
             
             if gdata.residual_options.get_residual & (len(self.time_history_residual_N) != 0):
-                length = len(self.time_history_residual_N)
-                residual_xy = np.zeros((length,5))
+                length = len(self.time_history_residual)
+                width = len(self.time_history_residual[0])
+                residual_xy = np.zeros((length,width+1))
                 residual_xy[:,0] = self.time_history_residual_N
-                residual_xy[:,1:5] = self.time_history_residual
+                residual_xy[:,1:width+1] = self.time_history_residual
                 self.hdf_global.create_dataset("global_data/residual_xy",data=residual_xy, compression=gdata.save_options.compression)
             
             self.xdmf.write('</Grid>\n')
@@ -1225,8 +1251,8 @@ class UGKSim(object):
         """
         clean up on exit
         """
-        if self.HDF_init:
-            self.close_HDF5()
+
+        self.close_HDF5()
         
         return
         

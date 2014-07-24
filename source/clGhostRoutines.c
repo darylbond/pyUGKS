@@ -62,81 +62,79 @@ void getSwapIndex(int this_face, int* iB, int* jB, int that_face, int NIB, int N
     adjust_rot = 1;
   }
 	
-  if (this_face == GEAST) {
-          if (that_face == GEAST) {
-            fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
-            (*iB) += NIB - 2*GHOST;
-            return;
-          } else if (that_face == GWEST) {
-            (*iB) -= NI - 2*GHOST;
-            return;
-          } else if (that_face == GNORTH) {
-            rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
-            (*jB) += NJB - 2*GHOST;
-            return;
-          } else if (that_face == GSOUTH) {
-            rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
-            //flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
-            (*jB) -= NJ - 2*GHOST;
-            return;
-          }
-        } else if (this_face == GWEST) {
-          if (that_face == GWEST) {
-            fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
-            (*iB) -= NI - 2*GHOST;
-            return;
-          } else if (that_face == GEAST) {
-            (*iB) += NIB - 2*GHOST;
-            return;
-          } else if(that_face == GNORTH) {
-            rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
-            //fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
-            (*jB) += NJB - 2*GHOST;
-            return;
-          } else if (that_face == GSOUTH) {
-            rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
-            (*jB) -= NJ - 2*GHOST;
-            return;
-          }
-        } else if (this_face == GNORTH) {
-          if (that_face == GNORTH) {
-            flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
-            (*jB) += NJB - 2*GHOST;
-            return;
-          } else if (that_face == GSOUTH) {
-            (*jB) -= NJ - 2*GHOST;
-            return;
-          } else if (that_face == GEAST) {
-            rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
-            (*iB) += NIB - 2*GHOST;
-            return;
-          } else if (that_face == GWEST) {
-            rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
-            //fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
-            (*iB) -= NI - 2*GHOST;
-            return;
-          } 
-        } else if (this_face == GSOUTH) {
-          if (that_face == GSOUTH) {
-            flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
-            (*jB) -= NJ - 2*GHOST;
-            return;
-          } else if (that_face == GNORTH) {
-            (*jB) += NJB - 2*GHOST;
-            return;
-          } else if (that_face == GEAST) {
-            rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
-            //flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
-            (*iB) += NIB - 2*GHOST;
-            return;
-          } else if (that_face == GWEST) {
-            rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
-            (*iB) -= NI - 2*GHOST;
-            return;
-          }
-        }
-  
-  
+	if (this_face == GEAST) {
+	  if (that_face == GEAST) {
+		fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+		(*iB) += NIB - 2*GHOST;
+		return;
+	  } else if (that_face == GWEST) {
+		(*iB) -= NI - 2*GHOST;
+		return;
+	  } else if (that_face == GNORTH) {
+		rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
+		(*jB) += NJB - 2*GHOST;
+		return;
+	  } else if (that_face == GSOUTH) {
+		rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
+		//flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+		(*jB) -= NI - 2*GHOST;
+		return;
+	  }
+	} else if (this_face == GWEST) {
+	  if (that_face == GWEST) {
+		fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+		(*iB) -= NI - 2*GHOST;
+		return;
+	  } else if (that_face == GEAST) {
+		(*iB) += NIB - 2*GHOST;
+		return;
+	  } else if(that_face == GNORTH) {
+		rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
+		//fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+		(*jB) += NJB - 2*GHOST;
+		return;
+	  } else if (that_face == GSOUTH) {
+		rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
+		(*jB) -= NI - 2*GHOST;
+		return;
+	  }
+	} else if (this_face == GNORTH) {
+	  if (that_face == GNORTH) {
+		flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+		(*jB) += NJB - 2*GHOST;
+		return;
+	  } else if (that_face == GSOUTH) {
+		(*jB) -= NJ - 2*GHOST;
+		return;
+	  } else if (that_face == GEAST) {
+		rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
+		(*iB) += NIB - 2*GHOST;
+		return;
+	  } else if (that_face == GWEST) {
+		rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
+		//fliplr(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+		(*iB) -= NJ - 2*GHOST;
+		return;
+	  } 
+	} else if (this_face == GSOUTH) {
+	  if (that_face == GSOUTH) {
+		flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+		(*jB) -= NJ - 2*GHOST;
+		return;
+	  } else if (that_face == GNORTH) {
+		(*jB) += NJB - 2*GHOST;
+		return;
+	  } else if (that_face == GEAST) {
+		rot90(iB,jB,3,NI+adjust_rot,NJ+adjust_rot);
+		//flipud(iB,jB,NI+adjust_flip,NJ+adjust_flip);
+		(*iB) += NIB - 2*GHOST;
+		return;
+	  } else if (that_face == GWEST) {
+		rot90(iB,jB,1,NI+adjust_rot,NJ+adjust_rot);
+		(*iB) -= NJ - 2*GHOST;
+		return;
+	  }
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
