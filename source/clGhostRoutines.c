@@ -157,7 +157,7 @@ xyExchange(__global double2* xyA,
 	   int this_face,
 	   __global double2* xyB,
 	   int NIB, int NJB, int that_face,
-     int ori, int affine)
+     int ori, int affine, int flip_normal, int this_block_id, int that_block_id)
 {
   // update ghost cells
   
@@ -201,6 +201,15 @@ xyExchange(__global double2* xyA,
       A2i = GHOST;
       A2j = NJ - GHOST;
       break;
+  }
+  
+  if (flip_normal == 1) {
+	  int tmp_i = A1i;
+	  int tmp_j = A1j;
+	  A1i = A2i;
+	  A1j = A2j;
+	  A2i = tmp_i;
+	  A2j = tmp_j;
   }
   
   // get the top/bottom or left/right node indexes of the other cells face
@@ -261,7 +270,9 @@ xyExchange(__global double2* xyA,
                
       getSwapIndex(this_face, &iB, &jB, that_face, NIB, NJB, 1);
       
-      //printf("(%i, %i) : this face = %i (%i, %i), that face = %i (%i, %i) size = (%i, %i)\n",gi, gj,        this_face, gi+ii, gj+jj, that_face, iB, jB, NIB, NJB);
+      //~ if (this_block_id == 0) {
+		//~ printf("(%i, %i) : this face = %i (%i, %i), that face = %i (%i, %i) size = (%i, %i)\n",gi, gj,        this_face, gi+ii, gj+jj, that_face, iB, jB, NIB, NJB);
+      //~ }
       
       switch (affine) {
         case NO_TRANSFORM:
@@ -272,6 +283,10 @@ xyExchange(__global double2* xyA,
           break;
         default:
           XYA(gi+ii,gj+jj) = transform(A1, A2, B1, B2, XYB(iB,jB));
+          //~ if (this_block_id == 0) {
+			  //~ printf("(%i, %i) : A1=[%v2g], A2=[%v2g], B1=[%v2g], B2=[%v2g], T=[%v2g]\n",gi,gj, A1, A2, B1, B2, XYA(gi+ii,gj+jj));
+		  //~ }
+			  
       }
 
     }

@@ -116,7 +116,8 @@ class Block(object):
                other_face = None,
                orientation=NO_HOLD,
                transform=TRANSFORM,
-               flip_distribution=NO_FLIP):
+               flip_distribution=NO_FLIP,
+               flip_normal=0):
         """
         Sets a boundary condition on a particular face of the block.
 
@@ -246,13 +247,15 @@ class Block(object):
                                other_face, 
                                orientation=orientation, 
                                flip_distribution=flip_distribution, 
-                               transform=transform, 
+                               transform=transform,
+                               flip_normal=flip_normal,
                                label=label)
             other_block.bc_list[other_face] = PeriodicBC(self.blkId, 
                                 iface, 
                                 orientation=orientation, 
                                 flip_distribution=flip_distribution,
-                                transform=transform, 
+                                transform=transform,
+                                flip_normal=flip_normal,
                                 label=label)
         try:
             self.bc_list[iface] = newbc

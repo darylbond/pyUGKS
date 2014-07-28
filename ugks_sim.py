@@ -41,6 +41,7 @@ class UGKSim(object):
     opt_item = 1
     force_time = False
     
+    is_open = False
     saved = False
     closed = False
     HDF_init = False
@@ -69,6 +70,7 @@ class UGKSim(object):
         ## Blocks
         print "\n LOAD BLOCKS\n"
         self.load_blocks()
+        self.check_closed_domain()
 
         # connections
         print "\n SET BLOCK CONNECTIONS \n"
@@ -90,6 +92,8 @@ class UGKSim(object):
         self.updateTimeStep(limit=False)
 
         print "\n INITIALISATION COMPLETE\n"
+        
+        
                 
         
         if self.restart_hdf:
@@ -108,6 +112,8 @@ class UGKSim(object):
         self.saveToFile(save_f=gdata.save_options.save_initial_f)
 
         return
+        
+        
         
     def runtime_variables(self):
         """
@@ -312,6 +318,19 @@ class UGKSim(object):
             b.updateBC()
 
         return
+        
+    def check_closed_domain(self):
+        """
+        check if we have a closed domain
+        """
+        
+        for b in self.blocks:
+            for bc in b.bc_list:
+                if bc.type_of_BC in [EXTRAPOLATE_OUT, INFLOW, OUTFLOW, CONSTANT]:
+                    self.is_open = True
+                    break
+                
+        return
     
     def update_run_config(self, i):
         """
@@ -447,18 +466,22 @@ class UGKSim(object):
                 mdot += block_mdot
             res /= len(self.blocks)
             
-            res = np.append(res, [abs(mdot)], -1)
+            if self.is_open:
+                if mdot == 0.0:
+                    res = np.append(res, [np.NaN], -1)
+                else:
+                    res = np.append(res, [abs(mdot)], -1)
             
-            # total mass in system
-            bulk_mass, adsorbed_mass = self.total_mass()
-            mass = bulk_mass + adsorbed_mass
-            
-            delta_mass = abs((self.initial_mass_total - mass)/self.initial_mass_total)
-            
-            if delta_mass > 0.0:
-                res = np.append(res, [delta_mass], -1)
-            else:
-                res = np.append(res, [np.NaN], -1)
+                # total mass in system
+                bulk_mass, adsorbed_mass = self.total_mass()
+                mass = bulk_mass + adsorbed_mass
+                
+                delta_mass = abs((self.initial_mass_total - mass)/self.initial_mass_total)
+                
+                if delta_mass > 0.0:
+                    res = np.append(res, [delta_mass], -1)
+                else:
+                    res = np.append(res, [np.NaN], -1)
         
             gdata.residual_options.global_residual = res
             gdata.residual_options.residual_history.append(res)

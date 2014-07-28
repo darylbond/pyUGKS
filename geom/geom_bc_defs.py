@@ -131,6 +131,7 @@ class BoundaryCondition(object):
                  orientation=NO_HOLD,
                  flip_distribution=NO_FLIP,
                  transform=TRANSFORM,
+                 flip_normal=0,
                  label=""):
                      
         self.type_of_BC = copy.copy(type_of_BC)
@@ -163,6 +164,7 @@ class BoundaryCondition(object):
         self.orientation = copy.copy(orientation)
         self.flip_distribution = copy.copy(flip_distribution)
         self.transform = copy.copy(transform)
+        self.flip_normal = copy.copy(flip_normal)
         self.label = copy.copy(label)
             
         return
@@ -219,10 +221,10 @@ class PeriodicBC(BoundaryCondition):
     """
     This boundary joins (i.e. is adjacent to) a boundary of another block.
     """
-    def __init__(self, other_block=-1, other_face=-1,orientation=NO_HOLD, flip_distribution=NO_FLIP, transform=TRANSFORM, label="PERIODIC"):
+    def __init__(self, other_block=-1, other_face=-1,orientation=NO_HOLD, flip_distribution=NO_FLIP, transform=TRANSFORM, flip_normal=0, label="PERIODIC"):
         BoundaryCondition.__init__(self, type_of_BC=ADJACENT, other_block=other_block,
                                    other_face=other_face, orientation=orientation,
-                                   flip_distribution=flip_distribution, transform=transform,
+                                   flip_distribution=flip_distribution, transform=transform, flip_normal=flip_normal,
                                    label=label)
         return
     def __str__(self):
@@ -233,7 +235,7 @@ class PeriodicBC(BoundaryCondition):
                           other_face=self.other_face,
                           orientation=self.orientation,
                           flip_distribution=self.flip_distribution,
-                          transform=self.transform,
+                          transform=self.transform, flip_normal=self.flip_normal,
                           label=self.label)
 
 class ExtrapolateOutBC(BoundaryCondition):

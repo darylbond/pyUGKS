@@ -230,7 +230,7 @@ class SvgEnvironment(object):
         f.write("style=\"%s\" />\n" % self.getLineStyle(dashed=dashed) )
         return
     
-    def text(self, x, y, textString, angle=0.0, fontSize=10,
+    def text(self, x, y, textString, angle=0.0, fontSize=2,
              anchor="start", colour="black",
              fontFamily="sanserif"):
         """
