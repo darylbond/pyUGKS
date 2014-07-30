@@ -131,7 +131,7 @@ class UGKSData(object):
                 'work_size_i','work_size_j','opt_sample_size', 'opt_run',\
                 'opt_start','delta_dt','suggest_dt',\
                 'Kn_eff', 'stop_script','run_stop_script_count',\
-                'clock_time_stop', 'relax_type'
+                'clock_time_stop', 'relax_type', 'add_source'
     
     def __init__(self):
         """
@@ -207,6 +207,8 @@ class UGKSData(object):
         # EXTERNAL SOURCE        
         src_loader = sl.SourceLoader()
         self.source = src_loader.src
+        
+        self.add_source = ""
         
         self.CL_local_size = 1 # the local work size for openCL
         self.work_size_i = 1

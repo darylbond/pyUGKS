@@ -383,7 +383,9 @@ def genHeader(data):
             s+= '\n                              '
             count = 0
     s += '};\n\n'
-            
+    
+    # add on the user defined source
+    s += gdata.add_source
     
     return s
 
