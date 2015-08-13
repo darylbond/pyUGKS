@@ -17,6 +17,7 @@ import numpy as np
 import scipy
 from scipy.special import *
 from math import *
+import h5py
 
 from matplotlib import pylab as plt
 
@@ -382,6 +383,14 @@ class UGKSData(object):
         """
         run a check over things that may need updating, update if necessary
         """
+        
+    def clean(self):
+        """
+        clean up geometry definition
+        """
+        
+        Block.blockList = []
+        FlowCondition.flowList = []
             
         return
         
@@ -551,8 +560,30 @@ def write_grid_files(blockList):
         fp.close()
     print "End write grid file(s)."
     return
+    
+def restart(h5_name=""):
+    """
+    restart from a pre-existing file
+    """
+    
+    gdata.restart = h5_name
+    
 
-def global_preparation(jobName="", jobString=""):
+    restart_hdf = h5py.File(gdata.restart, 'r')
+    gdata.step = restart_hdf['global_data/final_step'][()]
+    run_script = restart_hdf['global_data/run_config'][()]
+    restart_hdf.close()
+    
+    gdata.config_string = run_script
+
+    exec(run_script,globals())
+    
+    # reinstate restart file name
+    gdata.restart = h5_name
+    
+    return
+
+def global_preparation(jobName="", additional=""):
     """
     prepare the domain for simulation
     get user input and define flow domain
@@ -572,20 +603,41 @@ def global_preparation(jobName="", jobString=""):
     if not os.access(rootName, os.F_OK):
         os.makedirs(rootName)
     
+    # are we restarting
     
-    if ext:
-        jobFileName = jobName
-    else:
-        jobFileName = rootName + ".py"
+    if "h5" in jobName:
+        print "RESTARTING FROM FILE"
+        restart(jobName)
         
-    # if extra strinbgs have been passed in, evaluate them first
-    #  may still be over-written
-    if jobString:
-        exec(jobString,globals())
+        # in this case call the job string after the restart file
+        if additional:
+            execfile(additional,globals())
+        
+    else:
+            
+        # if extra strinbgs have been passed in, evaluate them first
+        #  may still be over-written
+        if additional:
+            execfile(additional,globals())
+        
+        # The user-specified input comes in the form of Python code.
+        # In a parallel calculation, all processes should see the same setup.
+        execfile(jobName,globals())
+        
+        fstr = ""
     
-    # The user-specified input comes in the form of Python code.
-    # In a parallel calculation, all processes should see the same setup.
-    execfile(jobFileName, globals())
+        f = open(jobFileName,'r')
+        f_lines = f.readlines()
+        f.close()
+        
+        gdata.config_string = "".join(f_lines)
+        
+    if additional:
+        f = open(additional,'r')
+        f_lines = f.readlines()
+        f.close()
+        
+        gdata.config_string += '\n\n' + "".join(f_lines)
     
     # create config file
     conf_name = os.path.join(rootName,fileName+'.conf')
@@ -594,17 +646,6 @@ def global_preparation(jobName="", jobString=""):
     f_conf.close()
     
     gdata.runtime_conf = conf_name
-    
-    fstr = jobString
-    
-    f = open(jobFileName,'r')
-    f_lines = f.readlines()
-    f.close()
-    
-    fstr_2 = "".join(f_lines)
-    
-    gdata.config_string = fstr + '\n\n' + fstr_2
-    
     
     
     if len(Block.blockList) < 1:

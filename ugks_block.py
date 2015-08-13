@@ -13,6 +13,7 @@ import numpy as np
 import time
 import sys
 import os
+import h5py
 
 from math import *
 from scipy.special import *
@@ -271,13 +272,20 @@ class UGKSBlock(object):
         
         
         if restart_hdf:
-            step = restart_hdf['global_data/final_step'][()]
-            data = restart_hdf['step_%d/block_%d'%(step, self.id)]
+            data_name = restart_hdf['global_data/sub_files'][-1,0]
+            data_name = os.path.join(os.path.split(gdata.restart)[0], data_name)
+            
+            h5data = h5py.File(data_name, 'r')
+            
+            data = h5data['block_%d'%(self.id)]
+            gdata.time = data['time'][()]
             self.macro_H[:,:,0] = data['rho'][()]
             self.macro_H[:,:,1:3] = data['UV'][()]
             self.macro_H[:,:,3] = 1.0/data['T'][()]
             self.Q_H[:] = data['Q'][()]
             f_H = data['f'][()]
+            
+            h5data.close()
             
         else:
             self.macro_H[:,:,0] *= self.fill_condition.D # density
@@ -1384,6 +1392,8 @@ class UGKSBlock(object):
             return f_H, f_S_H, f_W_H
         elif get_f:
             return f_H
+        elif get_wall_f:
+            return f_S_H, f_W_H
         else:
             return
     
@@ -1423,13 +1433,15 @@ class UGKSBlock(object):
             f_H, f_S_H, f_W_H = self.updateHost(get_f=save_f, get_wall_f=save_flux)
         elif save_f:
             f_H = self.updateHost(get_f=save_f)
+        elif save_flux:
+            f_S_H, f_W_H = self.updateHost(get_wall_f=save_flux)
         else:
             self.updateHost()
         
         sgrp.create_dataset("rho",data=self.macro_H[:,:,0], compression=gdata.save_options.compression)
         xdmf += '<Attribute Name="rho" AttributeType="Scalar" Center="Cell">\n'
         xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
-        xdmf += '%s:/step_%d/block_%d/rho\n'%(h5Name, step, self.id)
+        xdmf += '%s:/block_%d/rho\n'%(h5Name, self.id)
         xdmf += '</DataItem>\n'
         xdmf += '</Attribute>\n'
         
@@ -1438,11 +1450,11 @@ class UGKSBlock(object):
         xdmf += '<Attribute Name="UV" AttributeType="Vector" Center="Cell">\n'
         xdmf += '<DataItem Dimensions="%d %d 3" Function="JOIN($0, $1)" ItemType="Function">\n'%(self.ni, self.nj)
         xdmf += '<DataItem Dimensions="%d %d 2" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
-        xdmf += '%s:/step_%d/block_%d/UV\n'%(h5Name, step, self.id)
+        xdmf += '%s:/block_%d/UV\n'%(h5Name, self.id)
         xdmf += '</DataItem>\n'
         xdmf += '<DataItem Dimensions="%d %d 1" Function="ABS($0 - $0)" ItemType="Function">\n'%(self.ni, self.nj)
         xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
-        xdmf += '%s:/step_%d/block_%d/rho\n'%(h5Name, step, self.id)
+        xdmf += '%s:/block_%d/rho\n'%(h5Name, self.id)
         xdmf += '</DataItem>\n'
         xdmf += '</DataItem>\n'
         xdmf += '</DataItem>\n'
@@ -1452,11 +1464,11 @@ class UGKSBlock(object):
         xdmf += '<Attribute Name="Q" AttributeType="Vector" Center="Cell">\n'
         xdmf += '<DataItem Dimensions="%d %d 3" Function="JOIN($0, $1)" ItemType="Function">\n'%(self.ni, self.nj)
         xdmf += '<DataItem Dimensions="%d %d 2" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
-        xdmf += '%s:/step_%d/block_%d/Q\n'%(h5Name, step, self.id)
+        xdmf += '%s:/block_%d/Q\n'%(h5Name, self.id)
         xdmf += '</DataItem>\n'
         xdmf += '<DataItem Dimensions="%d %d 1" Function="ABS($0 - $0)" ItemType="Function">\n'%(self.ni, self.nj)
         xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
-        xdmf += '%s:/step_%d/block_%d/rho\n'%(h5Name, step, self.id)
+        xdmf += '%s:/block_%d/rho\n'%(h5Name, self.id)
         xdmf += '</DataItem>\n'
         xdmf += '</DataItem>\n'
         xdmf += '</DataItem>\n'
@@ -1468,7 +1480,7 @@ class UGKSBlock(object):
             
             xdmf += '<Attribute Name="Txyz" AttributeType="Vector" Center="Cell">\n'
             xdmf += '<DataItem Dimensions="%d %d 3" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
-            xdmf += '%s:/step_%d/block_%d/Txyz\n'%(h5Name, step, self.id)
+            xdmf += '%s:/block_%d/Txyz\n'%(h5Name, self.id)
             xdmf += '</DataItem>\n'
             xdmf += '</Attribute>\n'
             
@@ -1476,7 +1488,7 @@ class UGKSBlock(object):
             
             xdmf += '<Attribute Name="stress" AttributeType="Vector" Center="Cell">\n'
             xdmf += '<DataItem Dimensions="%d %d 3" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
-            xdmf += '%s:/step_%d/block_%d/stress\n'%(h5Name, step, self.id)
+            xdmf += '%s:/block_%d/stress\n'%(h5Name, self.id)
             xdmf += '</DataItem>\n'
             xdmf += '</Attribute>\n'
 
@@ -1484,16 +1496,16 @@ class UGKSBlock(object):
         
         xdmf += '<Attribute Name="T" AttributeType="Scalar" Center="Cell">\n'
         xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
-        xdmf += '%s:/step_%d/block_%d/T\n'%(h5Name, step, self.id)
+        xdmf += '%s:/block_%d/T\n'%(h5Name, self.id)
         xdmf += '</DataItem>\n'
         xdmf += '</Attribute>\n'
         xdmf += '<Attribute Name="P" AttributeType="Scalar" Center="Cell">\n'
         xdmf += '<DataItem Dimensions="%d %d" Function="$0*$1/2.0" ItemType="Function">\n'%(self.ni, self.nj)
         xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
-        xdmf += '%s:/step_%d/block_%d/rho\n'%(h5Name, step, self.id)
+        xdmf += '%s:/block_%d/rho\n'%(h5Name, self.id)
         xdmf += '</DataItem>\n'
         xdmf += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(self.ni, self.nj)
-        xdmf += '%s:/step_%d/block_%d/T\n'%(h5Name, step, self.id)
+        xdmf += '%s:/block_%d/T\n'%(h5Name, self.id)
         xdmf += '</DataItem>\n'
         xdmf += '</DataItem>\n'
         xdmf += '</Attribute>\n'

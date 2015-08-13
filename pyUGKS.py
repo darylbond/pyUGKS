@@ -25,7 +25,7 @@ from ugks_sim import UGKSim
 #==============================================================================
 
 class UGKS(object):
-    def __init__(self, jobName, svg=False, svg_only=False, vtk=False, add_str=""):
+    def __init__(self, jobName, svg=False, svg_only=False, vtk=False, additional=""):
         """
         UGKS object
         """
@@ -35,7 +35,7 @@ class UGKS(object):
         
         # Step 1: Initialise the global data
         print "\n LOAD SIMULATION FILE\n"
-        global_preparation(jobName, add_str)
+        global_preparation(jobName, additional)
         
         if svg:
             gdata.sketch.write_svg_file(gdata, FlowCondition.flowList,

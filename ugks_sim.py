@@ -15,7 +15,7 @@ import os
 import h5py
 
 #local
-from ugks_data import gdata
+from ugks_data import gdata, global_preparation
 from ugks_data import Block
 from ugks_block import UGKSBlock
 
@@ -109,7 +109,8 @@ class UGKSim(object):
         self.initPicOutput()
         
         # save to file
-        self.saveToFile(save_f=gdata.save_options.save_initial_f)
+        if not gdata.restart:
+            self.saveToFile(save_f=gdata.save_options.save_initial_f)
 
         return
         
@@ -524,10 +525,15 @@ class UGKSim(object):
         
         self.step = gdata.step
         
+        if gdata.restart:
+            self.saved = True
+        
         # save files?
-        if save.save:
+        if save.save and not self.saved:
             self.saveToFile(save_f=save.save_initial_f)
             self.saved = False
+            
+        
         
         # save the total mass in the system at the start
         bulk_mass, adsorbed_mass = self.total_mass()
@@ -824,7 +830,6 @@ class UGKSim(object):
             # open the old hdf
             self.restart_hdf = h5py.File(gdata.restart, 'r')
             gdata.step = self.restart_hdf['global_data/final_step'][()]
-            gdata.time = self.restart_hdf['step_%d/block_0/time'%gdata.step][()]
             
             if gdata.residual_options.get_residual:
                 self.time_history_residual_N = self.restart_hdf['global_data/residual_xy'][:,0].tolist()
@@ -847,29 +852,33 @@ class UGKSim(object):
             name = save.save_name
         else:
             name = firstName
+            
         
-         # file
-        (dirName,firstName) = os.path.split(gdata.rootName)
-        h5Path = os.path.join(gdata.rootName,"HDF5",name)
-        if not os.access(h5Path, os.F_OK):
-            os.makedirs(h5Path)
-            
-        h5Name = os.path.join(h5Path,name+".h5")
-            
-        if (gdata.restart != False) & os.path.isfile(h5Name):
-            # we can't over-write our restart file!!
+        if gdata.restart != None:
+            h5Path, name = os.path.split(gdata.restart)
+            name, ext = os.path.splitext(name)
             name += '_restart_t=%g'%gdata.time
-            name.replace(".","-")
-        
-        h5Name = os.path.join(h5Path,name+".h5") 
+            name = name.replace(".","-")
+            h5Name = os.path.join(h5Path, name) + ext
+        else:
+             # file
+            (dirName,firstName) = os.path.split(gdata.rootName)
+            h5Path = os.path.join(gdata.rootName,"HDF5",name)
+            if not os.access(h5Path, os.F_OK):
+                os.makedirs(h5Path)
+                
+            h5Name = os.path.join(h5Path,name+".h5")
+
         
         save.h5Name = h5Name
         self.h5Name = h5Name
-        self.h5name_short = name+".h5"
-        self.h5_base_name = os.path.join(h5Path,name) 
+        self.h5name_short = os.path.split(h5Name)[1]
+        self.h5_base_name = os.path.splitext(h5Name)[0] 
         
         self.global_h5_name = h5Name
-            
+        
+        # create a list for saving file names to
+        self.sub_names = []
         
         print "HDF save to --> %s"%self.h5Name
         self.hdf_global = h5py.File(h5Name, 'w') #open new file to save to
@@ -1020,7 +1029,7 @@ class UGKSim(object):
         
         # make a new hdf5 file for each saved step
         name = self.h5_base_name
-        max_steps = int(np.log10(gdata.max_step))
+        max_steps = int(max(np.log10(gdata.max_step), 3))
         cmd_str = "_step=%0."+str(max_steps)+"i"
         step_str = cmd_str%self.step
         self.h5Name = name + step_str + ".h5"
@@ -1030,8 +1039,10 @@ class UGKSim(object):
         
         self.hdf = h5py.File(self.h5Name, 'w')
         
+        self.sub_names.append(self.h5name_short)
         
-        grp = self.hdf.require_group("step_" + str(self.step))
+        
+        grp = self.hdf
         grp.create_dataset('step',data=self.step)
         
         self.xdmf.write('<Grid Name="TimeSlice" GridType="Collection" CollectionType="Spatial">\n')
@@ -1059,6 +1070,8 @@ class UGKSim(object):
         if self.HDF_init:
             
             self.hdf_global.create_dataset("global_data/final_step",data=self.step)
+            
+            self.hdf_global.create_dataset("global_data/sub_files",data=self.sub_names)
             
             if gdata.residual_options.get_residual & (len(self.time_history_residual_N) != 0):
                 length = len(self.time_history_residual)
