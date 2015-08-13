@@ -364,6 +364,13 @@ class UGKSBlock(object):
         
         self.wall_dist_D = self.set_buffer_size(wall_len*self.Nv*2*f64_size)
         
+        # reconstructed wall distribution functions
+        if gdata.save_options.save_final_wall_distribution:
+            self.wall_f_N = np.zeros((self.ni,self.Nv,2),dtype=np.float64)
+            self.wall_f_S = np.zeros((self.ni,self.Nv,2),dtype=np.float64)
+            self.wall_f_E = np.zeros((self.nj,self.Nv,2),dtype=np.float64)
+            self.wall_f_W = np.zeros((self.nj,self.Nv,2),dtype=np.float64)
+        
         self.sigma_D = self.set_buffer_size(dist_size)
         
         # macroscopic properties, without ghost cells
@@ -966,7 +973,55 @@ class UGKSBlock(object):
                      self.normal_D, self.length_D, self.area_D,
                      wall, flux, self.wall_fluxes_D, dt)
         
-        return 
+        return
+        
+    def get_interface_distribution(self):
+        """
+        calculate the reconstructed interface distribution
+        """
+        
+        if not gdata.save_options.save_final_wall_distribution:
+            return
+        
+        south = np.int32(0)
+        west = np.int32(1)
+        
+        dt = np.float64(gdata.dt)
+        
+        ### SOUTH
+        
+        global_size, work_size = m_tuple((self.ni, self.nj+1, 1), (1,1,gdata.CL_local_size))        
+        self.prg.iFace(self.queue, global_size, work_size,
+                   self.f_D, self.flux_f_S_D, self.sigma_D, self.centre_D,
+                   self.side_D, self.normal_D, south)
+                   
+        cl.enqueue_barrier(self.queue)
+
+        # get a copy of the wall distributions
+        f_S_H = np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64)
+        cl.enqueue_copy(self.queue,f_S_H,self.flux_f_S_D)
+            
+        self.wall_f_N[:] = f_S_H[self.ghost:self.Ni-self.ghost,self.Nj-self.ghost,:,:]
+        self.wall_f_S[:] = f_S_H[self.ghost:self.Ni-self.ghost,self.ghost,:,:]
+        
+        ### WEST        
+        
+        cl.enqueue_barrier(self.queue) # ensure no overlap due to sigma_D        
+        
+        global_size, work_size = m_tuple((self.ni+1, self.nj, 1), (1,1,gdata.CL_local_size))        
+        self.prg.iFace(self.queue, global_size, work_size,
+                   self.f_D, self.flux_f_W_D, self.sigma_D, self.centre_D,
+                   self.side_D, self.normal_D, west)
+                   
+        cl.enqueue_barrier(self.queue)
+        
+        f_W_H = np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64)
+        cl.enqueue_copy(self.queue,f_W_H,self.flux_f_W_D)
+        
+        self.wall_f_E[:] = f_W_H[self.Ni-self.ghost,self.ghost:self.Nj-self.ghost,:,:]
+        self.wall_f_W[:] = f_W_H[self.ghost,self.ghost:self.Nj-self.ghost,:,:]
+        
+        return
     
     def UGKS_flux(self):
         """
@@ -1352,7 +1407,7 @@ class UGKSBlock(object):
         
         return
         
-    def save_hdf(self, h5Name, grp, step, save_f=False, save_flux=False):
+    def save_hdf(self, h5Name, grp, step, save_f=False, save_flux=False, save_wall_f=False):
         """
         save block data to hdf_file
         """
@@ -1489,6 +1544,18 @@ class UGKSBlock(object):
                     data = f_W_H[self.ghost,self.ghost:self.Nj-self.ghost,:,:]
                 
                 fgrp.create_dataset("flux",data=data, compression=gdata.save_options.compression)
+                
+            if save_wall_f:
+                if fid == 0: # NORTH
+                    data = self.wall_f_N
+                elif fid == 1: # EAST
+                    data = self.wall_f_E
+                elif fid == 2: # SOUTH
+                    data = self.wall_f_S
+                elif fid == 3: # WEST
+                    data = self.wall_f_W
+                
+                fgrp.create_dataset("wall_f",data=data, compression=gdata.save_options.compression)
         
             
         if save_f:

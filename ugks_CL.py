@@ -345,44 +345,54 @@ def genHeader(data):
             count = 0
     s += '};\n\n'
     
-    count = 0
-    s += '__constant size_t mirror_NS[{}] = {{'.format(gdata.Nv)
-    for i in range(gdata.Nv):
-        count += 1
-        if i < gdata.Nv-1:
-            s += '{}, '.format(gdata.mirror_NS[i])
-        else:
-            s += '{}'.format(gdata.mirror_NS[i])
-        if count == 10:
-            s+= '\n                              '
-            count = 0
-    s += '};\n'
+    if gdata.mirror_NS != None:
+        count = 0
+        s += '__constant size_t mirror_NS[{}] = {{'.format(gdata.Nv)
+        for i in range(gdata.Nv):
+            count += 1
+            if i < gdata.Nv-1:
+                s += '{}, '.format(gdata.mirror_NS[i])
+            else:
+                s += '{}'.format(gdata.mirror_NS[i])
+            if count == 10:
+                s+= '\n                              '
+                count = 0
+        s += '};\n'
+    else:
+        s += '__constant size_t mirror_NS[1] = {0};\n'
+        
     
-    count = 0
-    s += '__constant size_t mirror_EW[{}] = {{'.format(gdata.Nv)
-    for i in range(gdata.Nv):
-        count += 1
-        if i < gdata.Nv-1:
-            s += '{}, '.format(gdata.mirror_EW[i])
-        else:
-            s += '{}'.format(gdata.mirror_EW[i])
-        if count == 10:
-            s+= '\n                              '
-            count = 0
-    s += '};\n'
+    if gdata.mirror_EW != None:
+        count = 0
+        s += '__constant size_t mirror_EW[{}] = {{'.format(gdata.Nv)
+        for i in range(gdata.Nv):
+            count += 1
+            if i < gdata.Nv-1:
+                s += '{}, '.format(gdata.mirror_EW[i])
+            else:
+                s += '{}'.format(gdata.mirror_EW[i])
+            if count == 10:
+                s+= '\n                              '
+                count = 0
+        s += '};\n'
+    else:
+        s += '__constant size_t mirror_EW[1] = {0};\n'
     
-    count = 0
-    s += '__constant size_t mirror_D[{}] = {{'.format(gdata.Nv)
-    for i in range(gdata.Nv):
-        count += 1
-        if i < gdata.Nv-1:
-            s += '{}, '.format(gdata.mirror_D[i])
-        else:
-            s += '{}'.format(gdata.mirror_D[i])
-        if count == 10:
-            s+= '\n                              '
-            count = 0
-    s += '};\n\n'
+    if gdata.mirror_D != None:
+        count = 0
+        s += '__constant size_t mirror_D[{}] = {{'.format(gdata.Nv)
+        for i in range(gdata.Nv):
+            count += 1
+            if i < gdata.Nv-1:
+                s += '{}, '.format(gdata.mirror_D[i])
+            else:
+                s += '{}'.format(gdata.mirror_D[i])
+            if count == 10:
+                s+= '\n                              '
+                count = 0
+        s += '};\n\n'
+    else:
+        s += '__constant size_t mirror_D[1] = {0};\n\n'
     
     # add on the user defined source
     s += gdata.add_source

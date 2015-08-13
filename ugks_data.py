@@ -51,7 +51,7 @@ class SaveOptions:
     __slots__ = 'save','save_name','writeHDF','writeVTK','save_initial_f',
     'save_final_f','internal_data','compression','save_count','h5Name',
     'initial_save_count','initial_save_cutoff_time','save_final_flux','save_f_always',
-    'save_pic'
+    'save_pic','save_final_wall_distribution'
     
     save = False
     save_name = ""
@@ -60,6 +60,7 @@ class SaveOptions:
     save_final_f = False
     save_f_always = False
     save_final_flux = False
+    save_final_wall_distribution = False
     internal_data = False
     compression = 'gzip'
     save_count = 1
@@ -263,6 +264,10 @@ class UGKSData(object):
                     self.quad[count,1] = v
                     self.weight[count] = local_weight[i]*np.exp(u**2)*local_weight[j]*np.exp(v**2)
                     count += 1
+                    
+            self.mirror_NS = np.ravel(np.fliplr(index_array))
+            self.mirror_EW = np.ravel(np.flipud(index_array))
+            self.mirror_D  = np.ravel(np.flipud(np.fliplr(index_array)))
             
         elif self.quad_type == "Newton":
             self.u_num = int(self.u_num/4)*4 + 1
@@ -288,13 +293,24 @@ class UGKSData(object):
                     self.weight[count] = (newton_coeff(i+1,self.u_num)*du)*(newton_coeff(j+1,self.v_num)*dv)
                     count += 1
                     
+            self.mirror_NS = np.ravel(np.fliplr(index_array))
+            self.mirror_EW = np.ravel(np.flipud(index_array))
+            self.mirror_D  = np.ravel(np.flipud(np.fliplr(index_array)))
+                    
+        elif self.quad_type == "defined":
+            self.quad = np.array(self.quad)
+            self.weight = np.array(self.weight)
+            self.Nv = self.quad[:,0].size
+            
+            self.mirror_NS = None
+            self.mirror_EW = None
+            self.mirror_D  = None
+                    
                     
         self.umax = abs(np.max(self.quad[:,0]))
         self.vmax = abs(np.max(self.quad[:,1]))
         
-        self.mirror_NS = np.ravel(np.fliplr(index_array))
-        self.mirror_EW = np.ravel(np.flipud(index_array))
-        self.mirror_D  = np.ravel(np.flipud(np.fliplr(index_array)))
+        
         
         if 0:
             import matplotlib.pylab as plt

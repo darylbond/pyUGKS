@@ -202,7 +202,7 @@ class Block(object):
                                   UDF_T = flowCondition.UDF_T,
                                   label = flowCondition.label)
             else:
-                newbc = AccommodatingBC(D=D, T=T, U=U, 
+                newbc = DiffuseBC(D=D, T=T, U=U, 
                                         V=V, UDF_D=UDF_D, UDF_U=UDF_U, 
                                         UDF_V=UDF_V, UDF_T=UDF_T, label=label)
                                         

@@ -10,7 +10,8 @@ double relaxTime(double4 prim)
   // calculate the non-dimensional relaxation time
   
   #if RELAX_TYPE == 0
-  double tau = (Kn_eff/prim.s0)*sqrt(2.0/PI)*pow(prim.s3,1.0 - OMEGA);
+  const double sqrt_2_on_pi = 0.79788456080286541; // sqrt(2.0/pi)
+  double tau = (Kn_eff/prim.s0)*sqrt_2_on_pi*pow(prim.s3,1.0 - OMEGA);
   #endif
   
   #if RELAX_TYPE == 1
@@ -20,10 +21,11 @@ double relaxTime(double4 prim)
   #if RELAX_TYPE == 2
   double tau = (Kn_eff/prim.s0)*pow(prim.s3,1.0 - OMEGA);
   #endif
-  
-  //~ #if RELAX_TYPE == 3
-  //~ double tau = (5*(alpha_ref+1)*(alpha_ref+2)*sqrt(PI)/(4*alpha_ref*(5-2*omega_ref)*(7-2*omega_ref))*Kn_eff)*2*pow(prim.s3,1-OMEGA)/prim.s0;
-  //~ #endif
+
+  #if RELAX_TYPE == 3
+  const double four_on_sqrt_pi = 2.2567583341910251; // 4/sqrt(pi)
+  double tau = (Kn_eff/prim.s0)*four_on_sqrt_pi*pow(prim.s3,1.0 - OMEGA);
+  #endif
   
   return tau;
   
