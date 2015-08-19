@@ -570,8 +570,8 @@ def restart(h5_name=""):
     
 
     restart_hdf = h5py.File(gdata.restart, 'r')
-    gdata.step = restart_hdf['global_data/final_step'][()]
-    run_script = restart_hdf['global_data/run_config'][()]
+    gdata.step = restart_hdf['final_step'][()]
+    run_script = restart_hdf['run_config'][()]
     restart_hdf.close()
     
     gdata.config_string = run_script
@@ -626,7 +626,7 @@ def global_preparation(jobName="", additional=""):
         
         fstr = ""
     
-        f = open(jobFileName,'r')
+        f = open(jobName,'r')
         f_lines = f.readlines()
         f.close()
         

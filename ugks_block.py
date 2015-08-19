@@ -55,7 +55,7 @@ class UGKSBlock(object):
     macro_update = 0
     has_accommodating = False  #flag to indicate if we have any accommodating walls
     grab_timer = 0
-    
+        
     max_dt = 0.0 # the maximum allowable time step for this block
     
     def __init__(self, block_id, cl_ctx, cl_queue):
@@ -255,7 +255,7 @@ class UGKSBlock(object):
         return
         
         
-    def initFunctions(self, restart_hdf=None):
+    def initFunctions(self, restart_hdf=False):
         """
         initialise all functions in the flow domain of this block, excludes
         ghost cells
@@ -272,7 +272,7 @@ class UGKSBlock(object):
         
         
         if restart_hdf:
-            data_name = restart_hdf['global_data/sub_files'][-1,0]
+            data_name = restart_hdf['sub_files'][-1,0]
             data_name = os.path.join(os.path.split(gdata.restart)[0], data_name)
             
             h5data = h5py.File(data_name, 'r')
@@ -283,7 +283,13 @@ class UGKSBlock(object):
             self.macro_H[:,:,1:3] = data['UV'][()]
             self.macro_H[:,:,3] = 1.0/data['T'][()]
             self.Q_H[:] = data['Q'][()]
-            f_H = data['f'][()]
+            
+            try:
+                f_H = data['f'][()]
+                flag_init_maxwellian = False
+            except:
+                flag_init_maxwellian = True
+                print "RESTART:Missing distribution functions. Initializing with Shakhov distribution."    
             
             h5data.close()
             
@@ -338,7 +344,7 @@ class UGKSBlock(object):
         dist_size = self.Ni*self.Nj*self.Nv*2*f64_size
         macro_size = self.Ni*self.Nj*4*f64_size
 
-        if restart_hdf:
+        if not flag_init_maxwellian:
             self.f_D = self.set_buffer(f_H)
         else:
             self.f_D = self.set_buffer_size(dist_size)
@@ -372,13 +378,6 @@ class UGKSBlock(object):
         
         self.wall_dist_D = self.set_buffer_size(wall_len*self.Nv*2*f64_size)
         
-        # reconstructed wall distribution functions
-        if gdata.save_options.save_final_wall_distribution:
-            self.wall_f_N = np.zeros((self.ni,self.Nv,2),dtype=np.float64)
-            self.wall_f_S = np.zeros((self.ni,self.Nv,2),dtype=np.float64)
-            self.wall_f_E = np.zeros((self.nj,self.Nv,2),dtype=np.float64)
-            self.wall_f_W = np.zeros((self.nj,self.Nv,2),dtype=np.float64)
-        
         self.sigma_D = self.set_buffer_size(dist_size)
         
         # macroscopic properties, without ghost cells
@@ -409,7 +408,7 @@ class UGKSBlock(object):
             
         cl.enqueue_barrier(self.queue)
         
-        if not restart_hdf:
+        if flag_init_maxwellian:
             # perform initialisation of distribution functions
             global_size, work_size = m_tuple((self.ni, self.nj, 1),(1,1,gdata.CL_local_size))
             self.prg.initFunctions(self.queue, global_size, work_size,
@@ -996,6 +995,18 @@ class UGKSBlock(object):
         
         dt = np.float64(gdata.dt)
         
+        # first get a copy of existing fluxes
+        
+        f_S_H = np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64)
+        cl.enqueue_copy(self.queue,f_S_H,self.flux_f_S_D)
+        f_S_H_copy = np.copy(f_S_H)
+        
+        f_W_H = np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64)
+        cl.enqueue_copy(self.queue,f_W_H,self.flux_f_W_D)
+        f_W_H_copy = np.copy(f_W_H)
+        
+        # now reconstruct the interface distributions
+        
         ### SOUTH
         
         global_size, work_size = m_tuple((self.ni, self.nj+1, 1), (1,1,gdata.CL_local_size))        
@@ -1009,8 +1020,8 @@ class UGKSBlock(object):
         f_S_H = np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64)
         cl.enqueue_copy(self.queue,f_S_H,self.flux_f_S_D)
             
-        self.wall_f_N[:] = f_S_H[self.ghost:self.Ni-self.ghost,self.Nj-self.ghost,:,:]
-        self.wall_f_S[:] = f_S_H[self.ghost:self.Ni-self.ghost,self.ghost,:,:]
+        self.wall_f_N = np.copy(f_S_H[self.ghost:self.Ni-self.ghost,self.Nj-self.ghost,:,:])
+        self.wall_f_S = np.copy(f_S_H[self.ghost:self.Ni-self.ghost,self.ghost,:,:])
         
         ### WEST        
         
@@ -1026,8 +1037,12 @@ class UGKSBlock(object):
         f_W_H = np.ones((self.Ni,self.Nj,self.Nv,2),dtype=np.float64)
         cl.enqueue_copy(self.queue,f_W_H,self.flux_f_W_D)
         
-        self.wall_f_E[:] = f_W_H[self.Ni-self.ghost,self.ghost:self.Nj-self.ghost,:,:]
-        self.wall_f_W[:] = f_W_H[self.ghost,self.ghost:self.Nj-self.ghost,:,:]
+        self.wall_f_E = np.copy(f_W_H[self.Ni-self.ghost,self.ghost:self.Nj-self.ghost,:,:])
+        self.wall_f_W = np.copy(f_W_H[self.ghost,self.ghost:self.Nj-self.ghost,:,:])
+        
+        # re-load fluxes
+        cl.enqueue_copy(self.queue,self.flux_f_S_D, f_S_H_copy)
+        cl.enqueue_copy(self.queue,self.flux_f_W_D, f_W_H_copy)
         
         return
     

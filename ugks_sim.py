@@ -829,13 +829,13 @@ class UGKSim(object):
         if gdata.restart:
             # open the old hdf
             self.restart_hdf = h5py.File(gdata.restart, 'r')
-            gdata.step = self.restart_hdf['global_data/final_step'][()]
+            gdata.step = self.restart_hdf['final_step'][()]
             
             if gdata.residual_options.get_residual:
-                self.time_history_residual_N = self.restart_hdf['global_data/residual_xy'][:,0].tolist()
-                self.time_history_residual = self.restart_hdf['global_data/residual_xy'][:,1:5].tolist()
+                self.time_history_residual_N = self.restart_hdf['residual_xy'][:,0].tolist()
+                self.time_history_residual = self.restart_hdf['residual_xy'][:,1:5].tolist()
         else:
-            self.restart_hdf = None
+            self.restart_hdf = False
         
         return
 
@@ -854,7 +854,7 @@ class UGKSim(object):
             name = firstName
             
         
-        if gdata.restart != None:
+        if gdata.restart:
             h5Path, name = os.path.split(gdata.restart)
             name, ext = os.path.splitext(name)
             name += '_restart_t=%g'%gdata.time
@@ -883,7 +883,7 @@ class UGKSim(object):
         print "HDF save to --> %s"%self.h5Name
         self.hdf_global = h5py.File(h5Name, 'w') #open new file to save to
         
-        grp = self.hdf_global.create_group("global_data")
+        grp = self.hdf_global
         
         grp.create_dataset("run_config",data=gdata.config_string)
         
@@ -993,10 +993,10 @@ class UGKSim(object):
             s1 += '<Topology TopologyType="2DSMesh" NumberOfElements="%d %d"/>\n'%(b.ni+1, b.nj+1)
             s1 += '<Geometry GeometryType="X_Y">\n'
             s1 += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(b.ni+1, b.nj+1)
-            s1 += '%s:/global_data/block_%d/x\n'%(self.h5name_short, b.id)
+            s1 += '%s:/block_%d/x\n'%(self.h5name_short, b.id)
             s1 += '</DataItem>\n'
             s1 += '<DataItem Dimensions="%d %d" NumberType="Float" Precision="8" Format="HDF">\n'%(b.ni+1, b.nj+1)
-            s1 += '%s:/global_data/block_%d/y\n'%(self.h5name_short, b.id)
+            s1 += '%s:/block_%d/y\n'%(self.h5name_short, b.id)
             s1 += '</DataItem>\n'
             s1 += '</Geometry>\n'
             
@@ -1069,9 +1069,9 @@ class UGKSim(object):
         
         if self.HDF_init:
             
-            self.hdf_global.create_dataset("global_data/final_step",data=self.step)
+            self.hdf_global.create_dataset("final_step",data=self.step)
             
-            self.hdf_global.create_dataset("global_data/sub_files",data=self.sub_names)
+            self.hdf_global.create_dataset("sub_files",data=self.sub_names)
             
             if gdata.residual_options.get_residual & (len(self.time_history_residual_N) != 0):
                 length = len(self.time_history_residual)
@@ -1079,7 +1079,7 @@ class UGKSim(object):
                 residual_xy = np.zeros((length,width+1))
                 residual_xy[:,0] = self.time_history_residual_N
                 residual_xy[:,1:width+1] = self.time_history_residual
-                self.hdf_global.create_dataset("global_data/residual_xy",data=residual_xy, compression=gdata.save_options.compression)
+                self.hdf_global.create_dataset("residual_xy",data=residual_xy, compression=gdata.save_options.compression)
             
             self.xdmf.write('</Grid>\n')
             self.xdmf.write('</Domain>\n')
